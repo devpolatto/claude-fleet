@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — design aprovado; T1–T13 e T16 concluídos (T13 com pulso, reduced-motion e reconexão pendentes de UAT); próximos: T14 (modal) e T15 (instalador, P2), paralelos
+**Current Work:** fleet-mvp — design aprovado; T1–T16 concluídos (T13/T14 com itens visuais e ao vivo pendentes de UAT); próximos: T17 (README) e T18 (UAT, bloqueado por B-001 só na parte do celular)
 
 ---
 

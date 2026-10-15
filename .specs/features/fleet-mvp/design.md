@@ -239,6 +239,7 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
 - **Rotas**:
   - `POST /event` — loopback apenas (403 fora), corpo ≤ 256 KiB, responde 204
   - `GET /` — página; `GET /stream` — SSE; `GET /api/sessions`; `GET /api/session/{id}`
+  - As respostas não incluem caminhos de transcript (`TranscriptPath` tem `json:"-"`); `SessionDetail` traz `ParseErrors` para o rodapé do modal
 - **Flags**: `-addr` (padrão `127.0.0.1:7777`), `-token` (ou `CLAUDE_FLEET_TOKEN`), `-projects` (padrão `~/.claude/projects`)
 - **Auth**: com token, `?t=<token>` na primeira visita grava o cookie `fleet_token` (`HttpOnly; SameSite=Strict`, 30 dias); comparação em tempo constante. `/event` não usa token (o hook não o conhece); a proteção dele é só aceitar loopback. Bind não-loopback sem token → recusa subir (código 2).
 - **Listeners**: se `-addr` for um IP específico fora do loopback (ex.: o IP da tailnet), o servidor também escuta em `127.0.0.1` na mesma porta, para o hook conseguir entregar eventos. Com `0.0.0.0`, o loopback já está incluído.
@@ -254,7 +255,10 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
 
 - **Purpose**: `install-hooks` / `uninstall-hooks` com backup, diff e idempotência.
 - **Location**: `cmd/claude-fleet/install.go`
-- **Regra**: identifica as próprias entradas pelo caminho do comando (`.../fleet-hook.sh`); nunca altera outras.
+- **Regra**: identifica as próprias entradas pelo caminho do comando (`.../fleet-hook.sh`); nunca altera outras. Um grupo misto (nosso + alheio) não é tocado.
+- **Uso**: `claude-fleet install-hooks [-settings] [-dir] [-yes]` / `uninstall-hooks [-settings] [-yes]`. O script vem embutido (`hook/embed.go`) e é gravado em `~/.claude/claude-fleet/fleet-hook.sh` (0755).
+- **Eventos**: os 16 que o Store usa (SessionStart, SessionEnd, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, PostToolBatch, PermissionRequest, PermissionDenied, Notification, Stop, StopFailure, SubagentStart, SubagentStop, PreCompact, PostCompact), com `timeout: 5`, sem `matcher` e sem `async`.
+- **Formato**: preserva a ordem das chaves e os bytes de tudo fora de `hooks`; backup datado `settings.json.bak-AAAAMMDD-HHMMSS`; escrita atômica, seguindo symlink.
 
 ---
 

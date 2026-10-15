@@ -337,11 +337,11 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Abre sem mudar a URL; fecha com X, Esc e toque fora
-- [ ] Números de tokens = script de conferência independente (diferença 0) numa sessão real encerrada
-- [ ] Modelo sem preço mostra "n/d"; transcript ausente mostra "transcript indisponível"
+- [x] Abre sem mudar a URL; fecha com X, Esc e toque fora
+- [x] Números de tokens = script de conferência independente (diferença 0) numa sessão real encerrada — sessão do spike T1 + 1 subagente, 5 categorias com diferença 0
+- [x] Modelo sem preço mostra "n/d"; transcript ausente mostra "transcript indisponível"
 - [ ] Tempo de vida avança a cada segundo; tokens atualizam ≤ 5 s com a sessão ativa
-- [ ] Gate passa: `go vet ./... && go build ./...`
+- [x] Gate passa: `go vet ./... && go build ./...`
 
 **Tests**: manual (UAT) · **Gate**: build
 **Commit**: `feat(ui): pop-up de detalhes do agente`
@@ -357,10 +357,10 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Fixture igual ao `settings.json` atual (telegram-notify, bws-guard) → depois do install, as entradas antigas continuam idênticas
-- [ ] Install duas vezes → segunda execução diz "nada a fazer"
-- [ ] Uninstall remove só as entradas do claude-fleet
-- [ ] Gate passa: `go test ./...`
+- [x] Fixture igual ao `settings.json` atual (telegram-notify, bws-guard) → depois do install, as entradas antigas continuam idênticas
+- [x] Install duas vezes → segunda execução diz "nada a fazer"
+- [x] Uninstall remove só as entradas do claude-fleet
+- [x] Gate passa: `go test ./...`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): instalador de hooks`
