@@ -1,0 +1,22 @@
+# Serviço de usuário do claude-fleet: painel no IP da tailnet, com token.
+# Instalação: veja a seção "Deixar sempre de pé" do README.
+[Unit]
+Description=claude-fleet — painel das sessões do Claude Code
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# Arquivo com CLAUDE_FLEET_TOKEN=..., permissão 600.
+EnvironmentFile=%h/.config/claude-fleet/env
+# O sh -c resolve o IP da tailnet na hora de subir. Sem IP, sai com erro em
+# vez de cair em ":7777" (todas as interfaces), e o systemd tenta de novo.
+# "$$" é o "$" literal para o systemd.
+ExecStart=/bin/sh -c 'ip=$$(tailscale ip -4 2>/dev/null | head -n1); [ -n "$$ip" ] || { echo "Tailscale sem IP" >&2; exit 1; }; exec %h/.local/bin/claude-fleet -addr "$$ip:7777"'
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

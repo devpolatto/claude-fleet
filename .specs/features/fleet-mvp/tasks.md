@@ -394,7 +394,7 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Seguindo só o README numa shell limpa, o painel sobe e recebe eventos
+- [x] Seguindo só o README numa shell limpa, o painel sobe e recebe eventos (env -i com HOME temporário: build, install-hooks, servidor, evento via hook)
 
 **Tests**: none (documentação) · **Gate**: build
 **Commit**: `docs: instalação e acesso pelo celular`
