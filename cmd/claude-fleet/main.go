@@ -2,16 +2,25 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/devpolatto/claude-fleet/internal/store"
+	"github.com/devpolatto/claude-fleet/internal/web"
 )
 
 const defaultAddr = "127.0.0.1:7777"
@@ -22,16 +31,111 @@ type config struct {
 	Projects string
 }
 
+const (
+	bootstrapMaxAge = 30 * time.Minute
+	pruneInterval   = time.Minute
+	shutdownTimeout = 5 * time.Second
+)
+
 func main() {
 	cfg, err := parseConfig(os.Args[1:], os.Getenv, os.Stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0)
 		}
+		log.Printf("claude-fleet: %v", err)
+		os.Exit(2)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx, cfg); err != nil {
 		log.Fatalf("claude-fleet: %v", err)
 	}
-	// O servidor HTTP entra no T11; por enquanto só valida e mostra a configuração.
-	log.Printf("claude-fleet: addr=%s projects=%s token=%t", cfg.Addr, cfg.Projects, cfg.Token != "")
+}
+
+// run liga Store, Refresher, Prune, Hub e servidor HTTP até ctx ser cancelado.
+func run(ctx context.Context, cfg config) error {
+	st := store.New()
+	if n := st.Bootstrap(cfg.Projects, time.Now(), bootstrapMaxAge); n > 0 {
+		log.Printf("claude-fleet: %d sessão(ões) recente(s) descoberta(s) no boot", n)
+	}
+
+	listeners, err := listen(cfg.Addr)
+	if err != nil {
+		return err
+	}
+
+	hub := web.NewHub(st)
+	srv := &http.Server{
+		Handler:           web.NewServer(st, hub, cfg.Token).Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); hub.Run(ctx) }()
+	go func() { defer wg.Done(); store.NewRefresher(st).Run(ctx, store.DefaultRefreshInterval) }()
+	go func() { defer wg.Done(); pruneLoop(ctx, st) }()
+
+	errc := make(chan error, len(listeners))
+	for _, ln := range listeners {
+		log.Printf("claude-fleet: escutando em http://%s", ln.Addr())
+		go func(ln net.Listener) {
+			if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errc <- err
+			}
+		}(ln)
+	}
+
+	var serveErr error
+	select {
+	case <-ctx.Done():
+	case serveErr = <-errc:
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	// O Hub encerra as conexões SSE quando ctx é cancelado; sem isso o
+	// Shutdown esperaria por elas até o timeout.
+	_ = srv.Shutdown(shutdownCtx)
+	wg.Wait()
+	return serveErr
+}
+
+// listen abre o endereço pedido e, se ele for um IP específico fora do
+// loopback (ex.: o IP da tailnet), também 127.0.0.1 na mesma porta, para que
+// o hook consiga entregar eventos em /event.
+func listen(addr string) ([]net.Listener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	lns := []net.Listener{ln}
+
+	host, port, _ := net.SplitHostPort(addr)
+	ip, err := netip.ParseAddr(host)
+	if err != nil || ip.Unmap().IsLoopback() || ip.IsUnspecified() {
+		return lns, nil
+	}
+	lo, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", port))
+	if err != nil {
+		ln.Close()
+		return nil, fmt.Errorf("abrir loopback para o hook: %w", err)
+	}
+	return append(lns, lo), nil
+}
+
+func pruneLoop(ctx context.Context, st *store.Store) {
+	t := time.NewTicker(pruneInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-t.C:
+			st.Prune(now)
+		}
+	}
 }
 
 // parseConfig lê as flags e o ambiente e recusa um bind fora do loopback sem token.

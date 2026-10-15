@@ -108,3 +108,18 @@ func TestParseConfigErrors(t *testing.T) {
 		t.Errorf("-h deveria devolver flag.ErrHelp, veio %v", err)
 	}
 }
+
+func TestListen(t *testing.T) {
+	for _, addr := range []string{"127.0.0.1:0", "0.0.0.0:0"} {
+		lns, err := listen(addr)
+		if err != nil {
+			t.Fatalf("listen(%q): %v", addr, err)
+		}
+		if len(lns) != 1 {
+			t.Errorf("listen(%q) abriu %d listeners, queria 1", addr, len(lns))
+		}
+		for _, ln := range lns {
+			ln.Close()
+		}
+	}
+}

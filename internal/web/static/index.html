@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Fleet</title>
+</head>
+<body>
+<!-- Página provisória: a grade de tiles entra no T13. -->
+<h1>Claude Fleet</h1>
+<pre id="out">conectando…</pre>
+<script>
+const out = document.getElementById('out');
+const es = new EventSource('/stream');
+es.addEventListener('snapshot', (e) => {
+  const sessions = JSON.parse(e.data);
+  out.textContent = sessions.map((s) => `${s.ShortID}  ${s.Project || '?'}  ${s.Status}  ${s.LastTool || ''}`).join('\n') || 'nenhuma sessão';
+});
+es.onerror = () => { out.textContent = 'reconectando…'; };
+</script>
+</body>
+</html>
