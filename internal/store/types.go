@@ -28,6 +28,12 @@ type Usage struct {
 	CostKnown bool // false se algum modelo ficou sem preço
 }
 
+// costKnown trata uso zerado (ainda sem leitura do transcript) como custo
+// conhecido de US$ 0, para não deixar o total "n/d" à toa.
+func (u Usage) costKnown() bool {
+	return u.CostKnown || (u.Tokens == pricing.Tokens{} && u.CostUSD == 0)
+}
+
 // add soma u e o; o custo só é conhecido se os dois forem.
 func (u Usage) add(o Usage) Usage {
 	return Usage{
@@ -39,7 +45,7 @@ func (u Usage) add(o Usage) Usage {
 			Output:    u.Tokens.Output + o.Tokens.Output,
 		},
 		CostUSD:   u.CostUSD + o.CostUSD,
-		CostKnown: u.CostKnown && o.CostKnown,
+		CostKnown: u.costKnown() && o.costKnown(),
 	}
 }
 
@@ -65,6 +71,9 @@ type Session struct {
 	Main                             Usage // só a sessão principal
 	Models                           map[string]Usage
 	Subagents                        map[string]*Agent
+	// TranscriptMissing indica que o transcript principal não pôde ser
+	// lido na última passada do Refresher; os totais anteriores ficam.
+	TranscriptMissing bool
 }
 
 // AgentView é o resumo de um subagente para o mini-tile.
@@ -146,7 +155,7 @@ func (s *Session) clone() Session {
 
 // total soma o uso da sessão principal com o de todos os subagentes.
 func (s *Session) total() Usage {
-	t := s.Main
+	t := Usage{}.add(s.Main)
 	for _, a := range s.Subagents {
 		t = t.add(a.Usage)
 	}
