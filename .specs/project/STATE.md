@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — design aprovado; T1–T7 concluídos; próximos: T8, T9, T10 e T16 (paralelos)
+**Current Work:** fleet-mvp — design aprovado; T1–T10 e T16 concluídos; próximo: T11 (servidor HTTP, rotas e autenticação)
 
 ---
 

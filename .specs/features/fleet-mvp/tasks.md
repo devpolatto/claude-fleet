@@ -224,8 +224,8 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Relógio injetado cobre as duas regras e os limites (14:59 fica, 15:01 sai)
-- [ ] Gate passa: `go test ./...`
+- [x] Relógio injetado cobre as duas regras e os limites (14:59 fica, 15:01 sai)
+- [x] Gate passa: `go test ./...`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(store): limpeza de sessões antigas`
@@ -241,10 +241,10 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Fixture de sessão com 2 subagentes: `Total = Main + Σ subagentes` (tokens e custo)
-- [ ] Subagente presente no disco mas sem evento recebido aparece mesmo assim (status `concluido`)
-- [ ] Transcript ausente → `transcript_missing=true`, sem pânico
-- [ ] Gate passa: `go test -race ./...`
+- [x] Fixture de sessão com 2 subagentes: `Total = Main + Σ subagentes` (tokens e custo)
+- [x] Subagente presente no disco mas sem evento recebido aparece mesmo assim (status `concluido`)
+- [x] Transcript ausente → `transcript_missing=true`, sem pânico
+- [x] Gate passa: `go test -race ./...`
 
 **Tests**: unit · **Gate**: full
 **Commit**: `feat(store): tokens e custo a partir dos transcripts`
@@ -260,10 +260,10 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Teste `httptest` recebe snapshot inicial e um novo após `Apply`
-- [ ] 10 mudanças em 100 ms geram ≤ 2 envios
-- [ ] Cliente desconectado é removido (sem goroutine vazando — conferir com `-race`)
-- [ ] Gate passa: `go test -race ./...`
+- [x] Teste `httptest` recebe snapshot inicial e um novo após `Apply`
+- [x] 10 mudanças em 100 ms geram ≤ 2 envios
+- [x] Cliente desconectado é removido (sem goroutine vazando — conferir com `-race`)
+- [x] Gate passa: `go test -race ./...`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(web): stream SSE`
@@ -376,9 +376,9 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Arquivo com `mtime` de 10 min → sessão criada; 40 min → ignorado
-- [ ] Primeiro evento real tira a sessão de `desconhecido`
-- [ ] Gate passa: `go test ./...`
+- [x] Arquivo com `mtime` de 10 min → sessão criada; 40 min → ignorado
+- [x] Primeiro evento real tira a sessão de `desconhecido`
+- [x] Gate passa: `go test ./...`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(store): descoberta de sessões no boot`

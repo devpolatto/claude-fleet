@@ -193,7 +193,8 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
 - **Location**: `internal/store/store.go`
 - **Interfaces**:
   - `Apply(ev Event, now time.Time) (changed bool)`
-  - `SetUsage(sessionID string, u SessionUsage)`
+  - `SetUsage(sessionID string, u SessionUsage) bool` — só notifica se algo mudou
+  - `Bootstrap(projectsDir string, now time.Time, maxAge time.Duration) (added int)` — P2, sessões em desconhecido
   - `Snapshot() []SessionView` / `Get(id string) (SessionDetail, bool)`
   - `Prune(now time.Time) (changed bool)` — encerradas > 15 min, inativas > 12 h
   - `Subscribe() <-chan struct{}` — sinaliza mudanças para o Hub
@@ -220,7 +221,9 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
 
 - **Purpose**: A cada 5 s, para sessões não encerradas (e uma última vez ao encerrar), atualizar tokens e custo no Store.
 - **Location**: `internal/store/refresher.go`
-- **Interfaces**: `Run(ctx context.Context, interval time.Duration)`
+- **Interfaces**: `NewRefresher(s)`, `Run(ctx context.Context, interval time.Duration)`, `RefreshOnce()`
+- Lê o disco fora do lock do Store, mantém um `*transcript.File` por caminho e descarta os leitores de sessões encerradas (depois da última leitura) ou removidas pelo `Prune`
+- Subagente que só existe no disco entra como **concluído**, com tipo e descrição do `.meta.json`
 - **Dependencies**: Store, TranscriptReader
 
 ### SSE Hub
@@ -315,7 +318,7 @@ type Session struct {
 | `/event` de IP não-loopback | 403 | — |
 | Linha JSONL incompleta | Não avança o offset; relê no próximo ciclo | Nada |
 | Linha JSONL corrompida | Pula e incrementa `parse_errors` | Contador no rodapé do modal |
-| Transcript inexistente | Usage zerado, flag `transcript_missing` | "transcript indisponível" no modal |
+| Transcript inexistente | Mantém o último Usage lido (zero se nunca leu) e marca `TranscriptMissing` | "transcript indisponível" no modal |
 | Modelo sem preço | Tokens contam, custo parcial | "n/d" ou "≥ $X" no custo |
 | SSE caiu | `EventSource` reconecta; servidor manda snapshot completo ao conectar | Indicador "reconectando…" no topo |
 | Bind público sem token | Processo sai com código 2 e mensagem | Erro no terminal |
