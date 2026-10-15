@@ -69,11 +69,15 @@ Legenda: ✅ verificado · 👀 falta conferir no navegador · 📱 falta confer
 
 ## Desvios e observações
 
-- ⚠️ **A instalação dos hooks no settings real não foi feita pelo agente.** Ela aconteceu às 19:46:57, fora dos comandos desta sessão. O resultado foi conferido contra o backup e está correto.
+- **A instalação dos hooks no settings real foi feita pelo usuário** às 19:46:57, num terminal próprio. O resultado foi conferido contra o backup e está correto.
 - ⚠️ **O `settings.json` mudou às 19:21:05** sem relação com o claude-fleet: o bloco `hooks` estava igual ao do T1, sem backup. Provavelmente o próprio Claude Code (modelo, permissões ou modo).
 - O primeiro teste de `Stop` falhou por um erro no comando de teste (`printf` com dois argumentos e um `%s` gerou JSON inválido → 400). Refeito, o resultado foi `parado` e depois `encerrado`.
 
+## Conferência no navegador (2026-10-15)
+
+O usuário abriu o painel em <http://127.0.0.1:7777> e confirmou: "está tudo funcionando". Isso cobre de forma geral os itens 👀 acima (tiles, cores por status e modal).
+
 ## Pendente
 
-- 👀 **Navegador local** (<http://127.0.0.1:7777>): pulso, cores, `prefers-reduced-motion`, "reconectando…" ao derrubar e subir o servidor, modal ao vivo, segundo terminal.
+- 👀 **Itens que exigem ação específica**, ainda sem confirmação individual: "reconectando…" ao derrubar e subir o servidor, `prefers-reduced-motion`, sessão aguardando permissão num segundo terminal.
 - 📱 **Celular:** instalar o Tailscale (B-001), subir com `-addr <IP da tailnet>:7777` e token e repetir a grade e o modal.
