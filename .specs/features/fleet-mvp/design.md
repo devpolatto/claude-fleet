@@ -240,12 +240,14 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
   - `POST /event` — loopback apenas (403 fora), corpo ≤ 256 KiB, responde 204
   - `GET /` — página; `GET /stream` — SSE; `GET /api/sessions`; `GET /api/session/{id}`
 - **Flags**: `-addr` (padrão `127.0.0.1:7777`), `-token` (ou `CLAUDE_FLEET_TOKEN`), `-projects` (padrão `~/.claude/projects`)
-- **Auth**: com token, `?t=<token>` na primeira visita grava cookie `HttpOnly; SameSite=Strict`; comparação em tempo constante. Bind não-loopback sem token → recusa subir.
+- **Auth**: com token, `?t=<token>` na primeira visita grava o cookie `fleet_token` (`HttpOnly; SameSite=Strict`, 30 dias); comparação em tempo constante. `/event` não usa token (o hook não o conhece); a proteção dele é só aceitar loopback. Bind não-loopback sem token → recusa subir (código 2).
+- **Listeners**: se `-addr` for um IP específico fora do loopback (ex.: o IP da tailnet), o servidor também escuta em `127.0.0.1` na mesma porta, para o hook conseguir entregar eventos. Com `0.0.0.0`, o loopback já está incluído.
+- **Ciclo de vida**: no `main`, `Bootstrap` (30 min) no boot; Hub, Refresher (5 s) e `Prune` (1 min) em goroutines; SIGINT/SIGTERM cancela o contexto, o Hub fecha os SSE e o `Shutdown` termina.
 
 ### Página (index.html)
 
 - **Purpose**: Grade de tiles + modal de detalhes.
-- **Location**: `web/index.html` (embutida via `embed`)
+- **Location**: `internal/web/static/index.html` (embutida via `embed`; o `embed` não alcança diretórios acima do pacote)
 - **Comportamento**: `EventSource('/stream')` com reconexão nativa; grade CSS `auto-fill, minmax(150px, 1fr)`; pulso via `@keyframes` só no status ativo (respeita `prefers-reduced-motion`); modal com `<dialog>` (Esc e toque fora fecham); ao abrir, busca `/api/session/{id}` a cada 5 s enquanto aberto; tempo de vida contado no cliente a partir de `started_at`.
 
 ### Installer (P2)

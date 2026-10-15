@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — design aprovado; T1–T10 e T16 concluídos; próximo: T11 (servidor HTTP, rotas e autenticação)
+**Current Work:** fleet-mvp — design aprovado; T1–T11 e T16 concluídos; próximos: T12 (script do hook) e T13 (grade de tiles), paralelos
 
 ---
 

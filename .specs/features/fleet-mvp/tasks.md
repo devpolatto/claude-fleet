@@ -279,11 +279,11 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] `/event` com `RemoteAddr` não-loopback → 403; loopback → 204
-- [ ] Com token: sem credencial → 401; `?t=` correto → 200 + cookie `HttpOnly; SameSite=Strict`; cookie → 200
-- [ ] `/api/session/{id}` inexistente → 404
-- [ ] Nenhuma resposta contém a string-sentinela de um prompt enviado em `/event`
-- [ ] Gate passa: `go test -race ./...` e `go vet ./... && go build ./...`
+- [x] `/event` com `RemoteAddr` não-loopback → 403; loopback → 204
+- [x] Com token: sem credencial → 401; `?t=` correto → 200 + cookie `HttpOnly; SameSite=Strict`; cookie → 200
+- [x] `/api/session/{id}` inexistente → 404
+- [x] Nenhuma resposta contém a string-sentinela de um prompt enviado em `/event`
+- [x] Gate passa: `go test -race ./...` e `go vet ./... && go build ./...`
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(web): servidor, rotas e autenticação`
@@ -310,8 +310,8 @@ T8, T16 ───────────→ T18
 
 ### T13: Página — grade de tiles [P]
 
-**What**: `web/index.html` embutida: `EventSource`, grade responsiva, tile (projeto, id curto, status, última ferramenta, custo resumido), mini-tiles de subagentes, pulso CSS, indicador "reconectando…".
-**Where**: `web/index.html`, `web/embed.go`
+**What**: `internal/web/static/index.html` embutida: `EventSource`, grade responsiva, tile (projeto, id curto, status, última ferramenta, custo resumido), mini-tiles de subagentes, pulso CSS, indicador "reconectando…".
+**Where**: `internal/web/static/index.html`
 **Depends on**: T11
 **Requirement**: UI-01, UI-02, UI-03, UI-04
 
@@ -331,7 +331,7 @@ T8, T16 ───────────→ T18
 ### T14: Página — modal de detalhes [P]
 
 **What**: `<dialog>` aberto pelo tile (ou mini-tile, já focado no subagente) com status, tempo de vida ao vivo, última atividade, modelos, tabela de tokens (5 categorias × principal/subagentes/total), custo com rótulo de estimativa e lista de subagentes; polling de `/api/session/{id}` a cada 5 s enquanto aberto.
-**Where**: `web/index.html`
+**Where**: `internal/web/static/index.html`
 **Depends on**: T9, T13
 **Requirement**: DET-01, DET-02, DET-03, DET-04, DET-05, DET-06
 
