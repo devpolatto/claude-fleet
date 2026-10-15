@@ -1,13 +1,13 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — spike T1 concluído; aguardando aprovação do design com os ajustes do spike
+**Current Work:** fleet-mvp — design aprovado; T1 e T2 concluídos, próximos: T3, T4, T6 (paralelos)
 
 ---
 
 ## Recent Decisions (Last 60 days)
 
-### AD-001: Go com stdlib e página embutida (2026-10-15) — PROPOSTA
+### AD-001: Go com stdlib e página embutida (2026-10-15) — APROVADA
 
 **Decision:** Servidor em Go 1.27 só com stdlib; frontend em HTML/JS puro via `embed`.
 **Reason:** Binário único, sem runtime, fácil de virar serviço systemd; combina com o perfil DevOps do dono.
@@ -91,7 +91,7 @@
 
 ## Todos
 
-- [ ] Aprovar spec, design (incluindo AD-001 e a matriz de testes) e tasks antes de executar
+- [x] Aprovar spec, design (incluindo AD-001 e a matriz de testes) e tasks antes de executar — aprovado em 2026-10-15
 - [x] Rodar o spike T1 primeiro — feito em 2026-10-15; resultados em `design.md` → "Spike T1"
 - [x] Incorporar ao design os 4 impactos do spike — feito em 2026-10-15 (design, spec STATE-01/02, tasks T6/T7)
 - [ ] Revisar a tabela de preços na data do build

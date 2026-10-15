@@ -1,7 +1,7 @@
 # fleet-mvp Tasks
 
 **Design**: `.specs/features/fleet-mvp/design.md`
-**Status**: Draft (aguardando aprovação do design e da matriz de testes)
+**Status**: Approved (2026-10-15) — em execução
 
 ---
 
@@ -105,9 +105,9 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Sem flags → bind `127.0.0.1:7777`
-- [ ] `0.0.0.0:7777` sem token → erro; com token → ok; `[::1]` e `127.x` contam como loopback
-- [ ] Gate passa: `go test ./...` (≥ 5 casos)
+- [x] Sem flags → bind `127.0.0.1:7777`
+- [x] `0.0.0.0:7777` sem token → erro; com token → ok; `[::1]` e `127.x` contam como loopback
+- [x] Gate passa: `go test ./...` (≥ 5 casos) — 21 casos
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): esqueleto e validação de bind`
