@@ -1,0 +1,5 @@
+{"type":"assistant","timestamp":"2026-01-02T10:00:01.000Z","message":{"id":"msg_a","model":"claude-sonnet-5","usage":{"input_tokens":10,"output_tokens":20}}}
+{isto não é json
+{"type":"assistant","message":{"id":"msg_b","model":"claude-sonnet-5","usage":{"input_tokens":"dez"}}}
+
+{"type":"assistant","timestamp":"2026-01-02T10:00:09.000Z","message":{"id":"msg_c","model":"claude-sonnet-5","usage":{"input_tokens":1,"output_tokens":2}}}
