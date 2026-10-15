@@ -4,26 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#0b0d12">
 <title>Claude Fleet</title>
 <style>
   /* Tema escuro por padrão: a página é feita para olhar no celular. */
   :root {
     color-scheme: dark;
-    --bg: #0f1115;
-    --surface: #181b22;
-    --surface-2: #20242d;
-    --border: #2c313c;
-    --text: #e8eaee;
-    --muted: #9aa3b2;
-    --ativo: #4ade80;
-    --ativo-glow: rgba(74, 222, 128, .45);
-    --aguardando: #facc15;
-    --aguardando-bg: #2a2410;
+    --bg: #0b0d12;
+    --surface: #141821;
+    --surface-2: #1b202b;
+    --border: #262c38;
+    --text: #e9ecf2;
+    --muted: #8e97a8;
+    --faint: #5d6576;
+    --ativo: #34d399;
+    --ativo-glow: rgba(52, 211, 153, .5);
+    --aguardando: #fbbf24;
+    --aguardando-bg: #221a05;
+    --aguardando-glow: rgba(251, 191, 36, .28);
     --parado: #8b93a1;
     --desconhecido: #a0a7b4;
-    --erro-bg: #3a2a0c;
-    --radius: 10px;
+    --concluido: #7c8798;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --tile-w: 160px;
   }
 
   * { box-sizing: border-box; }
@@ -38,67 +41,127 @@
     overflow-x: hidden;
   }
 
+  .mono { font-family: var(--mono); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Cabeçalho ---------- */
   header {
     position: sticky;
     top: 0;
     z-index: 1;
-    background: var(--bg);
+    background: rgba(11, 13, 18, .92);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border);
-    padding: 10px 12px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 12px;
+    padding: 16px 16px 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "marca vivo" "contador contador";
+    align-items: center;
+    gap: 12px;
+    transition: background-color .3s;
   }
+  header.reconectando { background: rgba(26, 21, 5, .95); }
 
-  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .marca { grid-area: marca; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .marca svg { flex: none; }
+  h1 { font-size: 17px; margin: 0; font-weight: 700; white-space: nowrap; }
 
-  #contador { color: var(--muted); font-size: 13px; }
-  #contador .alerta { color: var(--aguardando); font-weight: 600; }
-
-  /* Indicador de conexão: só aparece quando o stream cai. */
   #conexao {
-    flex-basis: 100%;
-    margin: 4px 0 0;
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: var(--erro-bg);
-    color: var(--aguardando);
-    font-size: 13px;
+    grid-area: vivo;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
   }
-  #conexao[hidden] { display: none; }
+  #conexao::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ativo);
+    box-shadow: 0 0 6px var(--ativo-glow);
+  }
+  header.reconectando #conexao { color: var(--aguardando); }
+  header.reconectando #conexao::before { background: var(--aguardando); box-shadow: none; }
 
-  main { padding: 12px; }
+  #contador { grid-area: contador; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .chip b { font-family: var(--mono); color: var(--text); font-weight: 700; }
+  .chip.alerta {
+    background: rgba(251, 191, 36, .14);
+    box-shadow: inset 0 0 0 1px rgba(251, 191, 36, .5);
+    color: var(--aguardando);
+  }
+  .chip.alerta b { color: var(--aguardando); }
+  .chip.alerta::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--aguardando);
+  }
+
+  /* ---------- Grade centralizada ---------- */
+  main {
+    padding: 20px 16px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
 
   #grade {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    width: 100%;
+    max-width: 1100px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
     gap: 8px;
   }
 
-  #vazio { color: var(--muted); text-align: center; padding: 32px 8px; }
+  #vazio { color: var(--muted); text-align: center; padding: 32px 8px; margin: 0; }
   #vazio[hidden] { display: none; }
+
+  .nota { color: var(--faint); font-size: 11px; text-align: center; margin: 0; }
 
   /* ---------- Tile da sessão ---------- */
   .tile {
     position: relative;
+    flex: none;
+    width: var(--tile-w);
+    max-width: 100%;
     min-width: 0;
     background: var(--surface);
-    border: 2px solid var(--border);
-    border-left-width: 5px;
-    border-radius: var(--radius);
-    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
     -webkit-tap-highlight-color: transparent;
-    overflow-wrap: anywhere;
+    transition: transform .1s;
   }
   .tile:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
   .tile:active { transform: scale(.98); }
 
-  .tile .projeto {
+  .tile .nome {
     font-weight: 600;
     font-size: 15px;
     white-space: nowrap;
@@ -110,122 +173,182 @@
     justify-content: space-between;
     align-items: baseline;
     gap: 6px;
-    font-size: 12px;
-    color: var(--muted);
+    min-width: 0;
   }
   .tile .id {
     min-width: 0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .tile .status { flex: none; font-weight: 700; font-size: 12px; white-space: nowrap; }
-  .tile .ferramenta {
-    font-size: 12px;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .tile .ferramenta:empty::before { content: "—"; color: var(--muted); }
-  .tile .custo { font-variant-numeric: tabular-nums; color: var(--text); }
-
-  /* Badge que sinaliza subagente aguardando, mesmo com a sessão em outro estado. */
-  .tile .badge {
-    align-self: flex-start;
+    font-family: var(--mono);
     font-size: 11px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: var(--aguardando);
-    color: #1a1600;
+    color: var(--faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  .tile .custo {
+    flex: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .custo.nd { color: var(--faint); }
+  .tile .ferramenta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .tile .ferramenta svg { flex: none; color: var(--muted); }
+  .tile .ferramenta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .ferramenta.vazia { color: var(--faint); }
+  .tile .ferramenta.vazia svg { color: var(--faint); }
 
-  /* ativo: borda verde com pulso */
-  .tile.s-ativo { border-color: var(--ativo); }
-  .tile.s-ativo .status { color: var(--ativo); }
-  .tile.s-ativo { animation: pulso 1.6s ease-in-out infinite; }
-
-  /* aguardando: amarelo, sem pulso */
-  .tile.s-aguardando { border-color: var(--aguardando); background: var(--aguardando-bg); }
-  .tile.s-aguardando .status { color: var(--aguardando); }
-
-  /* parado: cinza */
-  .tile.s-parado { border-color: var(--parado); }
-  .tile.s-parado .status { color: var(--parado); }
-
-  /* encerrado: esmaecido */
-  .tile.s-encerrado { opacity: .45; border-color: var(--border); }
-
-  /* desconhecido: neutro, borda tracejada */
-  .tile.s-desconhecido { border-style: dashed; border-color: var(--desconhecido); }
-  .tile.s-desconhecido .status { color: var(--desconhecido); }
-
-  /* Subagente aguardando: o tile-pai ganha contorno amarelo além da borda do status. */
-  .tile.sub-aguardando { box-shadow: 0 0 0 2px var(--aguardando); }
-  .tile.s-ativo.sub-aguardando { animation-name: pulso-alerta; }
+  /* Etiqueta de status: ponto + rótulo; "aguardando" vira etiqueta sólida. */
+  .status {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--parado);
+  }
+  .status::before {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .status.s-ativo { position: relative; color: var(--ativo); }
+  .status.s-ativo::before { box-shadow: 0 0 6px var(--ativo-glow); }
+  /* Anel que pulsa em volta do ponto verde. */
+  .status.s-ativo::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 var(--ativo-glow);
+    animation: pulso 1.6s ease-out infinite;
+  }
+  .status.s-desconhecido { color: var(--desconhecido); }
+  .status.s-desconhecido::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+  .status.s-aguardando {
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: var(--aguardando);
+    color: var(--aguardando-bg);
+    letter-spacing: .02em;
+  }
+  .status.s-aguardando::before { display: none; }
+  .status.s-concluido { padding: 3px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+  .status.s-concluido::before { display: none; }
 
   @keyframes pulso {
-    0%, 100% { box-shadow: 0 0 0 0 var(--ativo-glow); }
-    50%      { box-shadow: 0 0 0 5px rgba(74, 222, 128, 0); }
-  }
-  @keyframes pulso-alerta {
-    0%, 100% { box-shadow: 0 0 0 2px var(--aguardando), 0 0 0 2px var(--ativo-glow); }
-    50%      { box-shadow: 0 0 0 2px var(--aguardando), 0 0 0 7px rgba(74, 222, 128, 0); }
+    0%   { box-shadow: 0 0 0 0 var(--ativo-glow); }
+    100% { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
   }
 
-  /* ---------- Mini-tiles dos subagentes ---------- */
-  .subs {
+  .aviso-sub {
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 2px;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--aguardando);
   }
+  .aviso-sub svg { flex: none; }
+  .aviso-sub span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .aviso-sub { gap: 4px; font-size: 10px; }
+
+  /* ativo: borda verde suave */
+  .tile.s-ativo { border-color: rgba(52, 211, 153, .4); box-shadow: 0 0 14px rgba(52, 211, 153, .12); }
+
+  /* aguardando: fundo âmbar, borda de 2 px e brilho; sem animação. */
+  .tile.s-aguardando {
+    background: var(--aguardando-bg);
+    border: 2px solid var(--aguardando);
+    padding: 11px;
+    box-shadow: 0 0 18px var(--aguardando-glow);
+  }
+
+  /* subagente aguardando: o tile-pai ganha a mesma borda âmbar. */
+  .tile.sub-aguardando:not(.s-aguardando) {
+    border: 2px solid var(--aguardando);
+    padding: 11px;
+    box-shadow: 0 0 14px rgba(251, 191, 36, .18);
+  }
+
+  /* desconhecido: neutro, borda tracejada */
+  .tile.s-desconhecido { background: var(--bg); border: 1.5px dashed rgba(160, 167, 180, .55); }
+
+  /* encerrado: esmaecido */
+  .tile.s-encerrado { opacity: .42; }
+
+  /* ---------- Mini-tiles dos subagentes ---------- */
+  .subs { display: flex; flex-wrap: wrap; gap: 4px; }
   .sub {
     min-width: 0;
     max-width: 100%;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 4px;
+    min-height: 24px;
+    padding: 3px 7px 3px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
     background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text);
+    color: var(--muted);
   }
-  .sub .nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sub::before {
+  .sub svg { flex: none; }
+  .sub .tipo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub.s-ativo {
+    background: rgba(52, 211, 153, .12);
+    box-shadow: inset 0 0 0 1px rgba(52, 211, 153, .35);
+    color: var(--ativo);
+  }
+  .sub.s-ativo::before {
     content: "";
     flex: none;
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    background: var(--parado);
+    background: var(--ativo);
+    box-shadow: 0 0 5px var(--ativo-glow);
   }
-  .sub.s-ativo { border-color: var(--ativo); }
-  .sub.s-ativo::before { background: var(--ativo); animation: piscar 1.2s ease-in-out infinite; }
-  .sub.s-aguardando { border-color: var(--aguardando); background: var(--aguardando-bg); color: var(--aguardando); font-weight: 600; }
-  .sub.s-aguardando::before { background: var(--aguardando); }
-  /* concluído: apagado */
-  .sub.s-concluido { opacity: .4; }
+  .sub.s-aguardando {
+    --icone-interno: var(--aguardando);
+    background: var(--aguardando);
+    color: var(--aguardando-bg);
+    box-shadow: 0 0 8px rgba(251, 191, 36, .5);
+  }
+  .sub.s-concluido { font-weight: 500; }
 
-  @keyframes piscar { 50% { opacity: .3; } }
-
-  /* ---------- Modal de detalhes ---------- */
+  /* ---------- Pop-up de detalhes ---------- */
   #detalhe {
-    width: min(760px, calc(100vw - 32px));
-    max-height: calc(100dvh - 32px);
+    width: min(520px, calc(100vw - 32px));
+    max-height: calc(100dvh - 48px);
     padding: 0;
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: 20px;
     background: var(--surface);
     color: var(--text);
     overflow: hidden;
   }
   #detalhe[open] { display: flex; }
-  #detalhe::backdrop { background: rgba(0, 0, 0, .6); }
+  #detalhe::backdrop { background: rgba(5, 6, 10, .72); }
   body.modal-aberto { overflow: hidden; }
 
   .det {
@@ -235,170 +358,287 @@
     min-width: 0;
     max-height: inherit;
   }
+  .alca { display: none; }
   .det-topo {
     flex: none;
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 16px 12px;
     border-bottom: 1px solid var(--border);
   }
+  .det-topo .linha { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .det-estado { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+  .det-estado .status { padding: 3px 8px; border-radius: 999px; }
+  .det-estado .status.s-ativo { background: rgba(52, 211, 153, .12); }
+  .det-estado .status.s-ativo::after { left: 8px; }
   .det-topo h2 {
-    flex: 1;
-    min-width: 0;
     margin: 0;
-    font-size: 16px;
+    font-size: 20px;
+    font-weight: 700;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .det-sub { display: flex; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .det-sub .mono { color: var(--faint); font-weight: 400; }
   .fechar {
     flex: none;
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
     background: var(--surface-2);
     color: var(--text);
-    font-size: 20px;
-    line-height: 1;
     cursor: pointer;
   }
   .fechar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
   .det-corpo {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
     overscroll-behavior: contain;
     scrollbar-color: var(--border) transparent;
   }
+  /* Na coluna com rolagem, nenhum bloco encolhe: quem rola é o contêiner. */
+  .det-corpo > * { flex: none; }
   .det-rodape {
     flex: none;
-    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 16px 14px;
     border-top: 1px solid var(--border);
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
   }
-  .det h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; }
-  .det h3:first-child { margin-top: 0; }
+  .det-rodape .alerta { display: flex; align-items: center; gap: 6px; }
+  .det-rodape .alerta svg { flex: none; }
+  .det-rodape:empty { display: none; }
+
+  .det h3 {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
 
   .aviso {
-    margin: 0 0 10px;
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: var(--erro-bg);
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--aguardando-bg);
     color: var(--aguardando);
     font-size: 13px;
   }
 
-  .campos {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: 4px 12px;
-    margin: 0;
+  .cwd {
+    margin: 2px 0 0;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: var(--bg);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .campos dt { color: var(--muted); }
-  .campos dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-  .num { font-variant-numeric: tabular-nums; }
-  .st-ativo { color: var(--ativo); font-weight: 700; }
-  .st-aguardando { color: var(--aguardando); font-weight: 700; }
-  .st-parado, .st-encerrado, .st-concluido { color: var(--parado); font-weight: 700; }
-  .st-desconhecido { color: var(--desconhecido); font-weight: 700; }
 
-  .modelos { display: flex; flex-wrap: wrap; gap: 4px; }
+  .custo-box { padding: 14px; border-radius: 12px; background: var(--surface-2); }
+  .custo-box .linha { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .custo-total { margin: 0; font-family: var(--mono); font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .custo-box .rot { color: var(--muted); font-size: 11px; font-weight: 500; }
+  .rotulo-estimativa { color: var(--faint); font-size: 11px; margin: 2px 0 0; }
+
+  .metricas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .metrica { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+  .metrica .k { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: var(--muted); }
+  .metrica .k.vivo::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ativo);
+    box-shadow: 0 0 5px var(--ativo-glow);
+  }
+  .metrica .v {
+    margin-top: 4px;
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .metrica .v.txt { font-family: inherit; }
+
+  .modelos { display: flex; flex-wrap: wrap; gap: 6px; }
   .modelo {
-    font-size: 12px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: var(--surface-2);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--bg);
     border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
     overflow-wrap: anywhere;
   }
 
-  /* A tabela rola na horizontal dentro do próprio contêiner, nunca a página. */
+  /* Tabela: uma linha por agente e uma coluna por categoria; cabe em 360 px. */
   .tabela-wrap {
     overflow-x: auto;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 10px;
     -webkit-overflow-scrolling: touch;
     scrollbar-color: var(--border) transparent;
   }
-  .tokens { border-collapse: collapse; width: 100%; font-size: 12px; }
-  .tokens th, .tokens td { padding: 5px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
-  .tokens thead th { color: var(--muted); font-weight: 600; background: var(--surface-2); max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
-  .tokens tbody th { text-align: left; color: var(--muted); font-weight: 400; }
-  .tokens th:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    background: var(--surface);
+  .tokens { border-collapse: collapse; width: 100%; font-size: 10.5px; }
+  .tokens th, .tokens td { padding: 8px 6px; text-align: right; white-space: nowrap; }
+  .tokens th:first-child, .tokens td:first-child { padding-left: 10px; }
+  .tokens th:last-child, .tokens td:last-child { padding-right: 10px; }
+  .tokens thead th { color: var(--muted); font-size: 10px; font-weight: 600; background: var(--surface-2); }
+  .tokens thead th:first-child { text-align: left; }
+  .tokens tbody tr { border-top: 1px solid var(--border); }
+  .tokens tbody th {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     text-align: left;
+    font-size: 11px;
+    font-weight: 400;
   }
-  .tokens thead th:first-child { background: var(--surface-2); }
-  .tokens tr.soma td, .tokens tr.soma th { font-weight: 700; color: var(--text); }
-  .tokens tr.custo-linha td, .tokens tr.custo-linha th { border-bottom: 0; color: var(--text); }
-  .tokens .col-total { font-weight: 700; }
-  .tokens .foco { background: var(--aguardando-bg); color: var(--aguardando); }
+  .tokens td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .tokens td.zero { color: var(--faint); }
+  .tokens tr.soma th, .tokens tr.soma td { font-weight: 700; }
+  .tokens tr.foco { background: rgba(251, 191, 36, .1); }
+  .tokens tr.foco th { color: var(--aguardando); }
+  .legenda { margin: 6px 0 0; color: var(--faint); font-size: 10px; }
 
-  .custo-total { font-size: 20px; font-weight: 700; margin: 0; }
-  .rotulo-estimativa { color: var(--muted); font-size: 12px; margin: 2px 0 0; }
-
-  .agentes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .agentes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .agente {
+    padding: 12px;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    background: var(--surface-2);
+    border-radius: 12px;
+    background: var(--bg);
     min-width: 0;
-    scroll-margin: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scroll-margin: 16px;
   }
-  .agente.foco { border-color: var(--aguardando); box-shadow: 0 0 0 2px var(--aguardando); }
-  .agente .cab { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-  .agente .tipo { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-  .agente .desc { margin: 2px 0 4px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-  .agente .meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; }
+  .agente.foco {
+    padding: 11px;
+    border: 2px solid var(--aguardando);
+    background: var(--aguardando-bg);
+    box-shadow: 0 0 14px var(--aguardando-glow);
+  }
+  .agente .cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+  .agente .titulo { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .agente .tipo { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agente .em-foco {
+    flex: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(251, 191, 36, .18);
+    color: var(--aguardando);
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .agente .cab .status { flex: none; align-self: center; padding: 3px 8px; border-radius: 999px; }
+  .agente .cab .status.s-ativo { background: rgba(52, 211, 153, .12); }
+  .agente .cab .status.s-ativo::after { left: 8px; }
+  .agente .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 11px; color: var(--faint); }
   .agente .meta span { white-space: nowrap; }
+  .agente .meta b { font-family: var(--mono); font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
   .vazio-det { color: var(--muted); margin: 0; }
 
-  /* Celular: o modal ocupa a tela toda e rola por dentro. */
-  @media (max-width: 600px) {
+  /* A partir de 600 px os tiles crescem para 200 px. */
+  @media (min-width: 600px) {
+    :root { --tile-w: 200px; }
+    #grade { gap: 14px; }
+    main { padding-top: 32px; }
+    header {
+      padding: 20px 32px;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      grid-template-areas: "marca contador . vivo";
+      gap: 20px;
+    }
+  }
+
+  /* Celular: o pop-up vira uma folha que sobe do rodapé e rola por dentro. */
+  @media (max-width: 599px) {
     #detalhe {
       width: 100%;
       max-width: 100%;
-      height: 100%;
-      max-height: 100%;
-      margin: 0;
-      border: 0;
-      border-radius: 0;
+      max-height: 90dvh;
+      margin: auto 0 0;
+      border-width: 1px 0 0;
+      border-radius: 20px 20px 0 0;
     }
-    .det { max-height: 100%; }
+    .alca {
+      display: block;
+      flex: none;
+      width: 36px;
+      height: 4px;
+      margin: 10px auto 0;
+      border-radius: 2px;
+      background: var(--border);
+    }
+    .det-topo { padding-top: 10px; }
+    .metrica .v { font-size: 13px; }
   }
 
-  /* Sem animação para quem pediu menos movimento. */
+  /* Sem animação para quem pediu menos movimento: o anel fica fixo. */
   @media (prefers-reduced-motion: reduce) {
-    .tile, .sub::before { animation: none !important; }
+    .status.s-ativo::after { animation: none; box-shadow: 0 0 0 3px rgba(52, 211, 153, .25); }
+    .tile { transition: none; }
     .tile:active { transform: none; }
+    header { transition: none; }
   }
 </style>
 </head>
 <body>
-<header>
-  <h1>Claude Fleet</h1>
-  <span id="contador">conectando…</span>
-  <p id="conexao" role="status" hidden>reconectando…</p>
+<header id="topo" class="reconectando">
+  <div class="marca">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" rx="2.5" fill="#34d399"/>
+      <rect x="12" y="1" width="9" height="9" rx="2.5" fill="#fbbf24"/>
+      <rect x="1" y="12" width="9" height="9" rx="2.5" fill="#8b93a1"/>
+      <rect x="12.75" y="12.75" width="7.5" height="7.5" rx="2" fill="none" stroke="#a0a7b4" stroke-width="1.5" stroke-dasharray="2 2"/>
+    </svg>
+    <h1>Claude Fleet</h1>
+  </div>
+  <div id="contador"><span class="chip">conectando…</span></div>
+  <p id="conexao" role="status">conectando…</p>
 </header>
 <main>
   <div id="grade" aria-live="polite"></div>
   <p id="vazio" hidden>Nenhuma sessão no momento.</p>
+  <p class="nota">Custos estimados pelo preço de lista da API.</p>
 </main>
 <dialog id="detalhe" aria-labelledby="det-titulo">
   <div class="det">
+    <div class="alca" aria-hidden="true"></div>
     <div class="det-topo">
+      <div class="linha">
+        <div class="det-estado" id="det-estado"></div>
+        <button type="button" class="fechar" id="det-fechar" aria-label="Fechar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
       <h2 id="det-titulo">Sessão</h2>
-      <button type="button" class="fechar" id="det-fechar" aria-label="Fechar">×</button>
+      <div class="det-sub" id="det-sub"></div>
     </div>
     <div class="det-corpo" id="det-corpo"></div>
     <div class="det-rodape" id="det-rodape"></div>
@@ -420,12 +660,47 @@ const ROTULO = {
 // Ordem dos grupos na grade: o que pede atenção vem primeiro.
 const ORDEM = { aguardando: 0, ativo: 1, parado: 2, desconhecido: 3, encerrado: 4 };
 
+const topo = document.getElementById('topo');
 const grade = document.getElementById('grade');
 const vazio = document.getElementById('vazio');
 const contador = document.getElementById('contador');
 const conexao = document.getElementById('conexao');
 
 const moeda = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Ícones SVG inline. Montados com createElementNS: nada de innerHTML.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ICONES = {
+  ferramenta: { size: 12, paths: [{ d: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z', stroke: 'currentColor', w: 2 }] },
+  check: { size: 10, paths: [{ d: 'M5 12.5l4.5 4.5L19 7.5', stroke: 'currentColor', w: 3 }] },
+  alerta: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'currentColor' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--icone-interno, var(--aguardando-bg))', w: 2.4 }] },
+  aviso: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'var(--parado)' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--surface)', w: 2.4 }] },
+};
+
+function icone(nome, tamanho) {
+  const def = ICONES[nome];
+  const s = tamanho || def.size;
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('width', s);
+  svg.setAttribute('height', s);
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const p of def.paths) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', p.d);
+    // style, e não atributo: atributos de apresentação não resolvem var().
+    if (p.fill) path.style.fill = p.fill;
+    if (p.stroke) {
+      path.style.stroke = p.stroke;
+      path.setAttribute('stroke-width', p.w);
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+    }
+    svg.append(path);
+  }
+  return svg;
+}
 
 // subAguardando informa se algum subagente da sessão espera permissão.
 function subAguardando(s) {
@@ -464,48 +739,82 @@ function el(tag, classe, texto) {
   return n;
 }
 
+function statusSpan(st) {
+  const s = ROTULO[st] ? st : 'desconhecido';
+  return el('span', 'status s-' + s, ROTULO[s]);
+}
+
+function avisoSub(texto) {
+  const n = el('div', 'aviso-sub');
+  n.append(icone('alerta'), el('span', null, texto));
+  return n;
+}
+
+// miniTile: ativos e aguardando um a um; concluídos entram agrupados.
+function miniTile(a) {
+  const st = ROTULO[a.Status] ? a.Status : 'desconhecido';
+  const tipo = a.Type || 'subagente';
+  const mini = el('span', 'sub s-' + st);
+  mini.dataset.agent = a.ID;
+  mini.title = tipo + ' · ' + ROTULO[st] + (a.LastTool ? ' · ' + a.LastTool : '');
+  if (st === 'aguardando') mini.append(icone('alerta', 10));
+  mini.append(el('span', 'tipo', tipo));
+  return mini;
+}
+
 function montarTile(s) {
   const status = ROTULO[s.Status] ? s.Status : 'desconhecido';
+  const subs = s.Subagents || [];
+  const subAg = subAguardando(s);
   const tile = el('div', 'tile s-' + status);
   tile.dataset.id = s.ID;
   tile.tabIndex = 0;
   tile.setAttribute('role', 'button');
+  if (subAg) tile.classList.add('sub-aguardando');
 
   const nome = s.Name || s.Project || s.ShortID || s.ID;
   tile.title = s.Cwd || nome;
-  tile.append(el('div', 'projeto', nome));
 
-  const l1 = el('div', 'linha');
-  l1.append(el('span', 'id', s.ShortID), el('span', 'status', ROTULO[status]));
-  tile.append(l1);
+  tile.append(statusSpan(status));
+  if (subAg && status !== 'aguardando') tile.append(avisoSub('subagente aguardando'));
+  tile.append(el('div', 'nome', nome));
 
-  tile.append(el('div', 'ferramenta', s.LastTool || ''));
+  const linha = el('div', 'linha');
+  const custo = formatarCusto(s.Total);
+  linha.append(el('span', 'id', s.ShortID), el('span', 'custo' + (custo === 'n/d' ? ' nd' : ''), custo));
+  tile.append(linha);
 
-  const l2 = el('div', 'linha');
-  l2.append(el('span', null, 'custo'), el('span', 'custo', formatarCusto(s.Total)));
-  tile.append(l2);
+  const ferr = el('div', 'ferramenta' + (s.LastTool ? '' : ' vazia'));
+  ferr.append(icone('ferramenta'), el('span', null, s.LastTool || '—'));
+  tile.append(ferr);
 
-  const subs = s.Subagents || [];
-  if (subAguardando(s)) {
-    tile.classList.add('sub-aguardando');
-    tile.append(el('span', 'badge', 'subagente aguardando'));
-  }
   if (subs.length) {
     const box = el('div', 'subs');
-    for (const a of subs) {
-      const st = ROTULO[a.Status] ? a.Status : 'desconhecido';
-      const mini = el('span', 'sub s-' + st);
-      mini.dataset.agent = a.ID;
-      mini.title = (a.Type || 'subagente') + ' · ' + ROTULO[st] + (a.LastTool ? ' · ' + a.LastTool : '');
-      mini.append(el('span', 'nome', a.Type || 'subagente'));
-      box.append(mini);
+    const feitos = subs.filter((a) => a.Status === 'concluido');
+    for (const a of subs) if (a.Status !== 'concluido') box.append(miniTile(a));
+    if (feitos.length === 1) {
+      const m = miniTile(feitos[0]);
+      m.prepend(icone('check'));
+      box.append(m);
+    } else if (feitos.length > 1) {
+      // Agrupado: o toque abre a sessão sem foco num subagente específico.
+      const m = el('span', 'sub s-concluido');
+      m.title = feitos.length + ' subagentes concluídos';
+      m.append(icone('check'), el('span', 'tipo', feitos.length + ' concluídos'));
+      box.append(m);
     }
     tile.append(box);
   }
 
-  const rotulo = nome + ', ' + ROTULO[status] + (subAguardando(s) ? ', subagente aguardando' : '');
+  const rotulo = nome + ', ' + ROTULO[status] + (subAg ? ', subagente aguardando' : '') + ', ' + custo;
   tile.setAttribute('aria-label', rotulo);
   return tile;
+}
+
+function chip(numero, texto, classe) {
+  const c = el('span', 'chip' + (classe ? ' ' + classe : ''));
+  c.append(el('b', null, String(numero)), texto);
+  return c;
 }
 
 function render(sessoes) {
@@ -519,12 +828,8 @@ function render(sessoes) {
   vazio.hidden = sessoes.length > 0;
 
   const aguardam = sessoes.filter(precisaAtencao).length;
-  contador.replaceChildren();
-  contador.append(sessoes.length + (sessoes.length === 1 ? ' sessão' : ' sessões'));
-  if (aguardam > 0) {
-    contador.append(' · ');
-    contador.append(el('span', 'alerta', aguardam + ' aguardando'));
-  }
+  contador.replaceChildren(chip(sessoes.length, sessoes.length === 1 ? 'sessão' : 'sessões'));
+  if (aguardam > 0) contador.append(chip(aguardam, 'aguardando', 'alerta'));
 
   if (focoId) {
     for (const t of grade.children) {
@@ -538,7 +843,7 @@ grade.addEventListener('click', (e) => {
   const tile = e.target.closest('.tile');
   if (!tile) return;
   const mini = e.target.closest('.sub');
-  openDetail(tile.dataset.id, mini ? mini.dataset.agent : undefined);
+  openDetail(tile.dataset.id, mini && mini.dataset.agent ? mini.dataset.agent : undefined);
 });
 grade.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -548,33 +853,36 @@ grade.addEventListener('keydown', (e) => {
   openDetail(tile.dataset.id);
 });
 
-// ---------- Modal de detalhes ----------
+// ---------- Pop-up de detalhes ----------
 
 const dlg = document.getElementById('detalhe');
+const detEstado = document.getElementById('det-estado');
 const detTitulo = document.getElementById('det-titulo');
+const detSub = document.getElementById('det-sub');
 const detCorpo = document.getElementById('det-corpo');
 const detRodape = document.getElementById('det-rodape');
 
 const milhar = new Intl.NumberFormat('pt-BR');
+const umaCasa = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 const dataHora = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
 const hora = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'medium' });
 
-// Intervalo do polling de /api/session/{id} enquanto o modal está aberto.
+// Intervalo do polling de /api/session/{id} enquanto o pop-up está aberto.
 const POLL_MS = 5000;
 
 // As 5 categorias de tokens, na ordem da tabela (chaves de pricing.Tokens).
 const CATEGORIAS = [
-  ['Input', 'input'],
-  ['Cache5m', 'cache write 5 min'],
-  ['Cache1h', 'cache write 1 h'],
-  ['CacheRead', 'cache read'],
-  ['Output', 'output'],
+  ['Input', 'In', 'input'],
+  ['Cache5m', 'C 5m', 'cache write 5 min'],
+  ['Cache1h', 'C 1h', 'cache write 1 h'],
+  ['CacheRead', 'Lido', 'cache read'],
+  ['Output', 'Out', 'output'],
 ];
 
-const ROTULO_ESTIMATIVA = 'estimativa · preço de lista da API';
+const ROTULO_ESTIMATIVA = 'estimativa pelo preço de lista da API';
 
-// Estado do modal aberto. geracao muda a cada abertura/fechamento, para
-// descartar respostas que chegam depois de o modal fechar ou trocar de sessão.
+// Estado do pop-up aberto. geracao muda a cada abertura/fechamento, para
+// descartar respostas que chegam depois de o pop-up fechar ou trocar de sessão.
 const det = {
   sessionId: null,
   agentId: null,
@@ -618,12 +926,19 @@ function relativo(msAtras) {
   return 'há ' + Math.floor(s / 86400) + ' d';
 }
 
+// compacto: "412", "38,2 k", "402 k", "1,4 M". O valor exato vai no title.
+function compacto(n) {
+  if (n < 1000) return milhar.format(n);
+  if (n < 1e6) return (n < 1e5 ? umaCasa.format(n / 1e3) : milhar.format(Math.round(n / 1e3))) + ' k';
+  return umaCasa.format(n / 1e6) + ' M';
+}
+
 function somaTokens(t) {
   if (!t) return 0;
   return CATEGORIAS.reduce((acc, [k]) => acc + (t[k] || 0), 0);
 }
 
-// Valores abaixo de US$ 1 ganham até 4 casas no modal: sessões curtas custam
+// Valores abaixo de US$ 1 ganham até 4 casas no pop-up: sessões curtas custam
 // frações de centavo e "< US$ 0,01" esconderia a diferença entre agentes.
 const moedaFina = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
@@ -652,7 +967,7 @@ function fimDe(obj, encerrado) {
 
 // vivo cria um nó que o relógio de 1 s atualiza.
 function vivo(tipo, ini, fim, classe) {
-  const node = el('span', classe || 'num');
+  const node = el(classe ? 'div' : 'span', classe || 'num');
   det.vivos.push({ node, tipo, ini, fim });
   return node;
 }
@@ -685,94 +1000,110 @@ function nomesAgentes(subs) {
   });
 }
 
-function campo(dl, rotulo, valor) {
-  dl.append(el('dt', null, rotulo));
-  const dd = el('dd');
-  if (valor instanceof Node) dd.append(valor); else dd.textContent = valor;
-  dl.append(dd);
+function secao(titulo, conteudo) {
+  const s = el('section');
+  s.append(el('h3', null, titulo), conteudo);
+  return s;
 }
 
-function statusSpan(st) {
-  const s = ROTULO[st] ? st : 'desconhecido';
-  return el('span', 'st-' + s, ROTULO[s]);
+function metrica(rotulo, valor, opts) {
+  const m = el('div', 'metrica');
+  m.append(el('div', 'k' + (opts && opts.vivo ? ' vivo' : ''), rotulo));
+  if (valor instanceof Node) m.append(valor);
+  else m.append(el('div', 'v' + (opts && opts.texto ? ' txt' : ''), valor));
+  return m;
 }
 
-// montarTabela: linhas = categorias; colunas = principal, cada subagente, total.
-// Uma coluna por subagente (e não uma "subagentes" somada): o critério pede
-// tokens por agente, e a tabela rola na horizontal dentro do próprio contêiner,
-// com a coluna de rótulos fixa à esquerda.
+// montarTabela: linhas = principal, cada subagente e total; colunas = categorias.
+// Com uma linha por agente a tabela cresce para baixo e cabe em 360 px.
 function montarTabela(d, subs, nomes) {
-  const cols = [{ nome: 'principal', uso: d.Main, id: null }];
-  subs.forEach((a, i) => cols.push({ nome: nomes[i], uso: a.Usage, id: a.ID, titulo: a.Description || nomes[i] }));
-  cols.push({ nome: 'total', uso: d.Total, id: null, total: true });
+  const linhas = [{ nome: 'Principal', uso: d.Main, id: null }];
+  subs.forEach((a, i) => linhas.push({ nome: nomes[i], uso: a.Usage, id: a.ID }));
+  linhas.push({ nome: 'Total', uso: d.Total, id: null, total: true });
 
   const tabela = el('table', 'tokens');
   const thead = el('thead');
   const hr = el('tr');
-  hr.append(el('th', null, 'tokens'));
-  for (const c of cols) {
-    const th = el('th', c.total ? 'col-total' : null, c.nome);
+  const th0 = el('th', null, 'Agente');
+  th0.scope = 'col';
+  hr.append(th0);
+  for (const [, curto, longo] of CATEGORIAS) {
+    const th = el('th', null, curto);
     th.scope = 'col';
-    if (c.titulo) th.title = c.titulo;
-    if (c.id && c.id === det.agentId) th.classList.add('foco');
+    th.title = longo;
     hr.append(th);
   }
   thead.append(hr);
   tabela.append(thead);
 
   const tbody = el('tbody');
-  const linha = (rotulo, classe, valor) => {
-    const tr = el('tr', classe);
-    const th = el('th', null, rotulo);
+  for (const l of linhas) {
+    const tr = el('tr', l.total ? 'soma' : null);
+    if (l.id && l.id === det.agentId) tr.classList.add('foco');
+    const th = el('th', null, l.nome);
     th.scope = 'row';
+    th.title = l.nome;
     tr.append(th);
-    for (const c of cols) {
-      const td = el('td', 'num' + (c.total ? ' col-total' : ''), valor(c.uso || {}));
-      if (c.id && c.id === det.agentId) td.classList.add('foco');
+    const t = (l.uso && l.uso.Tokens) || {};
+    for (const [k, , longo] of CATEGORIAS) {
+      const n = t[k] || 0;
+      const td = el('td', n === 0 ? 'zero' : null, compacto(n));
+      td.title = longo + ': ' + milhar.format(n);
       tr.append(td);
     }
     tbody.append(tr);
-  };
-  for (const [k, rotulo] of CATEGORIAS) {
-    linha(rotulo, null, (u) => milhar.format((u.Tokens && u.Tokens[k]) || 0));
   }
-  linha('soma', 'soma', (u) => milhar.format(somaTokens(u.Tokens)));
-  linha('custo', 'custo-linha', (u) => formatarUso(u));
   tabela.append(tbody);
 
   const wrap = el('div', 'tabela-wrap');
   wrap.append(tabela);
-  return wrap;
+  const box = el('div');
+  box.append(wrap, el('p', 'legenda', 'C 5m / C 1h = cache write · Lido = cache read'));
+  return box;
+}
+
+function metaItem(rotulo, valor) {
+  const s = el('span');
+  const b = valor instanceof Node ? valor : el('b', null, valor);
+  s.append(rotulo + ' ', b);
+  return s;
 }
 
 function montarAgente(a, nome) {
   const li = el('li', 'agente');
   li.dataset.agent = a.ID;
-  if (a.ID === det.agentId) li.classList.add('foco');
+  const foco = a.ID === det.agentId;
+  if (foco) li.classList.add('foco');
 
   const cab = el('div', 'cab');
-  cab.append(el('span', 'tipo', nome), statusSpan(a.Status));
+  const titulo = el('div', 'titulo');
+  titulo.append(el('span', 'tipo', nome));
+  if (foco) titulo.append(el('span', 'em-foco', 'em foco'));
+  cab.append(titulo, statusSpan(a.Status));
   li.append(cab);
-  li.append(el('p', 'desc', a.Description || 'sem descrição'));
 
   const meta = el('div', 'meta');
-  const vida = el('span');
-  vida.append('vida ', vivo('vida', ms(a.StartedAt), fimDe(a, a.Status === 'concluido')));
-  const tok = el('span', 'num', milhar.format(somaTokens(a.Usage && a.Usage.Tokens)) + ' tokens');
-  const custo = el('span', 'num', formatarUso(a.Usage));
-  meta.append(vida, tok, custo);
-  if (a.LastTool) meta.append(el('span', null, 'última: ' + a.LastTool));
+  const vida = vivo('vida', ms(a.StartedAt), fimDe(a, a.Status === 'concluido'));
+  const b = el('b');
+  b.append(vida);
+  meta.append(
+    metaItem('vida', b),
+    metaItem('tokens', compacto(somaTokens(a.Usage && a.Usage.Tokens))),
+    metaItem('custo', formatarUso(a.Usage)));
+  if (a.LastTool) meta.append(metaItem('última', a.LastTool));
   li.append(meta);
   return li;
+}
+
+function alertaRodape(texto) {
+  const p = el('div', 'alerta');
+  p.append(icone('aviso'), el('span', null, texto));
+  return p;
 }
 
 function renderDetalhe() {
   const d = det.dados;
   det.vivos = [];
-
-  // Preserva a rolagem horizontal da tabela entre atualizações.
-  const wrapAntigo = detCorpo.querySelector('.tabela-wrap');
-  const rolagemTabela = wrapAntigo ? wrapAntigo.scrollLeft : 0;
 
   const frag = document.createDocumentFragment();
   if (det.aviso) frag.append(el('p', 'aviso', det.aviso));
@@ -780,62 +1111,75 @@ function renderDetalhe() {
   if (!d) {
     if (!det.aviso) frag.append(el('p', 'vazio-det', 'carregando…'));
     detCorpo.replaceChildren(frag);
-    detRodape.textContent = ROTULO_ESTIMATIVA;
+    detRodape.replaceChildren();
     return;
   }
 
-  detTitulo.textContent = d.Name || d.Project || d.ID;
-  if (d.TranscriptMissing) frag.append(el('p', 'aviso', 'transcript indisponível — mostrando os últimos totais lidos'));
-
-  const encerrada = d.Status === 'encerrado';
-  const dl = el('dl', 'campos');
-  campo(dl, 'projeto', d.Project || '—');
-  campo(dl, 'sessão', el('span', 'mono', d.ID));
-  campo(dl, 'cwd', el('span', 'mono', d.Cwd || '—'));
-  campo(dl, 'status', statusSpan(d.Status));
-  const ini = ms(d.StartedAt);
-  campo(dl, 'início', ini ? dataHora.format(ini) : '—');
-  campo(dl, 'tempo de vida', vivo('vida', ini, fimDe(d, encerrada)));
-  campo(dl, 'última atividade', vivo('rel', ms(d.LastEventAt)));
-  campo(dl, 'última ferramenta', d.LastTool || '—');
-
   const subs = subagentesOrdenados(d);
   const nomes = nomesAgentes(subs);
+  const encerrada = d.Status === 'encerrado';
+
+  // Cabeçalho fixo: status, nome, projeto · id curto.
+  detEstado.replaceChildren(statusSpan(d.Status));
+  const aguardam = subs.filter((a) => a.Status === 'aguardando').length;
+  if (aguardam > 0) {
+    detEstado.append(avisoSub(aguardam + (aguardam === 1 ? ' subagente aguardando' : ' subagentes aguardando')));
+  }
+  detTitulo.textContent = d.Name || d.Project || d.ID;
+  detSub.replaceChildren(el('span', null, d.Project || '—'), el('span', null, '·'));
+  const idCurto = el('span', 'mono', d.ID.slice(0, 8));
+  idCurto.title = d.ID;
+  detSub.append(idCurto);
+
+  const cwd = el('p', 'cwd', d.Cwd || '—');
+  cwd.title = d.Cwd || '';
+  frag.append(cwd);
+
+  // Custo em destaque, sempre rotulado como estimativa.
+  const custo = el('div', 'custo-box');
+  const cl = el('div', 'linha');
+  cl.append(el('p', 'custo-total', formatarUso(d.Total)), el('span', 'rot', 'total da sessão'));
+  custo.append(cl, el('p', 'rotulo-estimativa', ROTULO_ESTIMATIVA + ' (não é cobrança real)'));
+  frag.append(custo);
+
+  const ini = ms(d.StartedAt);
+  const met = el('div', 'metricas');
+  const inicio = metrica('Início', ini ? hora.format(ini) : '—');
+  if (ini) inicio.title = dataHora.format(ini);
+  met.append(
+    inicio,
+    metrica('Tempo de vida', vivo('vida', ini, fimDe(d, encerrada), 'v'), { vivo: !encerrada }),
+    metrica('Última atividade', vivo('rel', ms(d.LastEventAt), null, 'v')),
+    metrica('Última ferramenta', d.LastTool || '—', { texto: true }));
+  frag.append(met);
 
   // Modelos usados pela sessão principal e pelos subagentes.
   const modelos = new Set(Object.keys(d.Models || {}));
   for (const a of subs) for (const m of Object.keys(a.Models || {})) modelos.add(m);
   const boxModelos = el('div', 'modelos');
-  for (const m of [...modelos].sort()) boxModelos.append(el('span', 'modelo mono', m));
-  campo(dl, 'modelos', modelos.size ? boxModelos : '—');
-  frag.append(dl);
+  for (const m of [...modelos].sort()) boxModelos.append(el('span', 'modelo', m));
+  if (!modelos.size) boxModelos.append(el('span', 'vazio-det', '—'));
+  frag.append(secao('Modelos', boxModelos));
 
-  frag.append(el('h3', null, 'Custo'));
-  frag.append(el('p', 'custo-total num', formatarUso(d.Total)));
-  frag.append(el('p', 'rotulo-estimativa', ROTULO_ESTIMATIVA + ' (não é cobrança real)'));
+  frag.append(secao('Tokens por agente', montarTabela(d, subs, nomes)));
 
-  frag.append(el('h3', null, 'Tokens'));
-  frag.append(montarTabela(d, subs, nomes));
-
-  frag.append(el('h3', null, 'Subagentes (' + subs.length + ')'));
+  let lista;
   if (subs.length) {
-    const ul = el('ul', 'agentes');
-    subs.forEach((a, i) => ul.append(montarAgente(a, nomes[i])));
-    frag.append(ul);
+    lista = el('ul', 'agentes');
+    subs.forEach((a, i) => lista.append(montarAgente(a, nomes[i])));
   } else {
-    frag.append(el('p', 'vazio-det', 'nenhum subagente nesta sessão'));
+    lista = el('p', 'vazio-det', 'nenhum subagente nesta sessão');
   }
+  frag.append(secao('Subagentes · ' + subs.length, lista));
 
   detCorpo.replaceChildren(frag);
-  const wrapNovo = detCorpo.querySelector('.tabela-wrap');
-  if (wrapNovo) wrapNovo.scrollLeft = rolagemTabela;
 
   detRodape.replaceChildren();
-  detRodape.append(ROTULO_ESTIMATIVA);
-  if (det.atualizadoEm) detRodape.append(' · atualizado às ' + hora.format(det.atualizadoEm));
+  if (d.TranscriptMissing) detRodape.append(alertaRodape('Transcript indisponível · mostrando os últimos totais lidos'));
   if (d.ParseErrors > 0) {
-    detRodape.append(' · ' + d.ParseErrors + (d.ParseErrors === 1 ? ' linha ilegível' : ' linhas ilegíveis') + ' no transcript');
+    detRodape.append(alertaRodape(d.ParseErrors + (d.ParseErrors === 1 ? ' linha ilegível' : ' linhas ilegíveis') + ' no transcript'));
   }
+  if (det.atualizadoEm) detRodape.append(el('div', null, 'atualizado às ' + hora.format(det.atualizadoEm)));
 
   tique();
 
@@ -918,7 +1262,9 @@ function openDetail(sessionId, agentId) {
   det.dados = null;
   det.aviso = '';
   det.atualizadoEm = null;
+  detEstado.replaceChildren();
   detTitulo.textContent = 'Sessão ' + sessionId.slice(0, 8);
+  detSub.replaceChildren();
   detCorpo.scrollTop = 0;
   renderDetalhe();
 
@@ -947,11 +1293,17 @@ dlg.addEventListener('close', () => {
   }
 });
 
+// conectado alterna o indicador do cabeçalho entre "ao vivo" e "reconectando…".
+function conectado(ok, texto) {
+  topo.classList.toggle('reconectando', !ok);
+  conexao.textContent = ok ? 'ao vivo' : texto;
+}
+
 // SSE: cada "snapshot" traz a lista completa e substitui a grade.
 const es = new EventSource('/stream');
-es.addEventListener('open', () => { conexao.hidden = true; });
+es.addEventListener('open', () => conectado(true));
 es.addEventListener('snapshot', (e) => {
-  conexao.hidden = true;
+  conectado(true);
   let sessoes;
   try {
     sessoes = JSON.parse(e.data);
@@ -963,10 +1315,9 @@ es.addEventListener('snapshot', (e) => {
 es.addEventListener('error', () => {
   // CONNECTING: o navegador vai tentar de novo sozinho.
   // CLOSED: desistiu (ex.: 401 sem token); só recarregando.
-  conexao.textContent = es.readyState === EventSource.CLOSED
+  conectado(false, es.readyState === EventSource.CLOSED
     ? 'conexão perdida — recarregue a página'
-    : 'reconectando…';
-  conexao.hidden = false;
+    : 'reconectando…');
 });
 </script>
 </body>
