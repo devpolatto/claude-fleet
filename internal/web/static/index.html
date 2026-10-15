@@ -9,6 +9,7 @@
 <style>
   /* Tema escuro por padrão: a página é feita para olhar no celular. */
   :root {
+    color-scheme: dark;
     --bg: #0f1115;
     --surface: #181b22;
     --surface-2: #20242d;
@@ -212,6 +213,170 @@
 
   @keyframes piscar { 50% { opacity: .3; } }
 
+  /* ---------- Modal de detalhes ---------- */
+  #detalhe {
+    width: min(760px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    overflow: hidden;
+  }
+  #detalhe[open] { display: flex; }
+  #detalhe::backdrop { background: rgba(0, 0, 0, .6); }
+  body.modal-aberto { overflow: hidden; }
+
+  .det {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    max-height: inherit;
+  }
+  .det-topo {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .det-topo h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fechar {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .fechar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .det-corpo {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+    overscroll-behavior: contain;
+    scrollbar-color: var(--border) transparent;
+  }
+  .det-rodape {
+    flex: none;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .det h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; }
+  .det h3:first-child { margin-top: 0; }
+
+  .aviso {
+    margin: 0 0 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--erro-bg);
+    color: var(--aguardando);
+    font-size: 13px;
+  }
+
+  .campos {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 4px 12px;
+    margin: 0;
+  }
+  .campos dt { color: var(--muted); }
+  .campos dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .st-ativo { color: var(--ativo); font-weight: 700; }
+  .st-aguardando { color: var(--aguardando); font-weight: 700; }
+  .st-parado, .st-encerrado, .st-concluido { color: var(--parado); font-weight: 700; }
+  .st-desconhecido { color: var(--desconhecido); font-weight: 700; }
+
+  .modelos { display: flex; flex-wrap: wrap; gap: 4px; }
+  .modelo {
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    overflow-wrap: anywhere;
+  }
+
+  /* A tabela rola na horizontal dentro do próprio contêiner, nunca a página. */
+  .tabela-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-color: var(--border) transparent;
+  }
+  .tokens { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .tokens th, .tokens td { padding: 5px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .tokens thead th { color: var(--muted); font-weight: 600; background: var(--surface-2); max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+  .tokens tbody th { text-align: left; color: var(--muted); font-weight: 400; }
+  .tokens th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    text-align: left;
+  }
+  .tokens thead th:first-child { background: var(--surface-2); }
+  .tokens tr.soma td, .tokens tr.soma th { font-weight: 700; color: var(--text); }
+  .tokens tr.custo-linha td, .tokens tr.custo-linha th { border-bottom: 0; color: var(--text); }
+  .tokens .col-total { font-weight: 700; }
+  .tokens .foco { background: var(--aguardando-bg); color: var(--aguardando); }
+
+  .custo-total { font-size: 20px; font-weight: 700; margin: 0; }
+  .rotulo-estimativa { color: var(--muted); font-size: 12px; margin: 2px 0 0; }
+
+  .agentes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .agente {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    min-width: 0;
+    scroll-margin: 12px;
+  }
+  .agente.foco { border-color: var(--aguardando); box-shadow: 0 0 0 2px var(--aguardando); }
+  .agente .cab { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .agente .tipo { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  .agente .desc { margin: 2px 0 4px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .agente .meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; }
+  .agente .meta span { white-space: nowrap; }
+  .vazio-det { color: var(--muted); margin: 0; }
+
+  /* Celular: o modal ocupa a tela toda e rola por dentro. */
+  @media (max-width: 600px) {
+    #detalhe {
+      width: 100%;
+      max-width: 100%;
+      height: 100%;
+      max-height: 100%;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
+    .det { max-height: 100%; }
+  }
+
   /* Sem animação para quem pediu menos movimento. */
   @media (prefers-reduced-motion: reduce) {
     .tile, .sub::before { animation: none !important; }
@@ -229,6 +394,16 @@
   <div id="grade" aria-live="polite"></div>
   <p id="vazio" hidden>Nenhuma sessão no momento.</p>
 </main>
+<dialog id="detalhe" aria-labelledby="det-titulo">
+  <div class="det">
+    <div class="det-topo">
+      <h2 id="det-titulo">Sessão</h2>
+      <button type="button" class="fechar" id="det-fechar" aria-label="Fechar">×</button>
+    </div>
+    <div class="det-corpo" id="det-corpo"></div>
+    <div class="det-rodape" id="det-rodape"></div>
+  </div>
+</dialog>
 <script>
 'use strict';
 
@@ -251,20 +426,6 @@ const contador = document.getElementById('contador');
 const conexao = document.getElementById('conexao');
 
 const moeda = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/**
- * Abre o detalhe de uma sessão.
- *
- * STUB: o modal de detalhes é a task T14. Ele deve abrir um <dialog> sobre a
- * grade, buscar /api/session/{id} a cada 5 s enquanto aberto e, quando
- * agentId vier preenchido (toque num mini-tile), focar nesse subagente.
- *
- * @param {string} sessionId  ID completo da sessão (SessionView.ID).
- * @param {string} [agentId]  ID do subagente, se o toque foi num mini-tile.
- */
-function openDetail(sessionId, agentId) {
-  // Intencionalmente vazio até o T14.
-}
 
 // subAguardando informa se algum subagente da sessão espera permissão.
 function subAguardando(s) {
@@ -385,6 +546,405 @@ grade.addEventListener('keydown', (e) => {
   if (!tile) return;
   e.preventDefault();
   openDetail(tile.dataset.id);
+});
+
+// ---------- Modal de detalhes ----------
+
+const dlg = document.getElementById('detalhe');
+const detTitulo = document.getElementById('det-titulo');
+const detCorpo = document.getElementById('det-corpo');
+const detRodape = document.getElementById('det-rodape');
+
+const milhar = new Intl.NumberFormat('pt-BR');
+const dataHora = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
+const hora = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'medium' });
+
+// Intervalo do polling de /api/session/{id} enquanto o modal está aberto.
+const POLL_MS = 5000;
+
+// As 5 categorias de tokens, na ordem da tabela (chaves de pricing.Tokens).
+const CATEGORIAS = [
+  ['Input', 'input'],
+  ['Cache5m', 'cache write 5 min'],
+  ['Cache1h', 'cache write 1 h'],
+  ['CacheRead', 'cache read'],
+  ['Output', 'output'],
+];
+
+const ROTULO_ESTIMATIVA = 'estimativa · preço de lista da API';
+
+// Estado do modal aberto. geracao muda a cada abertura/fechamento, para
+// descartar respostas que chegam depois de o modal fechar ou trocar de sessão.
+const det = {
+  sessionId: null,
+  agentId: null,
+  geracao: 0,
+  timer: null,      // setTimeout do próximo polling
+  ctrl: null,       // AbortController da requisição em curso
+  relogio: null,    // setInterval de 1 s dos contadores
+  vivos: [],        // contadores ao vivo: { node, tipo, ini, fim }
+  focado: false,    // já rolou até o subagente tocado
+  dados: null,      // último SessionDetail recebido
+  aviso: '',        // "sessão removida", falha de rede etc.
+  atualizadoEm: null,
+};
+
+// ms converte uma data do JSON em milissegundos; a data zero do Go vira null.
+function ms(iso) {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  return Number.isFinite(t) && t > 0 ? t : null;
+}
+
+// duracao: "12 s", "3 min 07 s", "1 h 02 min 05 s", "2 d 03 h".
+function duracao(msTotal) {
+  let s = Math.max(0, Math.floor(msTotal / 1000));
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  const dd = (n) => String(n).padStart(2, '0');
+  if (d > 0) return d + ' d ' + dd(h) + ' h';
+  if (h > 0) return h + ' h ' + dd(m) + ' min ' + dd(s) + ' s';
+  if (m > 0) return m + ' min ' + dd(s) + ' s';
+  return s + ' s';
+}
+
+// relativo: "há 12 s", "há 3 min", "há 2 h", "há 1 d".
+function relativo(msAtras) {
+  const s = Math.max(0, Math.floor(msAtras / 1000));
+  if (s < 60) return 'há ' + s + ' s';
+  if (s < 3600) return 'há ' + Math.floor(s / 60) + ' min';
+  if (s < 86400) return 'há ' + Math.floor(s / 3600) + ' h';
+  return 'há ' + Math.floor(s / 86400) + ' d';
+}
+
+function somaTokens(t) {
+  if (!t) return 0;
+  return CATEGORIAS.reduce((acc, [k]) => acc + (t[k] || 0), 0);
+}
+
+// Valores abaixo de US$ 1 ganham até 4 casas no modal: sessões curtas custam
+// frações de centavo e "< US$ 0,01" esconderia a diferença entre agentes.
+const moedaFina = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+function usd(v) {
+  return 'US$ ' + (v < 1 ? moedaFina : moeda).format(v);
+}
+
+// formatarUso: "US$ 0,0061", "n/d" (sem preço e sem custo parcial) ou
+// "≥ US$ X" (custo parcial). Uso ainda zerado (transcript não lido) conta
+// como US$ 0,00, igual ao Store faz ao somar.
+function formatarUso(u) {
+  if (!u) return 'n/d';
+  const v = u.CostUSD || 0;
+  if (u.CostKnown || (v === 0 && somaTokens(u.Tokens) === 0)) return usd(v);
+  if (v <= 0) return 'n/d';
+  return '≥ ' + usd(v);
+}
+
+// fimDe: quando o tempo de vida para de contar. Encerrado/concluído sem
+// EndedAt usa o último evento; em andamento, null (conta até agora).
+function fimDe(obj, encerrado) {
+  const fim = ms(obj.EndedAt);
+  if (fim) return fim;
+  return encerrado ? ms(obj.LastEventAt) : null;
+}
+
+// vivo cria um nó que o relógio de 1 s atualiza.
+function vivo(tipo, ini, fim, classe) {
+  const node = el('span', classe || 'num');
+  det.vivos.push({ node, tipo, ini, fim });
+  return node;
+}
+
+function tique() {
+  const agora = Date.now();
+  for (const v of det.vivos) {
+    if (v.ini == null) { v.node.textContent = '—'; continue; }
+    v.node.textContent = v.tipo === 'vida'
+      ? duracao((v.fim ?? agora) - v.ini)
+      : relativo(agora - v.ini);
+  }
+}
+
+// subagentesOrdenados: o JSON traz um mapa id → Agent; ordena por início e id.
+function subagentesOrdenados(d) {
+  const lista = Object.entries(d.Subagents || {}).map(([id, a]) => Object.assign({}, a, { ID: a.ID || id }));
+  return lista.sort((a, b) =>
+    (ms(a.StartedAt) || 0) - (ms(b.StartedAt) || 0) ||
+    (a.ID < b.ID ? -1 : a.ID > b.ID ? 1 : 0));
+}
+
+// nomesAgentes dá um rótulo curto e único por subagente ("Explore", "Explore 2").
+function nomesAgentes(subs) {
+  const vistos = {};
+  return subs.map((a) => {
+    const base = a.Type || 'subagente';
+    vistos[base] = (vistos[base] || 0) + 1;
+    return vistos[base] > 1 ? base + ' ' + vistos[base] : base;
+  });
+}
+
+function campo(dl, rotulo, valor) {
+  dl.append(el('dt', null, rotulo));
+  const dd = el('dd');
+  if (valor instanceof Node) dd.append(valor); else dd.textContent = valor;
+  dl.append(dd);
+}
+
+function statusSpan(st) {
+  const s = ROTULO[st] ? st : 'desconhecido';
+  return el('span', 'st-' + s, ROTULO[s]);
+}
+
+// montarTabela: linhas = categorias; colunas = principal, cada subagente, total.
+// Uma coluna por subagente (e não uma "subagentes" somada): o critério pede
+// tokens por agente, e a tabela rola na horizontal dentro do próprio contêiner,
+// com a coluna de rótulos fixa à esquerda.
+function montarTabela(d, subs, nomes) {
+  const cols = [{ nome: 'principal', uso: d.Main, id: null }];
+  subs.forEach((a, i) => cols.push({ nome: nomes[i], uso: a.Usage, id: a.ID, titulo: a.Description || nomes[i] }));
+  cols.push({ nome: 'total', uso: d.Total, id: null, total: true });
+
+  const tabela = el('table', 'tokens');
+  const thead = el('thead');
+  const hr = el('tr');
+  hr.append(el('th', null, 'tokens'));
+  for (const c of cols) {
+    const th = el('th', c.total ? 'col-total' : null, c.nome);
+    th.scope = 'col';
+    if (c.titulo) th.title = c.titulo;
+    if (c.id && c.id === det.agentId) th.classList.add('foco');
+    hr.append(th);
+  }
+  thead.append(hr);
+  tabela.append(thead);
+
+  const tbody = el('tbody');
+  const linha = (rotulo, classe, valor) => {
+    const tr = el('tr', classe);
+    const th = el('th', null, rotulo);
+    th.scope = 'row';
+    tr.append(th);
+    for (const c of cols) {
+      const td = el('td', 'num' + (c.total ? ' col-total' : ''), valor(c.uso || {}));
+      if (c.id && c.id === det.agentId) td.classList.add('foco');
+      tr.append(td);
+    }
+    tbody.append(tr);
+  };
+  for (const [k, rotulo] of CATEGORIAS) {
+    linha(rotulo, null, (u) => milhar.format((u.Tokens && u.Tokens[k]) || 0));
+  }
+  linha('soma', 'soma', (u) => milhar.format(somaTokens(u.Tokens)));
+  linha('custo', 'custo-linha', (u) => formatarUso(u));
+  tabela.append(tbody);
+
+  const wrap = el('div', 'tabela-wrap');
+  wrap.append(tabela);
+  return wrap;
+}
+
+function montarAgente(a, nome) {
+  const li = el('li', 'agente');
+  li.dataset.agent = a.ID;
+  if (a.ID === det.agentId) li.classList.add('foco');
+
+  const cab = el('div', 'cab');
+  cab.append(el('span', 'tipo', nome), statusSpan(a.Status));
+  li.append(cab);
+  li.append(el('p', 'desc', a.Description || 'sem descrição'));
+
+  const meta = el('div', 'meta');
+  const vida = el('span');
+  vida.append('vida ', vivo('vida', ms(a.StartedAt), fimDe(a, a.Status === 'concluido')));
+  const tok = el('span', 'num', milhar.format(somaTokens(a.Usage && a.Usage.Tokens)) + ' tokens');
+  const custo = el('span', 'num', formatarUso(a.Usage));
+  meta.append(vida, tok, custo);
+  if (a.LastTool) meta.append(el('span', null, 'última: ' + a.LastTool));
+  li.append(meta);
+  return li;
+}
+
+function renderDetalhe() {
+  const d = det.dados;
+  det.vivos = [];
+
+  // Preserva a rolagem horizontal da tabela entre atualizações.
+  const wrapAntigo = detCorpo.querySelector('.tabela-wrap');
+  const rolagemTabela = wrapAntigo ? wrapAntigo.scrollLeft : 0;
+
+  const frag = document.createDocumentFragment();
+  if (det.aviso) frag.append(el('p', 'aviso', det.aviso));
+
+  if (!d) {
+    if (!det.aviso) frag.append(el('p', 'vazio-det', 'carregando…'));
+    detCorpo.replaceChildren(frag);
+    detRodape.textContent = ROTULO_ESTIMATIVA;
+    return;
+  }
+
+  detTitulo.textContent = d.Project || d.ID;
+  if (d.TranscriptMissing) frag.append(el('p', 'aviso', 'transcript indisponível — mostrando os últimos totais lidos'));
+
+  const encerrada = d.Status === 'encerrado';
+  const dl = el('dl', 'campos');
+  campo(dl, 'projeto', d.Project || '—');
+  campo(dl, 'sessão', el('span', 'mono', d.ID));
+  campo(dl, 'cwd', el('span', 'mono', d.Cwd || '—'));
+  campo(dl, 'status', statusSpan(d.Status));
+  const ini = ms(d.StartedAt);
+  campo(dl, 'início', ini ? dataHora.format(ini) : '—');
+  campo(dl, 'tempo de vida', vivo('vida', ini, fimDe(d, encerrada)));
+  campo(dl, 'última atividade', vivo('rel', ms(d.LastEventAt)));
+  campo(dl, 'última ferramenta', d.LastTool || '—');
+
+  const subs = subagentesOrdenados(d);
+  const nomes = nomesAgentes(subs);
+
+  // Modelos usados pela sessão principal e pelos subagentes.
+  const modelos = new Set(Object.keys(d.Models || {}));
+  for (const a of subs) for (const m of Object.keys(a.Models || {})) modelos.add(m);
+  const boxModelos = el('div', 'modelos');
+  for (const m of [...modelos].sort()) boxModelos.append(el('span', 'modelo mono', m));
+  campo(dl, 'modelos', modelos.size ? boxModelos : '—');
+  frag.append(dl);
+
+  frag.append(el('h3', null, 'Custo'));
+  frag.append(el('p', 'custo-total num', formatarUso(d.Total)));
+  frag.append(el('p', 'rotulo-estimativa', ROTULO_ESTIMATIVA + ' (não é cobrança real)'));
+
+  frag.append(el('h3', null, 'Tokens'));
+  frag.append(montarTabela(d, subs, nomes));
+
+  frag.append(el('h3', null, 'Subagentes (' + subs.length + ')'));
+  if (subs.length) {
+    const ul = el('ul', 'agentes');
+    subs.forEach((a, i) => ul.append(montarAgente(a, nomes[i])));
+    frag.append(ul);
+  } else {
+    frag.append(el('p', 'vazio-det', 'nenhum subagente nesta sessão'));
+  }
+
+  detCorpo.replaceChildren(frag);
+  const wrapNovo = detCorpo.querySelector('.tabela-wrap');
+  if (wrapNovo) wrapNovo.scrollLeft = rolagemTabela;
+
+  detRodape.replaceChildren();
+  detRodape.append(ROTULO_ESTIMATIVA);
+  if (det.atualizadoEm) detRodape.append(' · atualizado às ' + hora.format(det.atualizadoEm));
+  if (d.ParseErrors > 0) {
+    detRodape.append(' · ' + d.ParseErrors + (d.ParseErrors === 1 ? ' linha ilegível' : ' linhas ilegíveis') + ' no transcript');
+  }
+
+  tique();
+
+  // Aberto por um mini-tile: rola até o subagente uma única vez.
+  if (det.agentId && !det.focado) {
+    for (const li of detCorpo.querySelectorAll('.agente')) {
+      if (li.dataset.agent === det.agentId) {
+        li.scrollIntoView({ block: 'center' });
+        det.focado = true;
+        break;
+      }
+    }
+  }
+}
+
+// buscar faz uma requisição e agenda a próxima só quando ela termina, para
+// não empilhar requisições em rede lenta. fetch na mesma origem já envia o
+// cookie de acesso.
+async function buscar(geracao) {
+  det.ctrl = new AbortController();
+  let parar = false;
+  try {
+    const r = await fetch('/api/session/' + encodeURIComponent(det.sessionId), {
+      signal: det.ctrl.signal,
+      cache: 'no-store',
+    });
+    if (geracao !== det.geracao) return;
+    if (r.status === 404) {
+      det.aviso = 'sessão removida';
+      parar = true; // o Store não traz de volta uma sessão podada
+    } else if (r.status === 401) {
+      det.aviso = 'não autorizado — recarregue a página';
+      parar = true;
+    } else if (!r.ok) {
+      det.aviso = 'falha ao atualizar (HTTP ' + r.status + ') — tentando de novo';
+    } else {
+      const d = await r.json();
+      if (geracao !== det.geracao) return;
+      det.dados = d;
+      det.aviso = '';
+      det.atualizadoEm = Date.now();
+    }
+  } catch (e) {
+    if (geracao !== det.geracao || (e && e.name === 'AbortError')) return;
+    det.aviso = 'sem conexão com o servidor — tentando de novo';
+  }
+  det.ctrl = null;
+  renderDetalhe();
+  if (!parar && geracao === det.geracao && dlg.open) {
+    det.timer = setTimeout(() => buscar(geracao), POLL_MS);
+  }
+}
+
+// pararDetalhe cancela polling, requisição em curso e relógio.
+function pararDetalhe() {
+  det.geracao++;
+  clearTimeout(det.timer);
+  det.timer = null;
+  if (det.ctrl) det.ctrl.abort();
+  det.ctrl = null;
+  clearInterval(det.relogio);
+  det.relogio = null;
+  det.vivos = [];
+}
+
+/**
+ * Abre o detalhe de uma sessão num <dialog>, sem mudar a URL. Busca
+ * /api/session/{id} a cada 5 s enquanto aberto e, quando agentId vier
+ * preenchido (toque num mini-tile), rola até esse subagente e o destaca.
+ *
+ * @param {string} sessionId  ID completo da sessão (SessionView.ID).
+ * @param {string} [agentId]  ID do subagente, se o toque foi num mini-tile.
+ */
+function openDetail(sessionId, agentId) {
+  if (!sessionId) return;
+  pararDetalhe();
+  det.sessionId = sessionId;
+  det.agentId = agentId || null;
+  det.focado = false;
+  det.dados = null;
+  det.aviso = '';
+  det.atualizadoEm = null;
+  detTitulo.textContent = 'Sessão ' + sessionId.slice(0, 8);
+  detCorpo.scrollTop = 0;
+  renderDetalhe();
+
+  if (!dlg.open) dlg.showModal();
+  document.body.classList.add('modal-aberto');
+  det.relogio = setInterval(tique, 1000);
+  buscar(det.geracao);
+}
+
+function fecharDetalhe() {
+  if (dlg.open) dlg.close();
+}
+
+document.getElementById('det-fechar').addEventListener('click', fecharDetalhe);
+// Toque fora: o clique cai no próprio <dialog> (o backdrop), não no conteúdo.
+dlg.addEventListener('click', (e) => {
+  if (e.target === dlg) fecharDetalhe();
+});
+// Esc dispara "cancel" e depois "close"; o "close" cobre todas as saídas.
+dlg.addEventListener('close', () => {
+  pararDetalhe();
+  document.body.classList.remove('modal-aberto');
+  // Devolve o foco ao tile da sessão (a grade pode ter sido recriada).
+  for (const t of grade.children) {
+    if (t.dataset.id === det.sessionId) { t.focus({ preventScroll: true }); break; }
+  }
 });
 
 // SSE: cada "snapshot" traz a lista completa e substitui a grade.
