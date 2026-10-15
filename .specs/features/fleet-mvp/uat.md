@@ -77,7 +77,9 @@ Legenda: ✅ verificado · 👀 falta conferir no navegador · 📱 falta confer
 
 O usuário abriu o painel em <http://127.0.0.1:7777> e confirmou: "está tudo funcionando". Isso cobre de forma geral os itens 👀 acima (tiles, cores por status e modal).
 
+**Reconexão (UI-03):** ✅ O servidor foi encerrado com SIGINT (saída 0, encerramento limpo), ficou 15 s fora e voltou às 19:54:46. O usuário confirmou que "reconectando…" apareceu durante a queda e sumiu sozinho na volta, sem recarregar a página. Na volta, o Store começou vazio (o estado é só em memória): a descoberta no boot trouxe as 2 sessões com transcript recente, em desconhecido, e esta sessão voltou a ativo no evento seguinte.
+
 ## Pendente
 
-- 👀 **Itens que exigem ação específica**, ainda sem confirmação individual: "reconectando…" ao derrubar e subir o servidor, `prefers-reduced-motion`, sessão aguardando permissão num segundo terminal.
+- 👀 **Itens que exigem ação específica**, ainda sem confirmação individual: sessão aguardando permissão num segundo terminal e `prefers-reduced-motion` (opcional).
 - 📱 **Celular:** instalar o Tailscale (B-001), subir com `-addr <IP da tailnet>:7777` e token e repetir a grade e o modal.
