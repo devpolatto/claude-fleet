@@ -38,6 +38,10 @@ const (
 )
 
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "install-hooks" || os.Args[1] == "uninstall-hooks") {
+		os.Exit(runHooksCmd(os.Args[1], os.Args[2:], os.Getenv, os.Stdin, os.Stdout, os.Stderr))
+	}
+
 	cfg, err := parseConfig(os.Args[1:], os.Getenv, os.Stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {

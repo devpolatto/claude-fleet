@@ -1,0 +1,24 @@
+{
+  "model": "opus",
+  "permissions": {
+    "allow": [
+      "Bash(go test:*)",
+      "Read(~/exemplo/**)"
+    ],
+    "defaultMode": "default"
+  },
+  "hooks": {
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 ~/.claude/scripts/telegram-notify/notify_telegram.py record"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "python3 ~/.claude/scripts/telegram-notify/notify_telegram.py notify"}]}],
+    "PermissionRequest": [{"hooks": [{"type": "command", "command": "python3 ~/.claude/scripts/telegram-notify/notify_telegram.py permission", "timeout": 3600}]}],
+    "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/bws-guard.py"}]}]
+  },
+  "env": {
+    "FOO": "bar"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "echo exemplo"
+  },
+  "includeCoAuthoredBy": false
+}
