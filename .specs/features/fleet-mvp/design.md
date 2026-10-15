@@ -61,6 +61,12 @@ Regras complementares (vindas do spike T1):
 - `PostToolBatch` também tira a sessão de **aguardando**: quando a permissão é negada, nenhum `PostToolUse` nem `PermissionDenied` é disparado.
 - `SessionStart` de uma sessão **já conhecida** não muda o status. Com `source=compact`, ele chega no meio da atividade; com `source=resume`, só atualiza `transcript_path`.
 - `PreCompact`, `PostCompact` e `SessionStart` não contam como atividade de ferramenta: só atualizam `LastEventAt`.
+- Decisões do T7:
+  - **Sessão nova:** quando nasce de um evento que não é `SessionStart`, a sessão começa em **desconhecido** e o próprio evento já é aplicado.
+  - **Saída de parado:** qualquer evento de atividade (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`) leva a **ativo**.
+  - **`Notification`:** leva a **aguardando** só a partir de **ativo**. Com a sessão parada, ela é o aviso de ociosidade.
+  - **Sessão encerrada:** só reabre com `UserPromptSubmit` (vai para ativo) ou `SessionStart` (vai para parado). Eventos atrasados só atualizam `LastEventAt`.
+  - **Eventos fora do diagrama:** `StopFailure` age como `Stop`, e `PermissionDenied` tira de **aguardando**.
 
 Subagentes:
 
@@ -70,6 +76,8 @@ Subagentes:
 - `SubagentStop` → **concluído**, guardando o `agent_transcript_path`.
 - O status do subagente **nunca** vem do `PreToolUse`/`PostToolUse` da ferramenta `Agent` na sessão-pai. O subagente roda em segundo plano, então o `PostToolUse` chega logo após o lançamento. Esses eventos só atualizam o `last_tool` da sessão-pai.
 - `SubagentStop` de um `agent_id` sem `SubagentStart` é **ignorado**, sem criar mini-tile. A compactação gera um desses, com `agent_type` vazio.
+- Evento de ferramenta ou `PermissionRequest` de um agente sem `SubagentStart` **cria** o mini-tile, para o caso de o `SubagentStart` ter se perdido.
+- **Concluído** é estado final. Só um novo `SubagentStart` reativa o subagente.
 
 ---
 
@@ -267,13 +275,14 @@ type Event struct { // só lista branca
 }
 
 type Usage struct {
-    Input, Cache5m, Cache1h, CacheRead, Output int64
+    Tokens   pricing.Tokens // Input, Cache5m, Cache1h, CacheRead, Output
     CostUSD  float64
     CostKnown bool // false se algum modelo ficou sem preço
 }
 
 type Agent struct {
     ID, Type, Description string
+    TranscriptPath string // agent_transcript_path do SubagentStop
     Status     Status
     StartedAt, LastEventAt time.Time
     EndedAt    *time.Time

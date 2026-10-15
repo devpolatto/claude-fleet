@@ -162,10 +162,10 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Fixture com 2 subagentes → 2 entradas com tipo e descrição
-- [ ] `.meta.json` ausente ou inválido → entrada sem descrição, sem erro fatal
-- [ ] Diretório inexistente → lista vazia
-- [ ] Gate passa: `go test ./...`
+- [x] Fixture com 2 subagentes → 2 entradas com tipo e descrição
+- [x] `.meta.json` ausente ou inválido → entrada sem descrição, sem erro fatal
+- [x] Diretório inexistente → lista vazia
+- [x] Gate passa: `go test ./...`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(transcript): subagentes e metadados`
@@ -201,14 +201,14 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Tabela de testes cobre todas as setas do diagrama de estados
-- [ ] Evento com `agent_id` altera só o subagente (e `LastEventAt` da sessão)
-- [ ] Evento de sessão desconhecida cria a sessão
-- [ ] `PostToolBatch` tira de **aguardando** (sessão e subagente)
-- [ ] `SubagentStop` de agente desconhecido é ignorado; Pre/Post da ferramenta `Agent` não muda status de subagente
-- [ ] `SessionStart` com `source=compact`/`resume` em sessão conhecida não altera o status
-- [ ] `Subscribe()` recebe sinal a cada mudança, sem bloquear com assinante lento
-- [ ] Gate passa: `go test -race ./...`
+- [x] Tabela de testes cobre todas as setas do diagrama de estados
+- [x] Evento com `agent_id` altera só o subagente (e `LastEventAt` da sessão)
+- [x] Evento de sessão desconhecida cria a sessão
+- [x] `PostToolBatch` tira de **aguardando** (sessão e subagente)
+- [x] `SubagentStop` de agente desconhecido é ignorado; Pre/Post da ferramenta `Agent` não muda status de subagente
+- [x] `SessionStart` com `source=compact`/`resume` em sessão conhecida não altera o status
+- [x] `Subscribe()` recebe sinal a cada mudança, sem bloquear com assinante lento
+- [x] Gate passa: `go test -race ./...`
 
 **Tests**: unit · **Gate**: full
 **Commit**: `feat(store): estados de sessões e subagentes`
