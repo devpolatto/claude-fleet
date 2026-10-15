@@ -5,8 +5,9 @@
 //
 //   - SessionStart cria a sessão em parado. Em sessão já conhecida não muda o
 //     status (source=compact chega no meio da atividade; source=resume só
-//     atualiza o transcript), exceto se ela estiver encerrada: aí reabre em
-//     parado.
+//     atualiza o transcript), exceto se ela estiver encerrada (reabre em
+//     parado) ou em desconhecido, vinda do boot (vai para parado, salvo
+//     source=compact, que não diz nada sobre o estado).
 //   - UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure e
 //     PostToolBatch são atividade: levam a ativo a partir de desconhecido,
 //     parado ou aguardando. PostToolBatch e PostToolUseFailure também tiram
@@ -207,9 +208,16 @@ func applySession(m *mutation, sess *Session, ev ingest.Event, now time.Time) {
 		m.setStatus(&sess.Status, StatusEncerrado)
 		t := now
 		m.setTimePtr(&sess.EndedAt, &t)
+	case ev.Name == evSessionStart && sess.Status == StatusDesconhecido && ev.Source != "compact":
+		// Sessão descoberta no boot (T16): o SessionStart é o primeiro
+		// evento real e a leva a parado, como numa sessão nova. Com
+		// source=compact a sessão pode estar em plena atividade, então
+		// ela segue em desconhecido até o próximo evento de atividade.
+		m.setStatus(&sess.Status, StatusParado)
 	}
-	// SessionStart em sessão conhecida, PreCompact, PostCompact e eventos
-	// não mapeados: nada além do LastEventAt já atualizado.
+	// SessionStart em sessão conhecida fora de desconhecido, PreCompact,
+	// PostCompact e eventos não mapeados: nada além do LastEventAt já
+	// atualizado.
 }
 
 // applyAgent aplica um evento com agent_id. Só o subagente muda; da sessão,
