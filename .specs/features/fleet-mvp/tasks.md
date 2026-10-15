@@ -411,8 +411,8 @@ T8, T16 ───────────→ T18
 **Done when**:
 
 - [ ] Cada critério P1 marcado como verificado ou com desvio registrado
-- [ ] Latência do hook com o servidor desligado medida (≤ 1 s)
-- [ ] Busca pela string-sentinela de prompt no log, na API e na página → nada
+- [x] Latência do hook com o servidor desligado medida (≤ 1 s) — 9–11 ms; servidor mudo ~1,0 s
+- [x] Busca pela string-sentinela de prompt no log, na API e na página → nada (também no `/stream`)
 
 **Tests**: manual (UAT) · **Gate**: full
 
