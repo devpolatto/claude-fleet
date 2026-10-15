@@ -37,8 +37,8 @@ func TestSubagentsOfFixtureComDois(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []SubagentFile{
-		{AgentID: "a1", TranscriptPath: filepath.Join(dir, "agent-a1.jsonl"), Type: "Explore", Description: "Mapear a estrutura sintética", ToolUseID: "toolu_sintetico_a1"},
-		{AgentID: "b2", TranscriptPath: filepath.Join(dir, "agent-b2.jsonl"), Type: "general-purpose", Description: "Revisar o teste sintético", ToolUseID: "toolu_sintetico_b2"},
+		{AgentID: "a1", TranscriptPath: filepath.Join(dir, "agent-a1.jsonl"), Type: "Explore", ToolUseID: "toolu_sintetico_a1"},
+		{AgentID: "b2", TranscriptPath: filepath.Join(dir, "agent-b2.jsonl"), Type: "general-purpose", ToolUseID: "toolu_sintetico_b2"},
 	}
 	for i := range want {
 		if got[i] != want[i] {
@@ -68,8 +68,8 @@ func TestSubagentsOfMetaAusenteOuInvalido(t *testing.T) {
 	for _, s := range got {
 		byID[s.AgentID] = s
 	}
-	if s := byID["ok"]; s.Type != "Plan" || s.Description != "ok" {
-		t.Errorf("ok = %+v, queria tipo e descrição", s)
+	if s := byID["ok"]; s.Type != "Plan" {
+		t.Errorf("ok = %+v, queria o tipo", s)
 	}
 	for _, id := range []string{"semmeta", "quebrado", "tipoerrado"} {
 		s, ok := byID[id]
@@ -77,7 +77,7 @@ func TestSubagentsOfMetaAusenteOuInvalido(t *testing.T) {
 			t.Errorf("%s ausente do resultado", id)
 			continue
 		}
-		if s.Type != "" || s.Description != "" || s.ToolUseID != "" {
+		if s.Type != "" || s.ToolUseID != "" {
 			t.Errorf("%s = %+v, queria metadados vazios", id, s)
 		}
 		if s.TranscriptPath != filepath.Join(sub, "agent-"+id+".jsonl") {

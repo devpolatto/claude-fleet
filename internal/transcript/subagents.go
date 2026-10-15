@@ -13,7 +13,6 @@ type SubagentFile struct {
 	AgentID        string // extraído de agent-<id>.jsonl
 	TranscriptPath string // caminho absoluto do .jsonl
 	Type           string // agentType do .meta.json; vazio se ausente ou inválido
-	Description    string // description do .meta.json; vazio se ausente ou inválido
 	ToolUseID      string // toolUseId do .meta.json; vazio se ausente ou inválido
 }
 
@@ -21,9 +20,8 @@ type SubagentFile struct {
 // são decodificados. Os demais (spawnDepth, requestShape, ...) são ignorados
 // pelo decodificador e nunca chegam à memória do programa.
 type subagentMeta struct {
-	AgentType   string `json:"agentType"`
-	Description string `json:"description"`
-	ToolUseID   string `json:"toolUseId"`
+	AgentType string `json:"agentType"`
+	ToolUseID string `json:"toolUseId"`
 }
 
 const (
@@ -34,7 +32,7 @@ const (
 // SubagentsOf recebe o transcript da sessão principal (<dir>/<session_id>.jsonl)
 // e lista <dir>/<session_id>/subagents/agent-*.jsonl, ordenados por AgentID.
 //
-// Para cada transcript, lê agentType, description e toolUseId do
+// Para cada transcript, lê agentType e toolUseId do
 // agent-<id>.meta.json vizinho. Se o .meta.json não existir ou não for JSON
 // válido, a entrada aparece mesmo assim, com esses campos vazios.
 //
@@ -66,7 +64,7 @@ func SubagentsOf(transcriptPath string) []SubagentFile {
 		}
 		sf := SubagentFile{AgentID: id, TranscriptPath: filepath.Join(dir, name)}
 		if m, ok := readSubagentMeta(filepath.Join(dir, subagentPrefix+id+".meta.json")); ok {
-			sf.Type, sf.Description, sf.ToolUseID = m.AgentType, m.Description, m.ToolUseID
+			sf.Type, sf.ToolUseID = m.AgentType, m.ToolUseID
 		}
 		out = append(out, sf)
 	}

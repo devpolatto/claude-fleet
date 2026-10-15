@@ -225,7 +225,7 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
 - **Location**: `internal/store/refresher.go`
 - **Interfaces**: `NewRefresher(s)`, `Run(ctx context.Context, interval time.Duration)`, `RefreshOnce()`
 - Lê o disco fora do lock do Store, mantém um `*transcript.File` por caminho e descarta os leitores de sessões encerradas (depois da última leitura) ou removidas pelo `Prune`
-- Subagente que só existe no disco entra como **concluído**, com tipo e descrição do `.meta.json`
+- Subagente que só existe no disco entra como **concluído**, com o tipo do `.meta.json` (a `description` não é lida; decisão do usuário em 2026-10-15)
 - Nome da sessão: lê as linhas `custom-title` do transcript (`--name` ou `/rename`; a última vence) e grava em `Session.Name`. A página mostra `Name`, e só cai para `Project` (basename do `cwd`) sem ele. As linhas `ai-title`, geradas a partir do conteúdo do prompt, não são lidas (AD-003)
 - **Dependencies**: Store, TranscriptReader
 
