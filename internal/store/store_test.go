@@ -602,3 +602,24 @@ func TestConcorrencia(t *testing.T) {
 		t.Errorf("sessões = %d, quer 5", n)
 	}
 }
+
+func TestCwdDeSubagenteNaoRenomeiaSessao(t *testing.T) {
+	s := New()
+	e := ev("SessionStart")
+	e.Cwd = "/home/x/projeto"
+	s.Apply(e, t0)
+
+	a := agentEv("PreToolUse", "a1")
+	a.Cwd = "/home/x/projeto/.claude/worktrees/outro"
+	s.Apply(a, t0.Add(time.Second))
+	if d := mustGet(t, s); d.Project != "projeto" || d.Cwd != "/home/x/projeto" {
+		t.Errorf("Project = %q, Cwd = %q; o subagente não deveria renomear a sessão", d.Project, d.Cwd)
+	}
+
+	// Sessão criada por evento de subagente usa o cwd dele até chegar um da sessão.
+	s2 := New()
+	s2.Apply(a, t0)
+	if d := mustGet(t, s2); d.Project != "outro" {
+		t.Errorf("sem cwd próprio, Project = %q, queria outro", d.Project)
+	}
+}

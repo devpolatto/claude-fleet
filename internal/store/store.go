@@ -145,7 +145,10 @@ func (s *Store) Apply(ev ingest.Event, now time.Time) (changed bool) {
 	}
 
 	m.setTime(&sess.LastEventAt, now)
-	if ev.Cwd != "" {
+	// O cwd da sessão vem dos eventos da sessão principal. Um subagente pode
+	// rodar em outro diretório (ex.: worktree) e não deve renomear o tile;
+	// o cwd dele só vale enquanto a sessão ainda não tem nenhum.
+	if ev.Cwd != "" && (ev.AgentID == "" || sess.Cwd == "") {
 		m.setString(&sess.Cwd, ev.Cwd)
 		m.setString(&sess.Project, filepath.Base(ev.Cwd))
 	}
