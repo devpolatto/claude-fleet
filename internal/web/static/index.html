@@ -3,20 +3,411 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f1115">
 <title>Claude Fleet</title>
+<style>
+  /* Tema escuro por padrão: a página é feita para olhar no celular. */
+  :root {
+    --bg: #0f1115;
+    --surface: #181b22;
+    --surface-2: #20242d;
+    --border: #2c313c;
+    --text: #e8eaee;
+    --muted: #9aa3b2;
+    --ativo: #4ade80;
+    --ativo-glow: rgba(74, 222, 128, .45);
+    --aguardando: #facc15;
+    --aguardando-bg: #2a2410;
+    --parado: #8b93a1;
+    --desconhecido: #a0a7b4;
+    --erro-bg: #3a2a0c;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+  }
+
+  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+
+  #contador { color: var(--muted); font-size: 13px; }
+  #contador .alerta { color: var(--aguardando); font-weight: 600; }
+
+  /* Indicador de conexão: só aparece quando o stream cai. */
+  #conexao {
+    flex-basis: 100%;
+    margin: 4px 0 0;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--erro-bg);
+    color: var(--aguardando);
+    font-size: 13px;
+  }
+  #conexao[hidden] { display: none; }
+
+  main { padding: 12px; }
+
+  #grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+  }
+
+  #vazio { color: var(--muted); text-align: center; padding: 32px 8px; }
+  #vazio[hidden] { display: none; }
+
+  /* ---------- Tile da sessão ---------- */
+  .tile {
+    position: relative;
+    min-width: 0;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-left-width: 5px;
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    -webkit-tap-highlight-color: transparent;
+    overflow-wrap: anywhere;
+  }
+  .tile:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .tile:active { transform: scale(.98); }
+
+  .tile .projeto {
+    font-weight: 600;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tile .linha {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .tile .id {
+    min-width: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tile .status { flex: none; font-weight: 700; font-size: 12px; white-space: nowrap; }
+  .tile .ferramenta {
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tile .ferramenta:empty::before { content: "—"; color: var(--muted); }
+  .tile .custo { font-variant-numeric: tabular-nums; color: var(--text); }
+
+  /* Badge que sinaliza subagente aguardando, mesmo com a sessão em outro estado. */
+  .tile .badge {
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--aguardando);
+    color: #1a1600;
+  }
+
+  /* ativo: borda verde com pulso */
+  .tile.s-ativo { border-color: var(--ativo); }
+  .tile.s-ativo .status { color: var(--ativo); }
+  .tile.s-ativo { animation: pulso 1.6s ease-in-out infinite; }
+
+  /* aguardando: amarelo, sem pulso */
+  .tile.s-aguardando { border-color: var(--aguardando); background: var(--aguardando-bg); }
+  .tile.s-aguardando .status { color: var(--aguardando); }
+
+  /* parado: cinza */
+  .tile.s-parado { border-color: var(--parado); }
+  .tile.s-parado .status { color: var(--parado); }
+
+  /* encerrado: esmaecido */
+  .tile.s-encerrado { opacity: .45; border-color: var(--border); }
+
+  /* desconhecido: neutro, borda tracejada */
+  .tile.s-desconhecido { border-style: dashed; border-color: var(--desconhecido); }
+  .tile.s-desconhecido .status { color: var(--desconhecido); }
+
+  /* Subagente aguardando: o tile-pai ganha contorno amarelo além da borda do status. */
+  .tile.sub-aguardando { box-shadow: 0 0 0 2px var(--aguardando); }
+  .tile.s-ativo.sub-aguardando { animation-name: pulso-alerta; }
+
+  @keyframes pulso {
+    0%, 100% { box-shadow: 0 0 0 0 var(--ativo-glow); }
+    50%      { box-shadow: 0 0 0 5px rgba(74, 222, 128, 0); }
+  }
+  @keyframes pulso-alerta {
+    0%, 100% { box-shadow: 0 0 0 2px var(--aguardando), 0 0 0 2px var(--ativo-glow); }
+    50%      { box-shadow: 0 0 0 2px var(--aguardando), 0 0 0 7px rgba(74, 222, 128, 0); }
+  }
+
+  /* ---------- Mini-tiles dos subagentes ---------- */
+  .subs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+  }
+  .sub {
+    min-width: 0;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .sub .nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub::before {
+    content: "";
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--parado);
+  }
+  .sub.s-ativo { border-color: var(--ativo); }
+  .sub.s-ativo::before { background: var(--ativo); animation: piscar 1.2s ease-in-out infinite; }
+  .sub.s-aguardando { border-color: var(--aguardando); background: var(--aguardando-bg); color: var(--aguardando); font-weight: 600; }
+  .sub.s-aguardando::before { background: var(--aguardando); }
+  /* concluído: apagado */
+  .sub.s-concluido { opacity: .4; }
+
+  @keyframes piscar { 50% { opacity: .3; } }
+
+  /* Sem animação para quem pediu menos movimento. */
+  @media (prefers-reduced-motion: reduce) {
+    .tile, .sub::before { animation: none !important; }
+    .tile:active { transform: none; }
+  }
+</style>
 </head>
 <body>
-<!-- Página provisória: a grade de tiles entra no T13. -->
-<h1>Claude Fleet</h1>
-<pre id="out">conectando…</pre>
+<header>
+  <h1>Claude Fleet</h1>
+  <span id="contador">conectando…</span>
+  <p id="conexao" role="status" hidden>reconectando…</p>
+</header>
+<main>
+  <div id="grade" aria-live="polite"></div>
+  <p id="vazio" hidden>Nenhuma sessão no momento.</p>
+</main>
 <script>
-const out = document.getElementById('out');
-const es = new EventSource('/stream');
-es.addEventListener('snapshot', (e) => {
-  const sessions = JSON.parse(e.data);
-  out.textContent = sessions.map((s) => `${s.ShortID}  ${s.Project || '?'}  ${s.Status}  ${s.LastTool || ''}`).join('\n') || 'nenhuma sessão';
+'use strict';
+
+// Rótulos exibidos para cada status vindo do Store.
+const ROTULO = {
+  ativo: 'ativo',
+  aguardando: 'aguardando',
+  parado: 'parado',
+  encerrado: 'encerrado',
+  desconhecido: 'desconhecido',
+  concluido: 'concluído',
+};
+
+// Ordem dos grupos na grade: o que pede atenção vem primeiro.
+const ORDEM = { aguardando: 0, ativo: 1, parado: 2, desconhecido: 3, encerrado: 4 };
+
+const grade = document.getElementById('grade');
+const vazio = document.getElementById('vazio');
+const contador = document.getElementById('contador');
+const conexao = document.getElementById('conexao');
+
+const moeda = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Abre o detalhe de uma sessão.
+ *
+ * STUB: o modal de detalhes é a task T14. Ele deve abrir um <dialog> sobre a
+ * grade, buscar /api/session/{id} a cada 5 s enquanto aberto e, quando
+ * agentId vier preenchido (toque num mini-tile), focar nesse subagente.
+ *
+ * @param {string} sessionId  ID completo da sessão (SessionView.ID).
+ * @param {string} [agentId]  ID do subagente, se o toque foi num mini-tile.
+ */
+function openDetail(sessionId, agentId) {
+  // Intencionalmente vazio até o T14.
+}
+
+// subAguardando informa se algum subagente da sessão espera permissão.
+function subAguardando(s) {
+  return (s.Subagents || []).some((a) => a.Status === 'aguardando');
+}
+
+// precisaAtencao: sessão aguardando ou com subagente aguardando.
+function precisaAtencao(s) {
+  return s.Status === 'aguardando' || subAguardando(s);
+}
+
+// formatarCusto resume Total: "US$ 0,12", "n/d" ou "≥ US$ X".
+function formatarCusto(total) {
+  const usd = (total && total.CostUSD) || 0;
+  const conhecido = !!(total && total.CostKnown);
+  const valor = usd > 0 && usd < 0.005 ? '< US$ 0,01' : 'US$ ' + moeda.format(usd);
+  if (conhecido) return valor;
+  if (usd <= 0) return 'n/d';
+  return '≥ US$ ' + moeda.format(usd);
+}
+
+// Ordenação estável: grupo de status, depois StartedAt, depois ID.
+function ordenar(sessoes) {
+  const grupo = (s) => (precisaAtencao(s) ? 0 : (ORDEM[s.Status] ?? 3));
+  return sessoes.slice().sort((a, b) =>
+    grupo(a) - grupo(b) ||
+    (Date.parse(a.StartedAt) || 0) - (Date.parse(b.StartedAt) || 0) ||
+    (a.ID < b.ID ? -1 : a.ID > b.ID ? 1 : 0));
+}
+
+// el cria um elemento com classe e texto. Texto sempre via textContent.
+function el(tag, classe, texto) {
+  const n = document.createElement(tag);
+  if (classe) n.className = classe;
+  if (texto != null) n.textContent = texto;
+  return n;
+}
+
+function montarTile(s) {
+  const status = ROTULO[s.Status] ? s.Status : 'desconhecido';
+  const tile = el('div', 'tile s-' + status);
+  tile.dataset.id = s.ID;
+  tile.tabIndex = 0;
+  tile.setAttribute('role', 'button');
+
+  const nome = s.Project || s.ShortID || s.ID;
+  tile.title = s.Cwd || nome;
+  tile.append(el('div', 'projeto', nome));
+
+  const l1 = el('div', 'linha');
+  l1.append(el('span', 'id', s.ShortID), el('span', 'status', ROTULO[status]));
+  tile.append(l1);
+
+  tile.append(el('div', 'ferramenta', s.LastTool || ''));
+
+  const l2 = el('div', 'linha');
+  l2.append(el('span', null, 'custo'), el('span', 'custo', formatarCusto(s.Total)));
+  tile.append(l2);
+
+  const subs = s.Subagents || [];
+  if (subAguardando(s)) {
+    tile.classList.add('sub-aguardando');
+    tile.append(el('span', 'badge', 'subagente aguardando'));
+  }
+  if (subs.length) {
+    const box = el('div', 'subs');
+    for (const a of subs) {
+      const st = ROTULO[a.Status] ? a.Status : 'desconhecido';
+      const mini = el('span', 'sub s-' + st);
+      mini.dataset.agent = a.ID;
+      mini.title = (a.Type || 'subagente') + ' · ' + ROTULO[st] + (a.LastTool ? ' · ' + a.LastTool : '');
+      mini.append(el('span', 'nome', a.Type || 'subagente'));
+      box.append(mini);
+    }
+    tile.append(box);
+  }
+
+  const rotulo = nome + ', ' + ROTULO[status] + (subAguardando(s) ? ', subagente aguardando' : '');
+  tile.setAttribute('aria-label', rotulo);
+  return tile;
+}
+
+function render(sessoes) {
+  // Preserva o foco de teclado entre snapshots.
+  const ativoEl = document.activeElement;
+  const focoId = ativoEl && ativoEl.classList && ativoEl.classList.contains('tile') ? ativoEl.dataset.id : null;
+
+  const frag = document.createDocumentFragment();
+  for (const s of ordenar(sessoes)) frag.append(montarTile(s));
+  grade.replaceChildren(frag);
+  vazio.hidden = sessoes.length > 0;
+
+  const aguardam = sessoes.filter(precisaAtencao).length;
+  contador.replaceChildren();
+  contador.append(sessoes.length + (sessoes.length === 1 ? ' sessão' : ' sessões'));
+  if (aguardam > 0) {
+    contador.append(' · ');
+    contador.append(el('span', 'alerta', aguardam + ' aguardando'));
+  }
+
+  if (focoId) {
+    for (const t of grade.children) {
+      if (t.dataset.id === focoId) { t.focus(); break; }
+    }
+  }
+}
+
+// Clique/toque em qualquer ponto do tile; mini-tile informa o subagente.
+grade.addEventListener('click', (e) => {
+  const tile = e.target.closest('.tile');
+  if (!tile) return;
+  const mini = e.target.closest('.sub');
+  openDetail(tile.dataset.id, mini ? mini.dataset.agent : undefined);
 });
-es.onerror = () => { out.textContent = 'reconectando…'; };
+grade.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const tile = e.target.closest('.tile');
+  if (!tile) return;
+  e.preventDefault();
+  openDetail(tile.dataset.id);
+});
+
+// SSE: cada "snapshot" traz a lista completa e substitui a grade.
+const es = new EventSource('/stream');
+es.addEventListener('open', () => { conexao.hidden = true; });
+es.addEventListener('snapshot', (e) => {
+  conexao.hidden = true;
+  let sessoes;
+  try {
+    sessoes = JSON.parse(e.data);
+  } catch (_) {
+    return; // snapshot corrompido: mantém a grade anterior
+  }
+  render(Array.isArray(sessoes) ? sessoes : []);
+});
+es.addEventListener('error', () => {
+  // CONNECTING: o navegador vai tentar de novo sozinho.
+  // CLOSED: desistiu (ex.: 401 sem token); só recarregando.
+  conexao.textContent = es.readyState === EventSource.CLOSED
+    ? 'conexão perdida — recarregue a página'
+    : 'reconectando…';
+  conexao.hidden = false;
+});
 </script>
 </body>
 </html>
