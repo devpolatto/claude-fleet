@@ -61,6 +61,7 @@ Regras complementares (vindas do spike T1):
 - `PostToolBatch` também tira a sessão de **aguardando**: quando a permissão é negada, nenhum `PostToolUse` nem `PermissionDenied` é disparado.
 - `SessionStart` de uma sessão **já conhecida** não muda o status. Com `source=compact`, ele chega no meio da atividade; com `source=resume`, só atualiza `transcript_path`.
 - `PreCompact`, `PostCompact` e `SessionStart` não contam como atividade de ferramenta: só atualizam `LastEventAt`.
+- **Fim de turno sem hook:** se a sessão está **ativa** ou **aguardando** e o transcript mostra um `turn_duration` posterior ao último evento recebido, ela vai para **parado**. Isso cobre a permissão recusada no modo interativo (e a interrupção com Esc), com atraso de até 5 s (intervalo do Refresher).
 - Decisões do T7:
   - **Sessão nova:** quando nasce de um evento que não é `SessionStart`, a sessão começa em **desconhecido** e o próprio evento já é aplicado.
   - **Saída de parado:** qualquer evento de atividade (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`) leva a **ativo**.
@@ -130,6 +131,7 @@ Subagentes:
 3. **Uma permissão negada não gera evento próprio.** Depois do `PermissionRequest` veio só um `PostToolBatch`, sem `PostToolUse` nem `PermissionDenied`. Então **`aguardando` precisa sair também com `PostToolBatch`** (e com `Stop`, que já está no diagrama).
 4. **A compactação gera um `SubagentStop` "fantasma".** A sequência é `PreCompact` → `SubagentStop` com `agent_type` vazio e um `agent_id` que nunca teve `SubagentStart` → `SessionStart(source=compact)` → `PostCompact`. O Store deve **ignorar `SubagentStop` de agente desconhecido** em vez de criar um tile.
 5. Metadados úteis e seguros para a lista branca: `permission_mode`, `tool_use_id`, `duration_ms`, `source`, `reason`, `trigger`, `is_interrupt`.
+6. **Achado no UAT (T18):** no modo **interativo**, recusar uma permissão não dispara hook nenhum depois do `PermissionRequest`: nem `PostToolBatch`, nem `PermissionDenied`, nem `Stop`. O transcript, porém, grava `system` com `subtype: "turn_duration"` ao fim de todo turno, inclusive nesse caso; num turno normal ela vem junto com `stop_hook_summary`. O Refresher usa esse fim de turno como fallback (ver regras complementares).
 
 ### Tabela de preços (USD por milhão de tokens; preço de lista da API, consultado em 2026-10-15)
 

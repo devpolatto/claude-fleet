@@ -29,7 +29,9 @@ type SessionUsage struct {
 	Models            map[string]Usage // da sessão principal, por nome de modelo
 	TranscriptMissing bool             // transcript principal ilegível ou ausente
 	ParseErrors       int              // linhas ilegíveis no principal e nos subagentes
-	Agents            map[string]AgentUsage
+	// TurnEndedAt é o fim do último turno gravado no transcript principal.
+	TurnEndedAt time.Time
+	Agents      map[string]AgentUsage
 }
 
 // SetUsage grava o consumo lido do disco na sessão e informa se algo mudou;
@@ -56,6 +58,14 @@ func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 	if sess.ParseErrors != u.ParseErrors {
 		sess.ParseErrors = u.ParseErrors
 		m.changed = true
+	}
+	// Turno encerrado sem hook: recusar uma permissão no modo interativo (ou
+	// interromper com Esc) não dispara Stop, PostToolBatch nem
+	// PermissionDenied. Se o transcript mostra um fim de turno posterior ao
+	// último evento recebido, a sessão está parada.
+	if (sess.Status == StatusAtivo || sess.Status == StatusAguardando) &&
+		u.TurnEndedAt.After(sess.LastEventAt) {
+		m.setStatus(&sess.Status, StatusParado)
 	}
 	if !u.TranscriptMissing {
 		m.setUsage(&sess.Main, u.Main)
@@ -246,6 +256,7 @@ func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
 		u.TranscriptMissing = true
 	} else {
 		u.Main, u.Models = usageOf(main.ByModel())
+		u.TurnEndedAt = main.TurnEndedAt()
 	}
 	u.ParseErrors = main.ParseErrors()
 

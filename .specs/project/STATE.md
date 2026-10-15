@@ -71,6 +71,13 @@
 **Solution:** Deduplicar por `message.id`, último registro vence.
 **Prevents:** Custo e tokens superestimados.
 
+### L-002: Permissão recusada no modo interativo não dispara hook
+
+**Context:** UAT do fleet-mvp (2026-10-15), sessão interativa num tmux.
+**Problem:** Depois do `PermissionRequest` não chega nenhum evento quando o usuário responde "No"; o tile ficava preso em "aguardando". O spike, feito com `claude -p`, tinha visto um `PostToolBatch` e escondeu isso.
+**Solution:** Usar a linha `system/turn_duration` do transcript como fim de turno quando ela é posterior ao último evento.
+**Prevents:** Concluir sobre o comportamento interativo a partir de testes em `-p`.
+
 ---
 
 ## Quick Tasks Completed

@@ -79,7 +79,15 @@ O usuário abriu o painel em <http://127.0.0.1:7777> e confirmou: "está tudo fu
 
 **Reconexão (UI-03):** ✅ O servidor foi encerrado com SIGINT (saída 0, encerramento limpo), ficou 15 s fora e voltou às 19:54:46. O usuário confirmou que "reconectando…" apareceu durante a queda e sumiu sozinho na volta, sem recarregar a página. Na volta, o Store começou vazio (o estado é só em memória): a descoberta no boot trouxe as 2 sessões com transcript recente, em desconhecido, e esta sessão voltou a ativo no evento seguinte.
 
+**Aguardando permissão (segundo terminal):** feito com um `claude` interativo dentro de um `tmux` (modelo haiku, só o hook do claude-fleet, para não disparar o `telegram-notify`).
+
+- ✅ O tile novo apareceu como parado e foi a **aguardando** (amarelo, contador "1 aguardando") enquanto a pergunta de permissão estava na tela. O usuário confirmou o amarelo no navegador.
+- ⚠️ **Bug encontrado:** ao responder "No", a sessão voltou ao prompt, mas o tile ficou preso em aguardando. Um registrador de eventos (só nomes) mostrou que nenhum hook chega depois do `PermissionRequest` nesse caso.
+- ✅ **Corrigido:** o Refresher passou a usar a linha `system/turn_duration` do transcript (fim de turno) como fallback. Repetido o teste: aguardando → **parado** em 5 s depois do "No".
+- ✅ **Sem regressão:** aprovando ("Yes"), aguardando → ativo na hora (`PostToolUse`) → parado em 1 s (`Stop`). Com `/exit`, a sessão foi a **encerrado**.
+- Observação: sessões que terminaram enquanto o servidor estava parado voltam no boot como "desconhecido" e só somem pela regra de 12 h sem eventos.
+
 ## Pendente
 
-- 👀 **Itens que exigem ação específica**, ainda sem confirmação individual: sessão aguardando permissão num segundo terminal e `prefers-reduced-motion` (opcional).
+- 👀 `prefers-reduced-motion` (opcional).
 - 📱 **Celular:** instalar o Tailscale (B-001), subir com `-addr <IP da tailnet>:7777` e token e repetir a grade e o modal.

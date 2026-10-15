@@ -229,3 +229,22 @@ func TestCacheCreationAusenteContaComo5m(t *testing.T) {
 		t.Errorf("Totals = %+v, queria %+v", got, want)
 	}
 }
+
+func TestTurnEndedAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	conteudo := `{"type":"system","subtype":"turn_duration","timestamp":"2026-10-15T12:00:05Z"}
+{"type":"system","subtype":"stop_hook_summary","timestamp":"2026-10-15T12:00:09Z"}
+{"type":"system","subtype":"turn_duration","timestamp":"2026-10-15T12:00:07Z"}
+`
+	if err := os.WriteFile(path, []byte(conteudo), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := New(path)
+	if err := f.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2026, 10, 15, 12, 0, 7, 0, time.UTC)
+	if got := f.TurnEndedAt(); !got.Equal(want) {
+		t.Errorf("TurnEndedAt = %v, queria %v (só turn_duration conta)", got, want)
+	}
+}

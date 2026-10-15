@@ -75,6 +75,7 @@ type File struct {
 	totals      Tokens
 	byModel     map[ModelKey]Tokens
 	first, last time.Time
+	turnEnd     time.Time // última linha system/turn_duration
 	parseErrors int
 	anon        int // contador para mensagens sem message.id
 }
@@ -96,6 +97,7 @@ func (f *File) resetLocked() {
 	f.totals = Tokens{}
 	f.byModel = make(map[ModelKey]Tokens)
 	f.first, f.last = time.Time{}, time.Time{}
+	f.turnEnd = time.Time{}
 	f.parseErrors = 0
 	f.anon = 0
 }
@@ -150,6 +152,7 @@ func (f *File) Refresh() error {
 // line contém só os campos do transcript que interessam ao leitor.
 type line struct {
 	Type      string `json:"type"`
+	Subtype   string `json:"subtype"`
 	Timestamp string `json:"timestamp"`
 	Message   *struct {
 		ID    string `json:"id"`
@@ -185,6 +188,9 @@ func (f *File) processLocked(raw []byte) {
 			}
 			if ts.After(f.last) {
 				f.last = ts
+			}
+			if l.Type == "system" && l.Subtype == "turn_duration" && ts.After(f.turnEnd) {
+				f.turnEnd = ts
 			}
 		}
 	}
@@ -259,6 +265,15 @@ func (f *File) FirstTS() time.Time {
 }
 
 // LastTS devolve o maior timestamp visto; zero se nenhum.
+// TurnEndedAt devolve o horário da última linha system/turn_duration, que o
+// Claude Code grava ao fim de cada turno. Ela aparece mesmo quando o turno
+// termina sem o hook Stop (permissão recusada no modo interativo, Esc).
+func (f *File) TurnEndedAt() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.turnEnd
+}
+
 func (f *File) LastTS() time.Time {
 	f.mu.Lock()
 	defer f.mu.Unlock()

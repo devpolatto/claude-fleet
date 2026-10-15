@@ -404,3 +404,42 @@ isto não é json
 		t.Errorf("ParseErrors = %d, queria 1", d.ParseErrors)
 	}
 }
+
+// Recusar permissão no modo interativo não dispara hook nenhum; o fim de
+// turno no transcript tira a sessão de aguardando.
+func TestFimDeTurnoSemHookDeixaParado(t *testing.T) {
+	tests := []struct {
+		name   string
+		fimEm  time.Duration // fim do turno relativo ao PermissionRequest
+		inicio Status
+		want   Status
+	}{
+		{"recusa depois do PermissionRequest", 300 * time.Millisecond, StatusAguardando, StatusParado},
+		{"turno anterior ao PermissionRequest", -10 * time.Second, StatusAguardando, StatusAguardando},
+		{"Esc com a sessão ativa", time.Second, StatusAtivo, StatusParado},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mainPath := filepath.Join(dir, sid+".jsonl")
+			fim := t0.Add(tt.fimEm).UTC().Format(time.RFC3339Nano)
+			if err := os.WriteFile(mainPath, []byte(`{"type":"system","subtype":"turn_duration","timestamp":"`+fim+`"}`+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			s := New()
+			s.Apply(ingest.Event{Name: evSessionStart, SessionID: sid, TranscriptPath: mainPath}, t0.Add(-time.Minute))
+			name := "PermissionRequest"
+			if tt.inicio == StatusAtivo {
+				name = "PreToolUse"
+			}
+			s.Apply(ingest.Event{Name: name, SessionID: sid, ToolName: "Write"}, t0)
+			if d := mustGet(t, s); d.Status != tt.inicio {
+				t.Fatalf("status inicial = %q, queria %q", d.Status, tt.inicio)
+			}
+			NewRefresher(s).RefreshOnce()
+			if d := mustGet(t, s); d.Status != tt.want {
+				t.Errorf("status = %q, queria %q", d.Status, tt.want)
+			}
+		})
+	}
+}
