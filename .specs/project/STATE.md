@@ -59,6 +59,7 @@
 **Impact:** Impede o acesso pelo celular no UAT (T18); não bloqueia o desenvolvimento local.
 **Workaround:** Testar no desktop em `127.0.0.1`.
 **Resolution:** Instalar o Tailscale na máquina e no celular antes do T18.
+**Status (2026-10-15):** painel já roda como serviço systemd de usuário (`claude-fleet.service`) com o drop-in `local.conf` (loopback, sem token). Ao instalar o Tailscale: criar `~/.config/claude-fleet/env`, apagar o drop-in e reiniciar o serviço.
 
 ---
 

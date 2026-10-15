@@ -109,6 +109,21 @@ journalctl --user -u claude-fleet -f   # logs
 
 Para o serviço continuar rodando sem sessão aberta: `sudo loginctl enable-linger "$USER"`. Se o Tailscale ainda não tiver IP quando o serviço subir, ele tenta de novo a cada 10 s.
 
+Ainda sem Tailscale? Um drop-in faz o mesmo serviço subir só no loopback, sem token:
+
+```sh
+mkdir -p ~/.config/systemd/user/claude-fleet.service.d
+cat > ~/.config/systemd/user/claude-fleet.service.d/local.conf <<'EOF'
+[Service]
+EnvironmentFile=
+ExecStart=
+ExecStart=%h/.local/bin/claude-fleet -addr 127.0.0.1:7777
+EOF
+systemctl --user daemon-reload && systemctl --user restart claude-fleet
+```
+
+Depois de instalar o Tailscale e criar o `env`, apague o `local.conf` e rode o mesmo `daemon-reload` e `restart`.
+
 ## Como funciona
 
 ```
