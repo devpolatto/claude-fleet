@@ -1,0 +1,1 @@
+{"session_id": "sess-123", "transcript_path": "/home/u/.claude/projects/-tmp-proj/sess-123.jsonl", "cwd": "/tmp/proj", "hook_event_name": "Stop", "last_assistant_message": "SENTINELA-CONTEUDO", "stop_hook_active": false, "background_tasks": [], "session_crons": [], "prompt_id": "p-1", "permission_mode": "default", "effort": {"level": "high"}}
