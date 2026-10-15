@@ -86,10 +86,10 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Tabela "evento → chaves recebidas" registrada no design para os 10 eventos
-- [ ] Respondido: `PreToolUse` dentro de subagente traz `agent_id`? `SubagentStop` traz `agent_transcript_path`?
-- [ ] Respondido: o que `async: true` faz; `--resume` troca o `session_id`?
-- [ ] Hook temporário removido; `settings.json` igual ao de antes (`diff` vazio contra o backup)
+- [x] Tabela "evento → chaves recebidas" registrada no design (13 eventos observados; `Notification`, `PermissionDenied` e `StopFailure` não disparam em `-p`)
+- [x] Respondido: `PreToolUse` dentro de subagente traz `agent_id`? `SubagentStop` traz `agent_transcript_path`? (sim e sim)
+- [x] Respondido: o que `async: true` faz; `--resume` troca o `session_id`? (não bloqueia, mas pode perder o fim; mantém o ID)
+- [x] Hook temporário removido; `settings.json` igual ao de antes (os hooks ficaram num `--settings` à parte; SHA-256 do global idêntico)
 
 **Tests**: none (spike, sem código mantido)
 **Gate**: none
@@ -181,7 +181,8 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Payload com `prompt`, `tool_input`, `tool_response`, `message` → `Event` sem nenhum desses valores (teste procura a string-sentinela na struct serializada)
+- [ ] Payload com `prompt`, `tool_input`, `tool_response`, `message`, `last_assistant_message`, `error`, `compact_summary`, `custom_instructions`, `permission_suggestions` → `Event` sem nenhum desses valores (teste procura a string-sentinela na struct serializada)
+- [ ] Fixtures em `testdata/` com o formato de chaves registrado no spike T1 (design → "Spike T1")
 - [ ] Corpo > `maxBytes` → erro específico
 - [ ] `hook_event_name` ausente → erro
 - [ ] Gate passa: `go test ./...`
@@ -203,6 +204,9 @@ T8, T16 ───────────→ T18
 - [ ] Tabela de testes cobre todas as setas do diagrama de estados
 - [ ] Evento com `agent_id` altera só o subagente (e `LastEventAt` da sessão)
 - [ ] Evento de sessão desconhecida cria a sessão
+- [ ] `PostToolBatch` tira de **aguardando** (sessão e subagente)
+- [ ] `SubagentStop` de agente desconhecido é ignorado; Pre/Post da ferramenta `Agent` não muda status de subagente
+- [ ] `SessionStart` com `source=compact`/`resume` em sessão conhecida não altera o status
 - [ ] `Subscribe()` recebe sinal a cada mudança, sem bloquear com assinante lento
 - [ ] Gate passa: `go test -race ./...`
 

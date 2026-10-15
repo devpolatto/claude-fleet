@@ -47,7 +47,7 @@ stateDiagram-v2
   desconhecido --> ativo: qualquer evento de atividade
   parado --> ativo: UserPromptSubmit / PreToolUse / PostToolUse
   ativo --> aguardando: PermissionRequest / Notification
-  aguardando --> ativo: PreToolUse / PostToolUse / UserPromptSubmit
+  aguardando --> ativo: PreToolUse / PostToolUse / PostToolUseFailure / PostToolBatch / UserPromptSubmit
   ativo --> parado: Stop
   aguardando --> parado: Stop
   parado --> encerrado: SessionEnd
@@ -56,7 +56,20 @@ stateDiagram-v2
   encerrado --> [*]: 15 min depois
 ```
 
-Subagentes: `SubagentStart` → **ativo**; eventos com `agent_id` → **ativo** + `last_tool`; `PermissionRequest` com `agent_id` → **aguardando**; `SubagentStop` → **concluído**.
+Regras complementares (vindas do spike T1):
+
+- `PostToolBatch` também tira a sessão de **aguardando**: quando a permissão é negada, nenhum `PostToolUse` nem `PermissionDenied` é disparado.
+- `SessionStart` de uma sessão **já conhecida** não muda o status. Com `source=compact`, ele chega no meio da atividade; com `source=resume`, só atualiza `transcript_path`.
+- `PreCompact`, `PostCompact` e `SessionStart` não contam como atividade de ferramenta: só atualizam `LastEventAt`.
+
+Subagentes:
+
+- `SubagentStart` → **ativo**.
+- Eventos com `agent_id` (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`) → **ativo** + `last_tool`, atribuídos só ao subagente.
+- `PermissionRequest` com `agent_id` → **aguardando**; sai com o próximo evento daquele `agent_id`.
+- `SubagentStop` → **concluído**, guardando o `agent_transcript_path`.
+- O status do subagente **nunca** vem do `PreToolUse`/`PostToolUse` da ferramenta `Agent` na sessão-pai. O subagente roda em segundo plano, então o `PostToolUse` chega logo após o lançamento. Esses eventos só atualizam o `last_tool` da sessão-pai.
+- `SubagentStop` de um `agent_id` sem `SubagentStart` é **ignorado**, sem criar mini-tile. A compactação gera um desses, com `agent_type` vazio.
 
 ---
 
@@ -72,11 +85,43 @@ Subagentes: `SubagentStart` → **ativo**; eventos com `agent_id` → **ativo** 
 | O mesmo `message.id` se repete em várias linhas (76 de 127 mensagens num transcript real) → é preciso deduplicar | contagem num transcript |
 | Linhas dos subagentes têm `sessionId` do pai, `agentId` e `isSidechain: true` | inspeção do disco |
 
-**⚠️ Não verificado — validar no spike T1:**
+### Spike T1 — payload real por evento (2026-10-15, Claude Code 2.1.301)
 
-- Quais campos chegam exatamente em **cada** evento (ex.: `PreToolUse` disparado dentro de um subagente traz `agent_id`?). Os nomes existem no binário; o formato por evento não foi visto.
-- A semântica de `"async": true` na definição do hook (se roda em segundo plano sem bloquear). Até confirmar, o design não depende dela: o hook usa `curl -m 1`.
-- Se `--resume` mantém ou troca o `session_id`.
+**Método:** três sessões `claude -p` (modelo haiku) num diretório vazio, com `--setting-sources project` e os hooks num arquivo próprio passado por `--settings`, sem tocar o `~/.claude/settings.json` (o hash SHA-256 ficou igual antes e depois). Um script gravou **só os nomes das chaves** de cada payload. Roteiro: Bash na sessão principal, subagente `general-purpose` rodando Bash, `Write` negado, comando que falha (`false`), `--resume` e `/compact`.
+
+| Evento | Chaves de topo (além de `session_id`, `transcript_path`, `cwd`, `hook_event_name`) | `agent_id` dentro de subagente? |
+| --- | --- | --- |
+| `SessionStart` | `source` (`startup` \| `resume` \| `compact`) | — |
+| `SessionEnd` | `reason` (`other` em `-p`), `prompt_id` | — |
+| `UserPromptSubmit` | `prompt` ⚠️, `prompt_id`, `permission_mode` | — |
+| `PreToolUse` | `tool_name`, `tool_input` ⚠️, `tool_use_id`, `prompt_id`, `permission_mode`, `effort.level` | **sim** (+ `agent_type`) |
+| `PostToolUse` | as de `PreToolUse` + `tool_response` ⚠️, `duration_ms` | **sim** |
+| `PostToolUseFailure` | as de `PreToolUse` + `error` ⚠️, `is_interrupt`, `duration_ms` | não observado em subagente |
+| `PostToolBatch` *(novo)* | `tool_calls`, `prompt_id`, `permission_mode`, `effort.level` | **sim** |
+| `PermissionRequest` | `tool_name`, `tool_input` ⚠️, `permission_suggestions`, `prompt_id`, `permission_mode`, `effort.level` (**sem** `tool_use_id`) | **sim** |
+| `Stop` | `last_assistant_message` ⚠️, `stop_hook_active`, `background_tasks`, `session_crons`, `prompt_id`, `permission_mode`, `effort.level` | — |
+| `SubagentStart` | `agent_id`, `agent_type`, `prompt_id` | sempre |
+| `SubagentStop` | `agent_id`, `agent_type`, **`agent_transcript_path`**, `last_assistant_message` ⚠️, `stop_hook_active`, `background_tasks`, `session_crons`, `prompt_id`, `permission_mode`, `effort.level` | sempre |
+| `PreCompact` | `trigger` (`manual` \| `auto`), `custom_instructions` ⚠️, `prompt_id` | — |
+| `PostCompact` | `trigger`, `compact_summary` ⚠️, `prompt_id` | — |
+| `Notification`, `PermissionDenied`, `StopFailure` | **não disparados** em `-p` (`Notification` deve ser só do modo interativo) | — |
+
+⚠️ = carrega conteúdo de trabalho; a lista branca (INGEST-02) **tem** de descartar.
+
+**Respostas às perguntas do T1:**
+
+- **`PreToolUse` dentro de subagente traz `agent_id`?** Sim, junto com `agent_type`. O mesmo vale para `PostToolUse`, `PostToolBatch` e `PermissionRequest`.
+- **`SubagentStop` traz `agent_transcript_path`?** Sim. `SubagentStart` não traz.
+- **`async: true`:** não bloqueia. Um `sleep 6` assíncrono no `PreToolUse` não atrasou nada: o `PostToolUse` chegou 0,05 s depois. Porém **1 de 5** execuções não gravou o fim; o processo provavelmente morreu ao encerrar o subagente ou a sessão. Ou seja, `async` pode perder o envio nos eventos finais.
+- **`--resume` troca o `session_id`?** Não, em `-p` o ID é mantido e chega `SessionStart` com `source=resume`. O `--help` avisa que pode "começar uma cópia" em alguns casos; o servidor deve tolerar um ID novo apontando para o mesmo transcript.
+
+**Comportamentos que afetam o design:**
+
+1. **O subagente roda em segundo plano por padrão.** O `PostToolUse` da ferramenta `Agent` chega logo depois do `PreToolUse` (`tool_response` tem `isAsync`, `agentId`, `status`). O status do subagente deve vir de `SubagentStart`/`SubagentStop`, nunca do Pre/Post da ferramenta `Agent`.
+2. **A sessão "acorda" depois do `Stop`.** Quando um subagente em segundo plano termina, chegam um novo `UserPromptSubmit` e um novo `Stop`. A transição `parado → ativo` por `UserPromptSubmit` já cobre isso.
+3. **Uma permissão negada não gera evento próprio.** Depois do `PermissionRequest` veio só um `PostToolBatch`, sem `PostToolUse` nem `PermissionDenied`. Então **`aguardando` precisa sair também com `PostToolBatch`** (e com `Stop`, que já está no diagrama).
+4. **A compactação gera um `SubagentStop` "fantasma".** A sequência é `PreCompact` → `SubagentStop` com `agent_type` vazio e um `agent_id` que nunca teve `SubagentStart` → `SessionStart(source=compact)` → `PostCompact`. O Store deve **ignorar `SubagentStop` de agente desconhecido** em vez de criar um tile.
+5. Metadados úteis e seguros para a lista branca: `permission_mode`, `tool_use_id`, `duration_ms`, `source`, `reason`, `trigger`, `is_interrupt`.
 
 ### Tabela de preços (USD por milhão de tokens; preço de lista da API, consultado em 2026-10-15)
 
@@ -205,6 +250,8 @@ type Status string // "ativo" | "aguardando" | "parado" | "encerrado" | "desconh
 
 type Event struct { // só lista branca
     Name           string // hook_event_name
+    Source         string // SessionStart: startup | resume | compact
+    PermissionMode string
     SessionID      string
     AgentID        string // vazio = sessão principal
     AgentType      string
@@ -271,7 +318,7 @@ type Session struct {
 | Fonte dos tokens | Transcript em disco (pull a cada 5 s) | O payload do hook não traz `usage`; o transcript é a fonte autoritativa e cobre subagentes antigos |
 | Sanitização | Lista branca na decodificação | Campo novo no payload nunca vaza por acidente |
 | Persistência | Nenhuma | MVP ao vivo; tokens são recalculáveis a partir do disco |
-| Hook síncrono com `curl -m 1` | Em vez de `async: true` | `async` não foi validado (ver Research) |
+| Hook síncrono com `curl -m 1` | Em vez de `async: true` | O spike T1 mostrou que `async` não bloqueia, mas em 1 de 5 execuções o processo morreu antes de terminar. Perder `Stop`/`SubagentStop`/`SessionEnd` deixaria tiles presos; o custo do síncrono é ≤ 1 s só com o servidor fora do ar |
 
 ---
 

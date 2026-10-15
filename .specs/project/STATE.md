@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — planejamento concluído (spec, design e tasks em Draft); construção adiada
+**Current Work:** fleet-mvp — spike T1 concluído; aguardando aprovação do design com os ajustes do spike
 
 ---
 
@@ -39,6 +39,15 @@
 **Decision:** Exibir custo em USD calculado com a tabela de preços do design, sempre rotulado como estimativa.
 **Reason:** Em plano de assinatura não existe custo por chamada; ainda assim o número serve de métrica comparativa.
 **Impact:** Tabela de preços precisa de revisão quando sair modelo novo.
+
+---
+
+### AD-006: Hook síncrono, sem `async` (2026-10-15)
+
+**Decision:** Manter o `curl -m 1` síncrono em todos os eventos.
+**Reason:** No spike T1, `async: true` não bloqueou, mas perdeu 1 de 5 execuções quando o processo terminou. Perder um evento final deixa o tile preso.
+**Trade-off:** Até 1 s de atraso por evento, e só quando o servidor está fora do ar.
+**Impact:** `hook/fleet-hook.sh` e o instalador (T12, T15) não usam `async`.
 
 ---
 
@@ -83,7 +92,8 @@
 ## Todos
 
 - [ ] Aprovar spec, design (incluindo AD-001 e a matriz de testes) e tasks antes de executar
-- [ ] Rodar o spike T1 primeiro — ele pode alterar o design (campos por evento, `async`)
+- [x] Rodar o spike T1 primeiro — feito em 2026-10-15; resultados em `design.md` → "Spike T1"
+- [x] Incorporar ao design os 4 impactos do spike — feito em 2026-10-15 (design, spec STATE-01/02, tasks T6/T7)
 - [ ] Revisar a tabela de preços na data do build
 
 ---

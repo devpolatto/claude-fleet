@@ -35,7 +35,7 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 
 1. WHEN uma sessão dispara `SessionStart` THEN o painel SHALL exibir um novo tile para ela, com o nome do projeto (basename do `cwd`) e o id curto (8 caracteres).
 2. WHEN chega `UserPromptSubmit`, `PreToolUse` ou `PostToolUse` THEN o tile SHALL ficar **ativo** (animação de pulso) e mostrar o nome da última ferramenta.
-3. WHEN chega `PermissionRequest` ou `Notification` THEN o tile SHALL ficar **aguardando** (amarelo, sem pulso).
+3. WHEN chega `PermissionRequest` ou `Notification` THEN o tile SHALL ficar **aguardando** (amarelo, sem pulso), e SHALL sair desse estado com o próximo evento de atividade, inclusive `PostToolBatch` (permissão negada não gera evento próprio).
 4. WHEN chega `Stop` THEN o tile SHALL ficar **parado** (cinza).
 5. WHEN chega `SessionEnd` THEN o tile SHALL ficar **encerrado** (esmaecido) e sumir 15 min depois.
 6. WHEN um evento chega para uma sessão desconhecida THEN o sistema SHALL criar a sessão a partir desse evento.
@@ -57,6 +57,8 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 2. WHEN um evento de ferramenta chega com `agent_id` THEN a atividade SHALL ser atribuída ao subagente (mini-tile pulsa) e não só à sessão.
 3. WHEN chega `SubagentStop` THEN o mini-tile SHALL ficar concluído.
 4. WHEN a sessão-pai está **parada** mas um subagente segue ativo THEN o tile-pai SHALL indicar "subagente em background" (mini-tile pulsando).
+5. WHEN chega `SubagentStop` de um `agent_id` sem `SubagentStart` (ex.: o agente interno da compactação) THEN o sistema SHALL ignorá-lo, sem criar mini-tile.
+6. WHEN chegam `PreToolUse`/`PostToolUse` da ferramenta `Agent` na sessão-pai THEN eles SHALL NOT alterar o status de nenhum subagente.
 
 **Independent Test**: Simular `SubagentStart`/`PreToolUse` com `agent_id`/`SubagentStop` via `curl` e observar o mini-tile.
 
