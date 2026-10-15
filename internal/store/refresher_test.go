@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -441,5 +442,29 @@ func TestFimDeTurnoSemHookDeixaParado(t *testing.T) {
 				t.Errorf("status = %q, queria %q", d.Status, tt.want)
 			}
 		})
+	}
+}
+
+func TestRefresherUsaNomeDaSessao(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, sid+".jsonl")
+	if err := os.WriteFile(mainPath, []byte(`{"type":"custom-title","customTitle":"  toni-voz\u0007 ","sessionId":"x"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := New()
+	s.Apply(ingest.Event{Name: evSessionStart, SessionID: sid, Cwd: "/home/polatto", TranscriptPath: mainPath}, t0)
+	NewRefresher(s).RefreshOnce()
+	views := s.Snapshot()
+	if len(views) != 1 || views[0].Name != "toni-voz" || views[0].Project != "polatto" {
+		t.Fatalf("Snapshot = %+v, queria Name=toni-voz e Project=polatto", views)
+	}
+}
+
+func TestSanitizeName(t *testing.T) {
+	if got := sanitizeName(strings.Repeat("a", 70)); len([]rune(got)) != maxNameRunes+1 {
+		t.Errorf("nome longo não foi cortado: %d runas", len([]rune(got)))
+	}
+	if got := sanitizeName("a\nb\tc"); got != "abc" {
+		t.Errorf("sanitizeName = %q, queria abc", got)
 	}
 }

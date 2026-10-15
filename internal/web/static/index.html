@@ -471,7 +471,7 @@ function montarTile(s) {
   tile.tabIndex = 0;
   tile.setAttribute('role', 'button');
 
-  const nome = s.Project || s.ShortID || s.ID;
+  const nome = s.Name || s.Project || s.ShortID || s.ID;
   tile.title = s.Cwd || nome;
   tile.append(el('div', 'projeto', nome));
 
@@ -784,7 +784,7 @@ function renderDetalhe() {
     return;
   }
 
-  detTitulo.textContent = d.Project || d.ID;
+  detTitulo.textContent = d.Name || d.Project || d.ID;
   if (d.TranscriptMissing) frag.append(el('p', 'aviso', 'transcript indisponível — mostrando os últimos totais lidos'));
 
   const encerrada = d.Status === 'encerrado';

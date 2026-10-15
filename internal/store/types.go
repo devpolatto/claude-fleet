@@ -64,6 +64,7 @@ type Agent struct {
 // Session é uma sessão do Claude Code.
 type Session struct {
 	ID, Cwd, Project       string
+	Name                   string // nome dado com --name ou /rename; vazio se não houver
 	TranscriptPath         string `json:"-"` // uso interno do Refresher, fora da API
 	Status                 Status
 	StartedAt, LastEventAt time.Time
@@ -92,6 +93,7 @@ type AgentView struct {
 // Subagents vem ordenado por StartedAt e depois por ID.
 type SessionView struct {
 	ID, ShortID, Project, Cwd string
+	Name                      string
 	Status                    Status
 	StartedAt, LastEventAt    time.Time
 	EndedAt                   *time.Time

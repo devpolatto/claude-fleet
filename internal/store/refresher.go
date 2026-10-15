@@ -3,8 +3,10 @@ package store
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/devpolatto/claude-fleet/internal/pricing"
 	"github.com/devpolatto/claude-fleet/internal/transcript"
@@ -31,7 +33,9 @@ type SessionUsage struct {
 	ParseErrors       int              // linhas ilegíveis no principal e nos subagentes
 	// TurnEndedAt é o fim do último turno gravado no transcript principal.
 	TurnEndedAt time.Time
-	Agents      map[string]AgentUsage
+	// Name é o nome dado à sessão (customTitle); vazio mantém o atual.
+	Name   string
+	Agents map[string]AgentUsage
 }
 
 // SetUsage grava o consumo lido do disco na sessão e informa se algo mudou;
@@ -54,6 +58,9 @@ func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 	if sess.TranscriptMissing != u.TranscriptMissing {
 		sess.TranscriptMissing = u.TranscriptMissing
 		m.changed = true
+	}
+	if u.Name != "" {
+		m.setString(&sess.Name, u.Name)
 	}
 	if sess.ParseErrors != u.ParseErrors {
 		sess.ParseErrors = u.ParseErrors
@@ -257,6 +264,7 @@ func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
 	} else {
 		u.Main, u.Models = usageOf(main.ByModel())
 		u.TurnEndedAt = main.TurnEndedAt()
+		u.Name = sanitizeName(main.Title())
 	}
 	u.ParseErrors = main.ParseErrors()
 
@@ -352,4 +360,25 @@ func usageOf(byModel map[transcript.ModelKey]transcript.Tokens) (Usage, map[stri
 		models[key.Model] = mu
 	}
 	return total, models
+}
+
+// maxNameRunes limita o nome exibido no tile.
+const maxNameRunes = 64
+
+// sanitizeName tira caracteres de controle e corta nomes longos.
+func sanitizeName(s string) string {
+	var b strings.Builder
+	n := 0
+	for _, r := range strings.TrimSpace(s) {
+		if unicode.IsControl(r) {
+			continue
+		}
+		if n == maxNameRunes {
+			b.WriteString("…")
+			break
+		}
+		b.WriteRune(r)
+		n++
+	}
+	return b.String()
 }

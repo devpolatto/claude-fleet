@@ -76,6 +76,7 @@ type File struct {
 	byModel     map[ModelKey]Tokens
 	first, last time.Time
 	turnEnd     time.Time // última linha system/turn_duration
+	title       string    // último custom-title (--name ou /rename)
 	parseErrors int
 	anon        int // contador para mensagens sem message.id
 }
@@ -98,6 +99,7 @@ func (f *File) resetLocked() {
 	f.byModel = make(map[ModelKey]Tokens)
 	f.first, f.last = time.Time{}, time.Time{}
 	f.turnEnd = time.Time{}
+	f.title = ""
 	f.parseErrors = 0
 	f.anon = 0
 }
@@ -151,10 +153,13 @@ func (f *File) Refresh() error {
 
 // line contém só os campos do transcript que interessam ao leitor.
 type line struct {
-	Type      string `json:"type"`
-	Subtype   string `json:"subtype"`
-	Timestamp string `json:"timestamp"`
-	Message   *struct {
+	Type    string `json:"type"`
+	Subtype string `json:"subtype"`
+	// CustomTitle é o nome dado pelo usuário (--name ou /rename). As linhas
+	// ai-title, geradas a partir do conteúdo do prompt, não são lidas.
+	CustomTitle string `json:"customTitle"`
+	Timestamp   string `json:"timestamp"`
+	Message     *struct {
 		ID    string `json:"id"`
 		Model string `json:"model"`
 		Usage *struct {
@@ -193,6 +198,9 @@ func (f *File) processLocked(raw []byte) {
 				f.turnEnd = ts
 			}
 		}
+	}
+	if l.Type == "custom-title" && l.CustomTitle != "" {
+		f.title = l.CustomTitle
 	}
 	if l.Type != "assistant" || l.Message == nil || l.Message.Usage == nil {
 		return
@@ -272,6 +280,14 @@ func (f *File) TurnEndedAt() time.Time {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.turnEnd
+}
+
+// Title devolve o último nome dado à sessão com --name ou /rename (vazio se
+// não houver).
+func (f *File) Title() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.title
 }
 
 func (f *File) LastTS() time.Time {

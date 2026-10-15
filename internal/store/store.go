@@ -302,6 +302,7 @@ func (s *Store) Snapshot() []SessionView {
 			ID:          sess.ID,
 			ShortID:     shortID(sess.ID),
 			Project:     sess.Project,
+			Name:        sess.Name,
 			Cwd:         sess.Cwd,
 			Status:      sess.Status,
 			StartedAt:   sess.StartedAt,

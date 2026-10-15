@@ -248,3 +248,21 @@ func TestTurnEndedAt(t *testing.T) {
 		t.Errorf("TurnEndedAt = %v, queria %v (só turn_duration conta)", got, want)
 	}
 }
+
+func TestTitleUsaSoCustomTitle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	conteudo := `{"type":"custom-title","customTitle":"primeiro","sessionId":"s"}
+{"type":"ai-title","aiTitle":"gerado do prompt","sessionId":"s"}
+{"type":"custom-title","customTitle":"toni-voz","sessionId":"s"}
+`
+	if err := os.WriteFile(path, []byte(conteudo), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := New(path)
+	if err := f.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Title(); got != "toni-voz" {
+		t.Errorf("Title = %q, queria toni-voz (último custom-title; ai-title ignorado)", got)
+	}
+}
