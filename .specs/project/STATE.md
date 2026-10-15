@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — design aprovado; T1–T11 e T16 concluídos; próximos: T12 (script do hook) e T13 (grade de tiles), paralelos
+**Current Work:** fleet-mvp — design aprovado; T1–T13 e T16 concluídos (T13 com pulso, reduced-motion e reconexão pendentes de UAT); próximos: T14 (modal) e T15 (instalador, P2), paralelos
 
 ---
 

@@ -299,9 +299,9 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Servidor ligado: evento chega (204) e altera o estado
-- [ ] Servidor desligado: script termina em ≤ 1.1 s, exit 0, stdout/stderr vazios
-- [ ] `hook/test.sh` automatiza os dois casos
+- [x] Servidor ligado: evento chega (204) e altera o estado
+- [x] Servidor desligado: script termina em ≤ 1.1 s, exit 0, stdout/stderr vazios
+- [x] `hook/test.sh` automatiza os dois casos
 
 **Tests**: integration · **Gate**: `bash hook/test.sh`
 **Commit**: `feat(hook): script de envio de eventos`
@@ -317,11 +317,11 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Em 360 px sem scroll horizontal (DevTools)
+- [x] Em 360 px sem scroll horizontal (captura headless do Firefox; confirmar no celular no UAT)
 - [ ] Os 5 estados aparecem com o visual do spec ao simular eventos por `curl`
 - [ ] `prefers-reduced-motion` desliga o pulso
 - [ ] Derrubar e subir o servidor → página reconecta sozinha
-- [ ] Gate passa: `go vet ./... && go build ./...`
+- [x] Gate passa: `go vet ./... && go build ./...`
 
 **Tests**: manual (UAT) · **Gate**: build
 **Commit**: `feat(ui): grade de agentes ao vivo`
