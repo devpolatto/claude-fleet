@@ -56,24 +56,27 @@ type Agent struct {
 	StartedAt, LastEventAt time.Time
 	EndedAt                *time.Time // preenchido no SubagentStop
 	LastTool               string
-	TranscriptPath         string // agent_transcript_path do SubagentStop
+	TranscriptPath         string `json:"-"` // agent_transcript_path; uso interno, fora da API
 	Usage                  Usage
 	Models                 map[string]Usage
 }
 
 // Session é uma sessão do Claude Code.
 type Session struct {
-	ID, Cwd, Project, TranscriptPath string
-	Status                           Status
-	StartedAt, LastEventAt           time.Time
-	EndedAt                          *time.Time // preenchido no SessionEnd
-	LastTool                         string
-	Main                             Usage // só a sessão principal
-	Models                           map[string]Usage
-	Subagents                        map[string]*Agent
+	ID, Cwd, Project       string
+	TranscriptPath         string `json:"-"` // uso interno do Refresher, fora da API
+	Status                 Status
+	StartedAt, LastEventAt time.Time
+	EndedAt                *time.Time // preenchido no SessionEnd
+	LastTool               string
+	Main                   Usage // só a sessão principal
+	Models                 map[string]Usage
+	Subagents              map[string]*Agent
 	// TranscriptMissing indica que o transcript principal não pôde ser
 	// lido na última passada do Refresher; os totais anteriores ficam.
 	TranscriptMissing bool
+	// ParseErrors conta as linhas ilegíveis nos transcripts da sessão.
+	ParseErrors int
 }
 
 // AgentView é o resumo de um subagente para o mini-tile.

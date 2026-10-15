@@ -224,3 +224,14 @@ func TestNenhumaRespostaVazaConteudo(t *testing.T) {
 	}
 	t.Fatal("nenhum snapshot recebido em /stream")
 }
+
+func TestApiNaoExpoeCaminhoDoTranscript(t *testing.T) {
+	_, _, h := novoServidor(t, "")
+	do(h, http.MethodPost, "/event", "127.0.0.1:1", eventoComConteudo)
+	for _, path := range []string{"/api/sessions", "/api/session/sess-0123456789"} {
+		body := do(h, http.MethodGet, path, "127.0.0.1:1", "").Body.String()
+		if strings.Contains(body, "TranscriptPath") || strings.Contains(body, ".jsonl") {
+			t.Errorf("GET %s expõe o caminho do transcript: %s", path, body)
+		}
+	}
+}

@@ -28,6 +28,7 @@ type SessionUsage struct {
 	Main              Usage            // só a sessão principal
 	Models            map[string]Usage // da sessão principal, por nome de modelo
 	TranscriptMissing bool             // transcript principal ilegível ou ausente
+	ParseErrors       int              // linhas ilegíveis no principal e nos subagentes
 	Agents            map[string]AgentUsage
 }
 
@@ -50,6 +51,10 @@ func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 	m := &mutation{}
 	if sess.TranscriptMissing != u.TranscriptMissing {
 		sess.TranscriptMissing = u.TranscriptMissing
+		m.changed = true
+	}
+	if sess.ParseErrors != u.ParseErrors {
+		sess.ParseErrors = u.ParseErrors
 		m.changed = true
 	}
 	if !u.TranscriptMissing {
@@ -242,6 +247,7 @@ func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
 	} else {
 		u.Main, u.Models = usageOf(main.ByModel())
 	}
+	u.ParseErrors = main.ParseErrors()
 
 	for _, sf := range transcript.SubagentsOf(mainPath) {
 		f := r.file(sf.TranscriptPath)
@@ -249,6 +255,7 @@ func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
 		if err := f.Refresh(); err != nil {
 			continue // some entre o ReadDir e a abertura: fica como estava
 		}
+		u.ParseErrors += f.ParseErrors()
 		au := AgentUsage{
 			Type:           sf.Type,
 			Description:    sf.Description,

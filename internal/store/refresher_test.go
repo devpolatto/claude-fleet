@@ -387,3 +387,20 @@ func TestTotalComSubagenteSemLeituraTemCustoConhecido(t *testing.T) {
 		t.Errorf("Total = %+v, queria custo conhecido de US$ 0", d.Total)
 	}
 }
+
+func TestRefresherContaLinhasIlegiveis(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, sid+".jsonl")
+	conteudo := `{"type":"assistant","timestamp":"2026-10-15T12:00:00Z","message":{"id":"m1","model":"claude-opus-5-5","usage":{"input_tokens":1,"output_tokens":1}}}
+isto não é json
+`
+	if err := os.WriteFile(mainPath, []byte(conteudo), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := New()
+	s.Apply(ingest.Event{Name: evSessionStart, SessionID: sid, TranscriptPath: mainPath}, t0)
+	NewRefresher(s).RefreshOnce()
+	if d := mustGet(t, s); d.ParseErrors != 1 {
+		t.Errorf("ParseErrors = %d, queria 1", d.ParseErrors)
+	}
+}
