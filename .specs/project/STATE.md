@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — design aprovado; T1 e T2 concluídos, próximos: T3, T4, T6 (paralelos)
+**Current Work:** fleet-mvp — design aprovado; T1–T4 e T6 concluídos; próximos: T5 e T7 (paralelos)
 
 ---
 

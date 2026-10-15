@@ -123,10 +123,10 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] `claude-opus-5-5` não casa com a linha de `claude-opus-5` (teste de prefixo)
-- [ ] Caso conhecido: 1M input + 1M output de Opus 5.5 = US$ 24.00; fast = US$ 48.00
-- [ ] `<synthetic>` → `known=false`
-- [ ] Gate passa: `go test ./...` (≥ 8 casos)
+- [x] `claude-opus-5-5` não casa com a linha de `claude-opus-5` (teste de prefixo)
+- [x] Caso conhecido: 1M input + 1M output de Opus 5.5 = US$ 24.00; fast = US$ 48.00
+- [x] `<synthetic>` → `known=false`
+- [x] Gate passa: `go test ./...` (≥ 8 casos)
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(pricing): custo estimado por modelo`
@@ -142,11 +142,11 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Fixture com `message.id` repetido conta uma vez
-- [ ] Linha final incompleta não avança o offset; após completar a linha, é contada
-- [ ] Linha inválida é pulada e aumenta `ParseErrors`
-- [ ] Segundo `Refresh()` sem mudança no arquivo não relê nada (offset estável)
-- [ ] Gate passa: `go test ./...` (≥ 6 casos)
+- [x] Fixture com `message.id` repetido conta uma vez
+- [x] Linha final incompleta não avança o offset; após completar a linha, é contada
+- [x] Linha inválida é pulada e aumenta `ParseErrors`
+- [x] Segundo `Refresh()` sem mudança no arquivo não relê nada (offset estável)
+- [x] Gate passa: `go test ./...` (≥ 6 casos)
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(transcript): leitura incremental com dedup`
@@ -181,11 +181,11 @@ T8, T16 ───────────→ T18
 
 **Done when**:
 
-- [ ] Payload com `prompt`, `tool_input`, `tool_response`, `message`, `last_assistant_message`, `error`, `compact_summary`, `custom_instructions`, `permission_suggestions` → `Event` sem nenhum desses valores (teste procura a string-sentinela na struct serializada)
-- [ ] Fixtures em `testdata/` com o formato de chaves registrado no spike T1 (design → "Spike T1")
-- [ ] Corpo > `maxBytes` → erro específico
-- [ ] `hook_event_name` ausente → erro
-- [ ] Gate passa: `go test ./...`
+- [x] Payload com `prompt`, `tool_input`, `tool_response`, `message`, `last_assistant_message`, `error`, `compact_summary`, `custom_instructions`, `permission_suggestions` → `Event` sem nenhum desses valores (teste procura a string-sentinela na struct serializada)
+- [x] Fixtures em `testdata/` com o formato de chaves registrado no spike T1 (design → "Spike T1")
+- [x] Corpo > `maxBytes` → erro específico
+- [x] `hook_event_name` ausente → erro
+- [x] Gate passa: `go test ./...`
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(ingest): evento com lista branca`

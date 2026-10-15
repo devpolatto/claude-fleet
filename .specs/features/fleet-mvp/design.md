@@ -176,6 +176,7 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
 - **Location**: `internal/ingest/event.go`
 - **Interfaces**:
   - `Parse(r io.Reader, maxBytes int64) (Event, error)` — decodifica num struct com **lista branca** de campos; todo o resto é descartado na decodificação.
+  - Erros sentinela: `ErrTooLarge` (→ 413), `ErrInvalidJSON`, `ErrMissingEvent`, `ErrMissingSession` (→ 400). Nenhum erro cita trechos do corpo.
 - **Dependencies**: `encoding/json`
 
 ### Store
@@ -195,16 +196,17 @@ Projeto novo, sem código para reaproveitar. Referências externas usadas só co
 - **Purpose**: Ler tokens dos transcripts de forma incremental e deduplicada.
 - **Location**: `internal/transcript/reader.go`
 - **Interfaces**:
-  - `(*File) Refresh() error` — lê do offset até a última linha completa, atualiza `map[msgID]Call`
-  - `(*File) Totals() Usage` / `ByModel() map[string]Usage` / `FirstTS()`, `LastTS()`
-  - `SubagentsOf(transcriptPath string) []SubagentFile` — lista `subagents/agent-*.jsonl` + `.meta.json`
-- **Dependencies**: `bufio`, `encoding/json`, Pricing
+  - `New(path) *File`; `(*File) Refresh() error` — lê do offset até a última linha completa, atualiza `map[msgID]call`; recomeça do zero em truncamento ou troca de inode
+  - `(*File) Totals() Tokens` / `ByModel() map[ModelKey]Tokens` (`ModelKey{Model, Fast}`) / `FirstTS()`, `LastTS()`, `ParseErrors()`, `Messages()`
+  - `SubagentsOf(transcriptPath string) []SubagentFile` — lista `subagents/agent-*.jsonl` + `.meta.json` (T5)
+- **Dependencies**: `bufio`, `encoding/json`. Não importa Pricing; o custo é aplicado por quem consome `ByModel()` (T9)
 
 ### Pricing
 
 - **Purpose**: Custo estimado de uma chamada.
 - **Location**: `internal/pricing/pricing.go`
-- **Interfaces**: `Cost(model string, u Usage) (usd float64, known bool)`
+- **Interfaces**: `Cost(model string, t Tokens, fast bool) (usd float64, known bool)`; `Tokens` tem os mesmos campos de `transcript.Tokens`
+- **Casamento**: prefixo mais longo primeiro, só em fronteira de segmento (fim, `-` ou `[`)
 
 ### Refresher
 
@@ -256,6 +258,9 @@ type Event struct { // só lista branca
     AgentID        string // vazio = sessão principal
     AgentType      string
     ToolName       string
+    ToolUseID      string
+    Reason         string // SessionEnd
+    Trigger        string // PreCompact/PostCompact
     Cwd            string
     TranscriptPath string
     AgentTranscriptPath string
