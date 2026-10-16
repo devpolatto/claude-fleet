@@ -37,6 +37,7 @@ O CI (`.github/workflows/ci.yml`, job `test`) roda exatamente esses quatro check
 - Commits em português, Conventional Commits, escopo pelo pacote ou área: `feat(ui)`, `feat(web)`, `fix(store)`, `feat(push)`, `docs(specs)`, `ci`. Um commit por mudança lógica.
 - Mensagens de commit e descrições de PR **sem** linha de atribuição a ferramenta (`Co-Authored-By: Claude …`, `Generated with Claude Code`).
 - Feature nova começa no `.specs/features/<nome>/spec.md`; o código e a atualização do `STATE.md`/`uat.md` andam no mesmo PR. A skill `tlc-spec-driven` vem com o repositório (`.claude/skills/`) e guia spec, design e tasks; não altere a cópia sem indicar a mudança no `NOTICE` (exigência da CC-BY-4.0). Onde a skill e este arquivo divergirem (idioma e escopo dos commits, por exemplo), vale este arquivo.
+- **Figma espelha a interface.** O protótipo fica em [claude-fleet — painel v2](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2). Toda mudança visual em `internal/web/static/` (layout, componente, ícone, token, estado novo) atualiza também o Figma no mesmo PR, pelo agente `ui-figma`. Quem não tem acesso de edição ao arquivo descreve a mudança visual no PR, com screenshot, e a sincronização fica com o mantenedor antes do merge.
 
 ## Invariantes (não quebre sem uma AD nova no STATE.md)
 
@@ -58,4 +59,4 @@ O CI (`.github/workflows/ci.yml`, job `test`) roda exatamente esses quatro check
 Em `.claude/agents/`. A sessão principal planeja e delega; cada agente devolve só a conclusão.
 
 - **`reviewer`**: revisa o diff da branch contra as invariantes acima, sem editar nada. Rode antes de abrir o PR.
-- **`ui-figma`**: implementa ou ajusta a interface em `internal/web/static/`, a partir de um design do Figma ou de uma descrição, e também leva telas do painel para o Figma.
+- **`ui-figma`**: implementa ou ajusta a interface em `internal/web/static/`, a partir de um design do Figma ou de uma descrição, e mantém o Figma sincronizado com o código. Chame-o sempre que uma mudança tocar a parte visual, mesmo que o código já esteja pronto.
