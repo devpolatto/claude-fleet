@@ -188,3 +188,9 @@ bash hook/test.sh                     # hook: ligado, desligado, mudo, porta inv
 ```
 
 O planejamento está em [`.specs/`](.specs/): visão em `project/PROJECT.md`, decisões em `project/STATE.md` e spec, design e tasks em `features/fleet-mvp/`.
+
+A skill de planejamento usada nesse fluxo, `tlc-spec-driven`, vem junto em [`.claude/skills/`](.claude/skills/tlc-spec-driven/) e é carregada pelo Claude Code ao abrir o projeto.
+
+## Licença
+
+MIT (veja [`LICENSE`](LICENSE)), com uma exceção: `.claude/skills/tlc-spec-driven/` é uma cópia da skill do [Tech Lead's Club](https://github.com/tech-leads-club/agent-skills), sob CC-BY-4.0. Detalhes em [`NOTICE`](NOTICE).
