@@ -241,20 +241,20 @@ func TestApiNaoExpoeCaminhoDoTranscript(t *testing.T) {
 // Manifesto e ícones saem sem token: o navegador os busca sem cookie.
 func TestAssetsPublicos(t *testing.T) {
 	_, _, h := novoServidor(t, "s3cr3t-token")
-	for path, ctype := range publicAssets {
+	for path, a := range publicAssets {
 		rec := do(h, http.MethodGet, path, "100.64.0.10:1", "")
 		if rec.Code != http.StatusOK {
 			t.Errorf("GET %s: status = %d, queria 200", path, rec.Code)
 			continue
 		}
-		if got := rec.Header().Get("Content-Type"); got != ctype {
-			t.Errorf("GET %s: Content-Type = %q, queria %q", path, got, ctype)
+		if got := rec.Header().Get("Content-Type"); got != a.ctype {
+			t.Errorf("GET %s: Content-Type = %q, queria %q", path, got, a.ctype)
 		}
 		if rec.Body.Len() == 0 {
 			t.Errorf("GET %s: corpo vazio", path)
 		}
 	}
-	if rec := do(h, http.MethodGet, "/sw.js", "100.64.0.10:1", ""); rec.Code == http.StatusOK {
+	if rec := do(h, http.MethodGet, "/login.html", "100.64.0.10:1", ""); rec.Code == http.StatusOK {
 		t.Error("rota fora da lista não deveria existir")
 	}
 }
@@ -385,5 +385,20 @@ func TestCookieRenovadoNaPagina(t *testing.T) {
 	}
 	if rec := do(h, http.MethodGet, "/api/sessions", "100.64.0.10:1", "", c); len(rec.Result().Cookies()) != 0 {
 		t.Error("a API não deveria regravar o cookie")
+	}
+}
+
+// O service worker atualiza logo e não guarda nada no aparelho.
+func TestServiceWorker(t *testing.T) {
+	_, _, h := novoServidor(t, "s3cr3t-token")
+	rec := do(h, http.MethodGet, "/sw.js", "100.64.0.10:1", "")
+	if rec.Code != http.StatusOK || rec.Header().Get("Cache-Control") != "no-cache" {
+		t.Fatalf("status = %d, Cache-Control = %q; queria 200 e no-cache", rec.Code, rec.Header().Get("Cache-Control"))
+	}
+	body := rec.Body.String()
+	for _, proibido := range []string{"caches.", "'fetch'", `"fetch"`} {
+		if strings.Contains(body, proibido) {
+			t.Errorf("sw.js usa %s: o service worker não deve interceptar nem guardar requisições", proibido)
+		}
 	}
 }

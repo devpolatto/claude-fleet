@@ -1,6 +1,6 @@
 # pwa Specification
 
-> Status: **P1 implementada e verificada** em 2026-10-16: instalada no GNOME pelo Chrome/Brave e acessada por HTTPS no Chrome do Android. P2 (service worker) não implementada.
+> Status: **P1 e P2 implementadas e verificadas** em 2026-10-16: instalada no GNOME pelo Chrome/Brave e acessada por HTTPS no Chrome do Android. P2 (service worker) implementada e verificada no DevTools em 2026-10-16.
 
 ## Problem Statement
 
@@ -99,6 +99,7 @@ Abro o painel no navegador do celular e do desktop digitando o endereço ou proc
 - **Um `http.Server` por listener** (`serve` em `main.go`): um servidor compartilhado entre `Serve` e `ServeTLS` fecha a conexão HTTP/2 logo após o pedido quando o `Serve` sobe primeiro (achado no teste com `curl`; coberto por `TestServeTLSComHTTP2ELoopbackHTTP`).
 - **Recarga do certificado**: `web.CertReloader` compara o `mtime` dos dois arquivos a cada handshake; se a releitura falhar, segue com o par anterior.
 - **Certificado**: `tailscale cert` grava `~/.config/claude-fleet/tls.crt` e `tls.key` (600). O domínio fica em `CLAUDE_FLEET_TLS_DOMAIN`, no mesmo `env` do token. `deploy/claude-fleet-cert.timer` roda `claude-fleet-cert.service` toda semana.
+- **Service worker** (`internal/web/static/sw.js`): só `install` (`skipWaiting`) e `activate` (`clients.claim`). Sem handler de `fetch` e sem Cache API, então toda requisição, inclusive o `/stream`, vai direto à rede. Servido sem token e com `Cache-Control: no-cache`; a página só o registra quando `location.protocol === 'https:'`. `TestServiceWorker` falha se o arquivo passar a usar `caches.` ou `fetch`.
 - **Pré-requisito confirmado**: `sudo tailscale set --operator=$USER`, sem o qual o `tailscale cert` responde "Access denied".
 
 ---
@@ -114,9 +115,9 @@ Abro o painel no navegador do celular e do desktop digitando o endereço ou proc
 | PWA-05 | P1: HTTPS — recarrega certificado renovado sem reiniciar | Execute | Verified |
 | PWA-06 | P1: HTTPS — cookie `Secure` e erro claro com configuração incompleta | Execute | Verified |
 | PWA-07 | P1: HTTPS — serviço, timer de renovação e README | Execute | Verified |
-| PWA-08 | P2: Service worker sem cache, só por HTTPS | - | Pending |
+| PWA-08 | P2: Service worker sem cache, só por HTTPS | Execute | Verified |
 
-**Coverage:** 8 total, 7 implementados (P1), 1 pendente (P2).
+**Coverage:** 8 total, 8 implementados.
 
 ---
 

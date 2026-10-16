@@ -29,21 +29,28 @@ const MaxLoginBytes = 4 << 10
 // cookieMaxAge é a validade do cookie, renovada a cada visita à página.
 const cookieMaxAge = 30 * 24 * time.Hour
 
-//go:embed static/index.html static/login.html static/manifest.webmanifest static/*.png
+//go:embed static/index.html static/login.html static/manifest.webmanifest static/sw.js static/*.png
 var static embed.FS
 
 // loginPage é a tela de token, servida no lugar do 401 em texto quando quem
 // pede é a página: no app instalado não há barra de endereço para o ?t=.
 var loginPage = template.Must(template.ParseFS(static, "static/login.html"))
 
+// asset é um arquivo embutido servido fora da autenticação.
+type asset struct {
+	ctype, cache string
+}
+
 // publicAssets são os arquivos que o navegador busca sem cookie (o manifesto
 // é pedido com credentials "omit") e que não dizem nada sobre a máquina: ficam
-// fora da autenticação por token.
-var publicAssets = map[string]string{
-	"/manifest.webmanifest": "application/manifest+json",
-	"/icon-192.png":         "image/png",
-	"/icon-512.png":         "image/png",
-	"/apple-touch-icon.png": "image/png",
+// fora da autenticação por token. O sw.js vai com no-cache para o navegador
+// pegar uma versão nova logo após a atualização do binário.
+var publicAssets = map[string]asset{
+	"/manifest.webmanifest": {"application/manifest+json", "public, max-age=86400"},
+	"/icon-192.png":         {"image/png", "public, max-age=86400"},
+	"/icon-512.png":         {"image/png", "public, max-age=86400"},
+	"/apple-touch-icon.png": {"image/png", "public, max-age=86400"},
+	"/sw.js":                {"text/javascript; charset=utf-8", "no-cache"},
 }
 
 // Store é o que o servidor precisa do store.Store.
@@ -81,8 +88,8 @@ func (s *Server) Handler() http.Handler {
 	// token. A proteção é aceitar só conexões de loopback.
 	mux.HandleFunc("POST /event", s.handleEvent)
 	mux.HandleFunc("POST /login", s.handleLogin)
-	for path, ctype := range publicAssets {
-		mux.Handle("GET "+path, assetHandler("static"+path, ctype))
+	for path, a := range publicAssets {
+		mux.Handle("GET "+path, assetHandler("static"+path, a))
 	}
 
 	mux.Handle("GET /{$}", s.auth(http.HandlerFunc(s.handleIndex)))
@@ -123,16 +130,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(page)
 }
 
-// assetHandler serve um arquivo embutido com o Content-Type dado.
-func assetHandler(name, ctype string) http.Handler {
+// assetHandler serve um arquivo embutido com o Content-Type e o
+// Cache-Control do asset.
+func assetHandler(name string, a asset) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, err := static.ReadFile(name)
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", ctype)
-		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Header().Set("Content-Type", a.ctype)
+		w.Header().Set("Cache-Control", a.cache)
 		_, _ = w.Write(data)
 	})
 }

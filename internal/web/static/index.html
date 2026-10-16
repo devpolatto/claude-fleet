@@ -1633,6 +1633,12 @@ es.addEventListener('error', () => {
     ? 'conexão perdida — recarregue a página'
     : 'reconectando…');
 });
+
+// Service worker: só por HTTPS, onde o navegador aceita registrar; por HTTP
+// a página funciona igual, só não é instalável. Ele não guarda cache.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('/sw.js').catch(() => { /* sem SW, segue como página */ });
+}
 </script>
 </body>
 </html>
