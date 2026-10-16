@@ -627,6 +627,15 @@
     .metrica .v { font-size: 13px; }
   }
 
+  /* Celular na horizontal: a tela é baixa demais para o cabeçalho, então só
+     os tiles ficam. Ele volta enquanto a conexão estiver caída, para o aviso
+     de "reconectando…" não sumir. pointer: coarse deixa de fora janelas
+     baixas no desktop. */
+  @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+    header:not(.reconectando) { display: none; }
+    main { padding-top: 12px; padding-bottom: 12px; gap: 12px; }
+  }
+
   /* Sem animação para quem pediu menos movimento: o anel fica fixo. */
   @media (prefers-reduced-motion: reduce) {
     .status.s-ativo::after { animation: none; box-shadow: 0 0 0 3px rgba(52, 211, 153, .25); }
