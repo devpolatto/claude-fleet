@@ -127,6 +127,15 @@ Se o celular disser que não encontrou o endereço (`*.ts.net`) mas o desktop ab
 
 `-tls-cert` e `-tls-key` vão juntos e exigem `-addr` num IP específico fora do loopback; nos outros casos o processo sai com erro. O certificado do Tailscale vale 90 dias: o timer da seção 5 o renova, e o painel relê os arquivos sozinho, sem reiniciar.
 
+### Notificações push
+
+Com o painel em HTTPS, o sino do cabeçalho (ao lado do botão de som) liga as notificações **neste aparelho**: o navegador pede permissão e o aparelho se inscreve no servidor. Daí em diante, quando uma sessão ou um subagente entra em "aguardando", o servidor manda uma notificação a todos os aparelhos inscritos, mesmo com o app fechado e a tela bloqueada, e repete a cada 5 min enquanto ela seguir aguardando. A notificação diz só o nome da sessão; tocar nela abre o painel.
+
+- O servidor guarda a chave VAPID (`vapid.pem`) e as inscrições (`push-subscriptions.json`) em `~/.config/claude-fleet/` (flag `-state-dir`), com permissão 600. Apagar o `vapid.pem` invalida todas as inscrições.
+- O envio sai do servidor para o serviço de push do navegador (no Chrome, `fcm.googleapis.com`), com o conteúdo cifrado de ponta a ponta (RFC 8291): o serviço não lê a mensagem.
+- Para testar sem esperar uma sessão: `curl -X POST -b "fleet_token=<token>" https://<nome>.ts.net:7777/api/push/test`.
+- Se o diretório de estado não puder ser usado, só o push fica desligado (o sino não aparece) e o painel sobe normalmente.
+
 ## 5. Deixar sempre de pé (systemd de usuário)
 
 O arquivo [`deploy/claude-fleet.service`](deploy/claude-fleet.service) sobe o painel em HTTPS no IP da tailnet, com o token de `~/.config/claude-fleet/env` e o certificado da seção anterior. O [`claude-fleet-cert.timer`](deploy/claude-fleet-cert.timer) roda [`claude-fleet-cert.service`](deploy/claude-fleet-cert.service) toda semana para renovar o certificado.

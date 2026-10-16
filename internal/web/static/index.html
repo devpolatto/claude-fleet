@@ -58,8 +58,8 @@
     border-bottom: 1px solid var(--border);
     padding: 16px 16px 14px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    grid-template-areas: "marca som vivo" "contador contador contador";
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "marca push som vivo" "contador contador contador contador";
     align-items: center;
     gap: 12px;
     transition: background-color .3s;
@@ -92,10 +92,11 @@
   header.reconectando #conexao { color: var(--aguardando); }
   header.reconectando #conexao::before { background: var(--aguardando); box-shadow: none; }
 
-  /* Toggle do alerta sonoro: âmbar quando ligado, tracejado quando o
-     navegador ainda bloqueia o áudio. */
-  #som {
-    grid-area: som;
+  /* Toggles do cabeçalho (som e notificações): âmbar quando ligados,
+     tracejados quando o navegador bloqueia. */
+  #push { grid-area: push; }
+  #som { grid-area: som; }
+  #som, #push {
     width: 34px;
     height: 34px;
     display: grid;
@@ -107,14 +108,15 @@
     color: var(--muted);
     cursor: pointer;
   }
-  #som[hidden] { display: none; }
-  #som[aria-pressed="true"] {
+  #som[hidden], #push[hidden] { display: none; }
+  #som[aria-pressed="true"], #push[aria-pressed="true"] {
     border-color: rgba(251, 191, 36, .5);
     background: rgba(251, 191, 36, .14);
     color: var(--aguardando);
   }
-  #som.bloqueado { border-style: dashed; opacity: .7; }
-  #som:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  #som.bloqueado, #push.bloqueado { border-style: dashed; opacity: .7; }
+  #som:focus-visible, #push:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  #push[aria-busy="true"] { opacity: .6; cursor: progress; }
 
   #contador { grid-area: contador; display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
@@ -628,8 +630,8 @@
     main { padding-top: 32px; }
     header {
       padding: 20px 32px;
-      grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-      grid-template-areas: "marca contador . som vivo";
+      grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+      grid-template-areas: "marca contador . push som vivo";
       gap: 20px;
     }
   }
@@ -687,6 +689,7 @@
     <h1>Claude Fleet</h1>
   </div>
   <div id="contador"><span class="chip">conectando…</span></div>
+  <button type="button" id="push" aria-pressed="false" aria-label="Notificações neste aparelho" hidden></button>
   <button type="button" id="som" aria-pressed="false" aria-label="Som dos alertas" hidden></button>
   <p id="conexao" role="status">conectando…</p>
 </header>
@@ -747,6 +750,8 @@ const ICONES = {
   alerta: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'currentColor' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--icone-interno, var(--aguardando-bg))', w: 2.4 }] },
   somLigado: { size: 16, paths: [{ d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z', fill: 'currentColor' }, { d: 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11', stroke: 'currentColor', w: 2 }] },
   somDesligado: { size: 16, paths: [{ d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z', fill: 'currentColor' }, { d: 'M16 9.5l5 5M21 9.5l-5 5', stroke: 'currentColor', w: 2 }] },
+  sino: { size: 16, paths: [{ d: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z', fill: 'currentColor' }, { d: 'M10 20.5a2 2 0 0 0 4 0', stroke: 'currentColor', w: 2 }] },
+  sinoCortado: { size: 16, paths: [{ d: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z', fill: 'currentColor' }, { d: 'M10 20.5a2 2 0 0 0 4 0', stroke: 'currentColor', w: 2 }, { d: 'M3.5 3.5l17 17', stroke: 'var(--surface-2)', w: 4 }, { d: 'M3.5 3.5l17 17', stroke: 'currentColor', w: 2 }] },
   olhoCortado: { size: 13, paths: [{ d: 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a12 12 0 0 1-3 4.2M6.6 6.6C4.3 8 2.7 10.2 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2', stroke: 'currentColor', w: 2 }] },
   olho: { size: 13, paths: [{ d: 'M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z', stroke: 'currentColor', w: 2 }, { d: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', stroke: 'currentColor', w: 2 }] },
   aviso: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'var(--parado)' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--surface)', w: 2.4 }] },
@@ -1637,7 +1642,113 @@ es.addEventListener('error', () => {
 // Service worker: só por HTTPS, onde o navegador aceita registrar; por HTTP
 // a página funciona igual, só não é instalável. Ele não guarda cache.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('/sw.js').catch(() => { /* sem SW, segue como página */ });
+  navigator.serviceWorker.register('/sw.js').then(iniciarPush, () => { /* sem SW, segue como página */ });
+}
+
+// ---------- Notificações push ----------
+// O sino inscreve este aparelho no servidor, que avisa quando uma sessão
+// entra em aguardando (e a cada 5 min enquanto ela seguir assim), mesmo com
+// o app fechado. Cada aparelho liga o seu.
+
+const pushBtn = document.getElementById('push');
+let pushChave = '';      // chave pública VAPID do servidor (base64url)
+let pushInscrito = false;
+let pushFalhou = false;
+
+function b64urlParaBytes(s) {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4);
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function bytesParaB64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function enviarInscricao(sub) {
+  const r = await fetch('/api/push/subscription', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sub),
+  });
+  if (!r.ok) throw new Error('servidor recusou a inscrição: ' + r.status);
+}
+
+async function apagarInscricao(sub) {
+  await fetch('/api/push/subscription', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint: sub.endpoint }),
+  });
+}
+
+function atualizarPushBtn() {
+  const negado = Notification.permission === 'denied';
+  pushBtn.setAttribute('aria-pressed', String(pushInscrito));
+  pushBtn.classList.toggle('bloqueado', negado || pushFalhou);
+  pushBtn.title = negado ? 'Notificações bloqueadas nas permissões do navegador'
+    : pushFalhou ? 'Notificações: a última tentativa falhou; toque para tentar de novo'
+    : pushInscrito ? 'Notificações neste aparelho: ligadas' : 'Notificações neste aparelho: desligadas';
+  pushBtn.replaceChildren(icone(pushInscrito ? 'sino' : 'sinoCortado'));
+}
+
+// iniciarPush mostra o sino quando o navegador e o servidor suportam push, e
+// reenvia a inscrição existente (o servidor pode ter perdido o arquivo). Uma
+// inscrição feita com outra chave VAPID não recebe mais nada: é descartada.
+async function iniciarPush() {
+  if (!('PushManager' in window) || !('Notification' in window)) return;
+  try {
+    const r = await fetch('/api/push/key');
+    if (!r.ok) return; // push desligado no servidor
+    pushChave = (await r.json()).publicKey;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && sub.options.applicationServerKey && bytesParaB64url(sub.options.applicationServerKey) !== pushChave) {
+      await sub.unsubscribe();
+      sub = null;
+    }
+    pushInscrito = !!sub;
+    if (sub) enviarInscricao(sub).catch(() => { pushFalhou = true; atualizarPushBtn(); });
+  } catch (_) {
+    return;
+  }
+  pushBtn.hidden = false;
+  atualizarPushBtn();
+}
+
+if (pushBtn) {
+  pushBtn.addEventListener('click', async () => {
+    if (pushBtn.getAttribute('aria-busy') === 'true') return;
+    pushBtn.setAttribute('aria-busy', 'true');
+    try {
+      if (pushInscrito) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await apagarInscricao(sub);
+          await sub.unsubscribe();
+        }
+        pushInscrito = false;
+      } else {
+        // Primeiro a permissão, ainda dentro do gesto do toque.
+        if (await Notification.requestPermission() !== 'granted') return;
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlParaBytes(pushChave) });
+        try {
+          await enviarInscricao(sub);
+        } catch (e) {
+          await sub.unsubscribe();
+          throw e;
+        }
+        pushInscrito = true;
+      }
+      pushFalhou = false;
+    } catch (_) {
+      pushFalhou = true;
+    } finally {
+      pushBtn.removeAttribute('aria-busy');
+      atualizarPushBtn();
+    }
+  });
 }
 </script>
 </body>

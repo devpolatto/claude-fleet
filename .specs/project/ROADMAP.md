@@ -30,7 +30,7 @@
 ### Features
 
 **Serviço systemd de usuário** - DONE (antecipado no M1: `deploy/claude-fleet.service`)
-**Alerta "aguardando permissão"** (vibração/notificação no navegador; avaliar se substitui ou complementa o `telegram-notify`) - IN PROGRESS: som no navegador com toggle (`features/alerta-sonoro`); vibração e notificação do sistema seguem PLANNED
+**Alerta "aguardando permissão"** - DONE: som no navegador com toggle (`features/alerta-sonoro`) e notificação push com a tela bloqueada (`features/notificacao-push`). O `telegram-notify` continua para aprovar à distância no modo ausente.
 **Instalação como PWA** (ícone na tela inicial do celular e no GNOME; exige HTTPS via certificado do Tailscale) - DONE: manifesto, ícones, HTTPS e service worker. Spec em `features/pwa`
 **Ocultar sessão da grade** (botão no pop-up; por nome, salvo no navegador; volta a aparecer quando aguarda permissão) - DONE. Spec em `features/ocultar-sessao`
 

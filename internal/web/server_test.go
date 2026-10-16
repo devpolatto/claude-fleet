@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/push"
 	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
@@ -400,5 +401,91 @@ func TestServiceWorker(t *testing.T) {
 		if strings.Contains(body, proibido) {
 			t.Errorf("sw.js usa %s: o service worker não deve interceptar nem guardar requisições", proibido)
 		}
+	}
+}
+
+type pushFalso struct {
+	subs    map[string]push.Subscription
+	enviada []push.Message
+}
+
+func (p *pushFalso) PublicKey() string { return "CHAVE-PUBLICA" }
+func (p *pushFalso) Subscribe(s push.Subscription) error {
+	p.subs[s.Endpoint] = s
+	return nil
+}
+func (p *pushFalso) Unsubscribe(endpoint string) error {
+	delete(p.subs, endpoint)
+	return nil
+}
+func (p *pushFalso) SendAll(_ context.Context, m push.Message, _ string) int {
+	p.enviada = append(p.enviada, m)
+	return len(p.subs)
+}
+
+const inscricaoValida = `{"endpoint":"https://fcm.googleapis.com/fcm/send/abc","expirationTime":null,"keys":{"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4","auth":"BTBZMqHH6r4Tts7J_aSIgg"}}`
+
+func reqJSON(h http.Handler, method, target, body string, cookie *http.Cookie, ctype string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.RemoteAddr = "100.64.0.10:1"
+	if ctype != "" {
+		req.Header.Set("Content-Type", ctype)
+	}
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestPushDesligado(t *testing.T) {
+	_, _, h := novoServidor(t, "")
+	if rec := reqJSON(h, http.MethodGet, "/api/push/key", "", nil, ""); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, queria 503", rec.Code)
+	}
+}
+
+func TestPushAPI(t *testing.T) {
+	const token = "s3cr3t-token"
+	st := store.New()
+	hub := NewHub(st)
+	srv := NewServer(st, hub, token)
+	pf := &pushFalso{subs: map[string]push.Subscription{}}
+	srv.SetPush(pf)
+	h := srv.Handler()
+	c := &http.Cookie{Name: CookieName, Value: token}
+
+	if rec := reqJSON(h, http.MethodGet, "/api/push/key", "", nil, ""); rec.Code != http.StatusUnauthorized {
+		t.Errorf("sem cookie: status = %d, queria 401", rec.Code)
+	}
+	if rec := reqJSON(h, http.MethodPost, "/api/push/subscription", inscricaoValida, nil, "application/json"); rec.Code != http.StatusUnauthorized {
+		t.Errorf("inscrição sem cookie: status = %d, queria 401", rec.Code)
+	}
+	rec := reqJSON(h, http.MethodGet, "/api/push/key", "", c, "")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "CHAVE-PUBLICA") {
+		t.Errorf("chave: %d %s", rec.Code, rec.Body)
+	}
+
+	if rec := reqJSON(h, http.MethodPost, "/api/push/subscription", inscricaoValida, c, "text/plain"); rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("text/plain: status = %d, queria 415", rec.Code)
+	}
+	if rec := reqJSON(h, http.MethodPost, "/api/push/subscription", strings.Replace(inscricaoValida, "https://", "http://", 1), c, "application/json"); rec.Code != http.StatusBadRequest {
+		t.Errorf("endpoint http: status = %d, queria 400", rec.Code)
+	}
+	if rec := reqJSON(h, http.MethodPost, "/api/push/subscription", `{"endpoint":`+strings.Repeat(" ", MaxPushBytes)+`"x"}`, c, "application/json"); rec.Code != http.StatusBadRequest {
+		t.Errorf("corpo grande: status = %d, queria 400", rec.Code)
+	}
+	if rec := reqJSON(h, http.MethodPost, "/api/push/subscription", inscricaoValida, c, "application/json"); rec.Code != http.StatusNoContent || len(pf.subs) != 1 {
+		t.Fatalf("inscrição válida: status = %d, inscritos = %d", rec.Code, len(pf.subs))
+	}
+
+	rec = reqJSON(h, http.MethodPost, "/api/push/test", "", c, "")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"sent":1`) || len(pf.enviada) != 1 {
+		t.Errorf("teste: %d %s", rec.Code, rec.Body)
+	}
+
+	if rec := reqJSON(h, http.MethodDelete, "/api/push/subscription", `{"endpoint":"https://fcm.googleapis.com/fcm/send/abc"}`, c, "application/json"); rec.Code != http.StatusNoContent || len(pf.subs) != 0 {
+		t.Errorf("desinscrever: status = %d, inscritos = %d", rec.Code, len(pf.subs))
 	}
 }

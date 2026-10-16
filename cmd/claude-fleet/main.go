@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/push"
 	"github.com/devpolatto/claude-fleet/internal/store"
 	"github.com/devpolatto/claude-fleet/internal/web"
 )
@@ -33,6 +34,8 @@ type config struct {
 	// TLSCert e TLSKey ligam HTTPS no endereço da tailnet; o loopback do
 	// hook continua em HTTP.
 	TLSCert, TLSKey string
+	// StateDir guarda a chave VAPID e as inscrições de push.
+	StateDir string
 }
 
 const (
@@ -87,9 +90,19 @@ func run(ctx context.Context, cfg config) error {
 	}
 
 	hub := web.NewHub(st)
-	handler := web.NewServer(st, hub, cfg.Token).Handler()
+	server := web.NewServer(st, hub, cfg.Token)
 
 	var wg sync.WaitGroup
+	// Sem o diretório de estado, só o push fica desligado; o painel sobe.
+	if svc, err := push.NewService(cfg.StateDir); err != nil {
+		log.Printf("claude-fleet: push desligado: %v", err)
+	} else {
+		server.SetPush(svc)
+		wg.Add(1)
+		go func() { defer wg.Done(); push.NewNotifier(st, svc).Run(ctx) }()
+	}
+	handler := server.Handler()
+
 	wg.Add(3)
 	go func() { defer wg.Done(); hub.Run(ctx) }()
 	go func() { defer wg.Done(); store.NewRefresher(st).Run(ctx, store.DefaultRefreshInterval) }()
@@ -194,6 +207,7 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 	fs.StringVar(&cfg.Projects, "projects", "", "diretório dos transcripts (padrão: ~/.claude/projects)")
 	fs.StringVar(&cfg.TLSCert, "tls-cert", "", "certificado TLS (PEM); liga HTTPS no endereço da tailnet, junto com -tls-key")
 	fs.StringVar(&cfg.TLSKey, "tls-key", "", "chave do certificado TLS (PEM)")
+	fs.StringVar(&cfg.StateDir, "state-dir", "", "diretório da chave VAPID e das inscrições de push (padrão: ~/.config/claude-fleet)")
 	if err := fs.Parse(args); err != nil {
 		return config{}, err
 	}
@@ -207,6 +221,11 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 			return config{}, errors.New("HOME não definido; informe -projects")
 		}
 		cfg.Projects = filepath.Join(home, ".claude", "projects")
+	}
+	if cfg.StateDir == "" {
+		if home := getenv("HOME"); home != "" {
+			cfg.StateDir = filepath.Join(home, ".config", "claude-fleet")
+		}
 	}
 
 	if err := validateBind(cfg.Addr, cfg.Token); err != nil {

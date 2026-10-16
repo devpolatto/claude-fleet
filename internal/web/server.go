@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/devpolatto/claude-fleet/internal/ingest"
+	"github.com/devpolatto/claude-fleet/internal/push"
 	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
@@ -22,6 +24,9 @@ const MaxEventBytes = 256 << 10
 
 // CookieName é o cookie que guarda o token depois da primeira visita com ?t=.
 const CookieName = "fleet_token"
+
+// MaxPushBytes limita o corpo das rotas de push (uma inscrição tem ~400 bytes).
+const MaxPushBytes = 4 << 10
 
 // MaxLoginBytes limita o corpo de POST /login (só o campo token).
 const MaxLoginBytes = 4 << 10
@@ -60,10 +65,19 @@ type Store interface {
 	Get(id string) (store.SessionDetail, bool)
 }
 
+// Push é o que o servidor precisa do push.Service.
+type Push interface {
+	PublicKey() string
+	Subscribe(sub push.Subscription) error
+	Unsubscribe(endpoint string) error
+	SendAll(ctx context.Context, msg push.Message, topic string) int
+}
+
 // Server monta as rotas do painel.
 type Server struct {
 	store Store
 	hub   http.Handler
+	push  Push // nil: push desligado, as rotas respondem 503
 	token string
 	now   func() time.Time
 
@@ -77,6 +91,9 @@ type Server struct {
 func NewServer(st Store, hub http.Handler, token string) *Server {
 	return &Server{store: st, hub: hub, token: token, now: time.Now}
 }
+
+// SetPush liga as rotas de push; chamar antes de Handler.
+func (s *Server) SetPush(p Push) { s.push = p }
 
 // EventErrors devolve quantos payloads foram recusados em /event.
 func (s *Server) EventErrors() int64 { return s.eventErrors.Load() }
@@ -96,6 +113,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /stream", s.auth(s.hub))
 	mux.Handle("GET /api/sessions", s.auth(http.HandlerFunc(s.handleSessions)))
 	mux.Handle("GET /api/session/{id}", s.auth(http.HandlerFunc(s.handleSession)))
+	mux.Handle("GET /api/push/key", s.auth(http.HandlerFunc(s.handlePushKey)))
+	mux.Handle("POST /api/push/subscription", s.auth(http.HandlerFunc(s.handlePushSubscribe)))
+	mux.Handle("DELETE /api/push/subscription", s.auth(http.HandlerFunc(s.handlePushUnsubscribe)))
+	mux.Handle("POST /api/push/test", s.auth(http.HandlerFunc(s.handlePushTest)))
 	return mux
 }
 
@@ -237,8 +258,9 @@ func (s *Server) loginPage(w http.ResponseWriter, status int, erro bool) {
 
 // setCookie grava o cookie do token. SameSite=Lax, e não Strict: abrir o app
 // instalado pelo ícone chega como navegação vinda de fora, e o navegador não
-// envia cookie Strict nesse caso. Lax não abre brecha aqui: as rotas com
-// cookie só leem, e os POSTs (/event, /login) não dependem dele.
+// envia cookie Strict nesse caso. Lax não abre brecha aqui: em POST e DELETE
+// vindos de outro site o navegador não manda cookie Lax, e as rotas de push
+// ainda exigem corpo JSON, que um formulário de outro site não envia.
 func (s *Server) setCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,
@@ -265,6 +287,84 @@ func remoteIsLoopback(remoteAddr string) bool {
 		return false
 	}
 	return ip.Unmap().IsLoopback()
+}
+
+// ---------- Push ----------
+
+func (s *Server) pushOff(w http.ResponseWriter) bool {
+	if s.push == nil {
+		http.Error(w, "push desligado", http.StatusServiceUnavailable)
+		return true
+	}
+	return false
+}
+
+// readPushJSON decodifica o corpo JSON das rotas de push, recusando outro
+// Content-Type e corpos grandes.
+func readPushJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		http.Error(w, "Content-Type deve ser application/json", http.StatusUnsupportedMediaType)
+		return false
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, MaxPushBytes)).Decode(v); err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func (s *Server) handlePushKey(w http.ResponseWriter, r *http.Request) {
+	if s.pushOff(w) {
+		return
+	}
+	writeJSON(w, map[string]string{"publicKey": s.push.PublicKey()})
+}
+
+func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
+	if s.pushOff(w) {
+		return
+	}
+	var sub push.Subscription
+	if !readPushJSON(w, r, &sub) {
+		return
+	}
+	if err := sub.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.push.Subscribe(sub); err != nil {
+		log.Printf("web: gravar inscrição de push: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
+	if s.pushOff(w) {
+		return
+	}
+	var body struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if !readPushJSON(w, r, &body) {
+		return
+	}
+	if err := s.push.Unsubscribe(body.Endpoint); err != nil {
+		log.Printf("web: apagar inscrição de push: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handlePushTest manda uma notificação de teste a todos os aparelhos.
+func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {
+	if s.pushOff(w) {
+		return
+	}
+	n := s.push.SendAll(r.Context(), push.Message{Title: "Claude Fleet", Body: "Notificação de teste", Tag: "fleet-teste", URL: "/"}, "")
+	writeJSON(w, map[string]int{"sent": n})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
