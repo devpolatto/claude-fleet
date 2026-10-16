@@ -2,6 +2,18 @@
 
 Painel web, feito para o celular, que mostra ao vivo as sessões do Claude Code rodando nesta máquina e os subagentes de cada uma. Cada sessão é um quadradinho que pulsa enquanto trabalha e fica amarelo quando espera permissão. Um toque abre os detalhes: tempo de vida, tokens por categoria e custo estimado.
 
+<p align="center">
+  <img src="docs/img/painel-celular.png" width="300" alt="Painel no celular: grade de sessões, duas aguardando permissão em amarelo, outras ativas com subagentes, uma parada, uma desconhecida e uma encerrada">
+  &nbsp;&nbsp;
+  <img src="docs/img/painel-detalhes.png" width="300" alt="Detalhes de uma sessão no celular: status, diretório, custo estimado, tempo de vida, modelos usados e tokens por agente">
+</p>
+
+<p align="center">
+  <img src="docs/img/painel-desktop.png" alt="Painel no desktop: a mesma grade de sessões com o cabeçalho mostrando contadores, notificação, som e o indicador ao vivo">
+</p>
+
+<p align="center"><sub>Telas do painel com dados fictícios.</sub></p>
+
 - **Somente leitura:** o painel não envia prompts, não aprova permissões e não encerra nada.
 - **Sem conteúdo:** os hooks repassam o evento inteiro, mas o servidor guarda só metadados (nome do evento, ferramenta, status, ids). Prompts, comandos e respostas são descartados ao chegar.
 - **Um binário só**, sem banco e sem dependências; o estado fica em memória e os tokens são relidos dos transcripts em `~/.claude/projects/`.
@@ -190,6 +202,8 @@ bash hook/test.sh                     # hook: ligado, desligado, mudo, porta inv
 O planejamento está em [`.specs/`](.specs/): visão em `project/PROJECT.md`, decisões em `project/STATE.md` e spec, design e tasks em `features/fleet-mvp/`.
 
 A skill de planejamento usada nesse fluxo, `tlc-spec-driven`, vem junto em [`.claude/skills/`](.claude/skills/tlc-spec-driven/) e é carregada pelo Claude Code ao abrir o projeto.
+
+O protótipo da interface fica no [Figma](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2) e acompanha o código: mudança visual atualiza também o Figma (detalhes no [`CLAUDE.md`](CLAUDE.md)).
 
 ## Licença
 
