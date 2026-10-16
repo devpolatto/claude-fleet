@@ -1,6 +1,6 @@
 # ocultar-sessao Specification
 
-> Status: **especificada, não implementada** (registrada em 2026-10-16).
+> Status: **implementada e verificada** em 2026-10-16 (P1 e P2).
 
 ## Problem Statement
 
@@ -86,14 +86,16 @@ Gosto de olhar o painel com poucos tiles, os das sessões em que estou trabalhan
 
 ---
 
-## Design (proposta, a confirmar no Execute)
+## Design (como foi implementado)
 
 Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 
-- **Chave**: `nome:<Name>` quando `Name` existe; senão `cwd:<Cwd>`. `SessionView` e `SessionDetail` já trazem os dois campos.
+- **Chave**: `nome:<Name>` quando `Name` existe; senão `cwd:<Cwd>`; sem os dois, `id:<ID>`. `SessionView` e `SessionDetail` já trazem os campos.
 - **Armazenamento**: `localStorage` `fleet.ocultas`, um array JSON de chaves, com toda leitura e escrita em `try/catch` (mesmo padrão de `fleet.som`).
 - **Filtro**: `render()` separa visíveis e ocultas; uma oculta entra na grade se `precisaAtencao(s)` (sessão ou subagente aguardando) ou se o modo "mostrar ocultas" está ligado.
-- **Botão**: no `.det-topo` do pop-up, ao lado do botão de fechar, com ícone de olho cortado e rótulo acessível.
+- **Botão**: no `.det-topo` do pop-up, ao lado do botão de fechar: "Ocultar" (olho cortado) ou "Mostrar na grade" (olho), com o rótulo acessível dizendo o que é afetado, ex.: `Ocultar da grade as sessões "toni-voz"`.
+- **Tile oculto exibido pelo chip**: classe `oculta` (esmaecido, borda tracejada) e ícone de olho cortado no canto. Oculta que volta por estar aguardando aparece sem essa marca.
+- **Com tudo oculto**: a grade mostra "Todas as sessões estão ocultas."
 - **Alerta sonoro**: `avaliarSom` continua recebendo todas as sessões, sem filtro, então SOM-01 e SOM-02 valem para as ocultas sem mudança.
 
 ---
@@ -102,12 +104,12 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| OCU-01 | P1: Ocultar — botão só no pop-up, nunca no tile | Execute | Pending |
-| OCU-02 | P1: Ocultar — chave por nome, com `cwd` de reserva; vale para sessões futuras | Execute | Pending |
-| OCU-03 | P1: Ocultar — salvo no navegador, tolera armazenamento indisponível | Execute | Pending |
-| OCU-04 | P1: Ocultar — chips "sessões" e "N oculta(s)" no cabeçalho | Execute | Pending |
-| OCU-05 | P1: Reaparece — oculta em aguardando volta à grade e alerta | Execute | Pending |
-| OCU-06 | P2: Reexibir — chip alterna mostrar ocultas; pop-up desfaz a ocultação | Execute | Pending |
+| OCU-01 | P1: Ocultar — botão só no pop-up, nunca no tile | Execute | Verified |
+| OCU-02 | P1: Ocultar — chave por nome, com `cwd` de reserva; vale para sessões futuras | Execute | Verified |
+| OCU-03 | P1: Ocultar — salvo no navegador, tolera armazenamento indisponível | Execute | Verified |
+| OCU-04 | P1: Ocultar — chips "sessões" e "N oculta(s)" no cabeçalho | Execute | Verified |
+| OCU-05 | P1: Reaparece — oculta em aguardando volta à grade e alerta | Execute | Verified |
+| OCU-06 | P2: Reexibir — chip alterna mostrar ocultas; pop-up desfaz a ocultação | Execute | Verified |
 
 **Coverage:** 6 total, 6 mapeados para Execute, 0 sem mapeamento.
 

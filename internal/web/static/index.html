@@ -129,6 +129,9 @@
     font-weight: 500;
   }
   .chip b { font-family: var(--mono); color: var(--text); font-weight: 700; }
+  button.chip { border: 0; font: inherit; font-size: 13px; cursor: pointer; }
+  button.chip:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .chip.ocultas[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--muted); color: var(--text); }
   .chip.alerta {
     background: rgba(251, 191, 36, .14);
     box-shadow: inset 0 0 0 1px rgba(251, 191, 36, .5);
@@ -187,6 +190,15 @@
   }
   .tile:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
   .tile:active { transform: scale(.98); }
+  /* Oculta exibida pelo chip "N oculta(s)": esmaecida e tracejada. */
+  .tile.oculta { opacity: .55; border-style: dashed; }
+  .tile .marca-oculta {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: inline-flex;
+    color: var(--faint);
+  }
 
   .tile .nome {
     font-weight: 600;
@@ -424,6 +436,24 @@
     cursor: pointer;
   }
   .fechar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .det-acoes { display: flex; align-items: center; gap: 8px; flex: none; }
+  .ocultar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .ocultar[hidden] { display: none; }
+  .ocultar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
   .det-corpo {
     flex: 1;
@@ -671,9 +701,12 @@
     <div class="det-topo">
       <div class="linha">
         <div class="det-estado" id="det-estado"></div>
-        <button type="button" class="fechar" id="det-fechar" aria-label="Fechar">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-        </button>
+        <div class="det-acoes">
+          <button type="button" class="ocultar" id="det-ocultar" hidden></button>
+          <button type="button" class="fechar" id="det-fechar" aria-label="Fechar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
       </div>
       <h2 id="det-titulo">Sessão</h2>
       <div class="det-sub" id="det-sub"></div>
@@ -714,6 +747,8 @@ const ICONES = {
   alerta: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'currentColor' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--icone-interno, var(--aguardando-bg))', w: 2.4 }] },
   somLigado: { size: 16, paths: [{ d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z', fill: 'currentColor' }, { d: 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11', stroke: 'currentColor', w: 2 }] },
   somDesligado: { size: 16, paths: [{ d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z', fill: 'currentColor' }, { d: 'M16 9.5l5 5M21 9.5l-5 5', stroke: 'currentColor', w: 2 }] },
+  olhoCortado: { size: 13, paths: [{ d: 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a12 12 0 0 1-3 4.2M6.6 6.6C4.3 8 2.7 10.2 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2', stroke: 'currentColor', w: 2 }] },
+  olho: { size: 13, paths: [{ d: 'M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z', stroke: 'currentColor', w: 2 }, { d: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', stroke: 'currentColor', w: 2 }] },
   aviso: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'var(--parado)' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--surface)', w: 2.4 }] },
 };
 
@@ -803,7 +838,7 @@ function miniTile(a) {
   return mini;
 }
 
-function montarTile(s) {
+function montarTile(s, oculta) {
   const status = ROTULO[s.Status] ? s.Status : 'desconhecido';
   const subs = s.Subagents || [];
   const subAg = subAguardando(s);
@@ -816,6 +851,13 @@ function montarTile(s) {
   const nome = s.Name || s.Project || s.ShortID || s.ID;
   tile.title = s.Cwd || nome;
 
+  if (oculta) {
+    tile.classList.add('oculta');
+    const marca = el('span', 'marca-oculta');
+    marca.title = 'oculta da grade';
+    marca.append(icone('olhoCortado'));
+    tile.append(marca);
+  }
   tile.append(statusSpan(status));
   if (subAg && status !== 'aguardando') tile.append(avisoSub('subagente aguardando'));
   tile.append(el('div', 'nome', nome));
@@ -847,7 +889,7 @@ function montarTile(s) {
     tile.append(box);
   }
 
-  const rotulo = nome + ', ' + ROTULO[status] + (subAg ? ', subagente aguardando' : '') + ', ' + custo;
+  const rotulo = nome + ', ' + ROTULO[status] + (subAg ? ', subagente aguardando' : '') + ', ' + custo + (oculta ? ', oculta' : '');
   tile.setAttribute('aria-label', rotulo);
   return tile;
 }
@@ -858,19 +900,91 @@ function chip(numero, texto, classe) {
   return c;
 }
 
+// ---------- Sessões ocultas ----------
+// Ocultar vale para o nome da sessão (--name ou /rename) ou, sem nome, para o
+// cwd: a próxima sessão com o mesmo nome já nasce oculta. A lista fica só
+// neste navegador. Oculta que precisa de atenção volta à grade.
+
+const OCULTAS_CHAVE = 'fleet.ocultas';
+let ocultas = lerOcultas();
+let mostrarOcultas = false;  // chip "N oculta(s)" ligado
+let ultimoSnapshot = [];
+
+function lerOcultas() {
+  try {
+    const v = JSON.parse(localStorage.getItem(OCULTAS_CHAVE) || '[]');
+    return new Set(Array.isArray(v) ? v.filter((k) => typeof k === 'string') : []);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function gravarOcultas() {
+  try { localStorage.setItem(OCULTAS_CHAVE, JSON.stringify([...ocultas])); } catch (_) { /* só nesta página */ }
+}
+
+// chaveOculta: "nome:<Name>", "cwd:<Cwd>" ou, sem os dois, "id:<ID>".
+function chaveOculta(s) {
+  if (s.Name) return 'nome:' + s.Name;
+  if (s.Cwd) return 'cwd:' + s.Cwd;
+  return 'id:' + s.ID;
+}
+
+function estaOculta(s) {
+  return ocultas.has(chaveOculta(s));
+}
+
+// rotuloOculta: como o pop-up nomeia o que será ocultado.
+function rotuloOculta(s) {
+  return s.Name ? 'sessões "' + s.Name + '"' : 'sessões em ' + (s.Cwd || s.ID);
+}
+
+function alternarOculta(s) {
+  const k = chaveOculta(s);
+  if (ocultas.has(k)) ocultas.delete(k);
+  else ocultas.add(k);
+  gravarOcultas();
+  render(ultimoSnapshot);
+}
+
 function render(sessoes) {
+  ultimoSnapshot = sessoes;
   // Preserva o foco de teclado entre snapshots.
   const ativoEl = document.activeElement;
   const focoId = ativoEl && ativoEl.classList && ativoEl.classList.contains('tile') ? ativoEl.dataset.id : null;
 
+  const visiveis = sessoes.filter((s) => !estaOculta(s));
+  const nOcultas = sessoes.length - visiveis.length;
+  if (nOcultas === 0) mostrarOcultas = false;
+
   const frag = document.createDocumentFragment();
-  for (const s of ordenar(sessoes)) frag.append(montarTile(s));
+  for (const s of ordenar(sessoes)) {
+    const oculta = estaOculta(s);
+    // Oculta em aguardando aparece como qualquer outra: nada trava escondido.
+    if (oculta && precisaAtencao(s)) frag.append(montarTile(s, false));
+    else if (!oculta || mostrarOcultas) frag.append(montarTile(s, oculta));
+  }
   grade.replaceChildren(frag);
-  vazio.hidden = sessoes.length > 0;
+  vazio.hidden = grade.children.length > 0;
+  vazio.textContent = sessoes.length > 0 ? 'Todas as sessões estão ocultas.' : 'Nenhuma sessão no momento.';
 
   const aguardam = sessoes.filter(precisaAtencao).length;
-  contador.replaceChildren(chip(sessoes.length, sessoes.length === 1 ? 'sessão' : 'sessões'));
+  contador.replaceChildren(chip(visiveis.length, visiveis.length === 1 ? 'sessão' : 'sessões'));
   if (aguardam > 0) contador.append(chip(aguardam, 'aguardando', 'alerta'));
+  if (nOcultas > 0) {
+    const b = el('button', 'chip ocultas');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(mostrarOcultas));
+    b.title = mostrarOcultas ? 'Esconder as sessões ocultas' : 'Mostrar as sessões ocultas';
+    b.append(el('b', null, String(nOcultas)), nOcultas === 1 ? 'oculta' : 'ocultas');
+    b.addEventListener('click', () => {
+      mostrarOcultas = !mostrarOcultas;
+      render(ultimoSnapshot);
+      const novo = contador.querySelector('.ocultas');
+      if (novo) novo.focus();
+    });
+    contador.append(b);
+  }
 
   if (focoId) {
     for (const t of grade.children) {
@@ -902,6 +1016,7 @@ const detTitulo = document.getElementById('det-titulo');
 const detSub = document.getElementById('det-sub');
 const detCorpo = document.getElementById('det-corpo');
 const detRodape = document.getElementById('det-rodape');
+const detOcultar = document.getElementById('det-ocultar');
 
 const milhar = new Intl.NumberFormat('pt-BR');
 const umaCasa = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -1151,6 +1266,14 @@ function renderDetalhe() {
   const frag = document.createDocumentFragment();
   if (det.aviso) frag.append(el('p', 'aviso', det.aviso));
 
+  detOcultar.hidden = !d;
+  if (d) {
+    const oculta = estaOculta(d);
+    detOcultar.replaceChildren(icone(oculta ? 'olho' : 'olhoCortado'), el('span', null, oculta ? 'Mostrar na grade' : 'Ocultar'));
+    detOcultar.setAttribute('aria-label', (oculta ? 'Mostrar na grade as ' : 'Ocultar da grade as ') + rotuloOculta(d));
+    detOcultar.title = detOcultar.getAttribute('aria-label');
+  }
+
   if (!d) {
     if (!det.aviso) frag.append(el('p', 'vazio-det', 'carregando…'));
     detCorpo.replaceChildren(frag);
@@ -1322,6 +1445,15 @@ function fecharDetalhe() {
 }
 
 document.getElementById('det-fechar').addEventListener('click', fecharDetalhe);
+// Ocultar fecha o pop-up (o tile sai da grade); mostrar mantém aberto.
+detOcultar.addEventListener('click', () => {
+  const d = det.dados;
+  if (!d) return;
+  const ocultando = !estaOculta(d);
+  alternarOculta(d);
+  if (ocultando) fecharDetalhe();
+  else renderDetalhe();
+});
 // Toque fora: o clique cai no próprio <dialog> (o backdrop), não no conteúdo.
 dlg.addEventListener('click', (e) => {
   if (e.target === dlg) fecharDetalhe();
@@ -1330,10 +1462,14 @@ dlg.addEventListener('click', (e) => {
 dlg.addEventListener('close', () => {
   pararDetalhe();
   document.body.classList.remove('modal-aberto');
-  // Devolve o foco ao tile da sessão (a grade pode ter sido recriada).
+  // Devolve o foco ao tile da sessão (a grade pode ter sido recriada); se
+  // ele saiu da grade (ocultado), ao primeiro tile.
+  let alvo = null;
   for (const t of grade.children) {
-    if (t.dataset.id === det.sessionId) { t.focus({ preventScroll: true }); break; }
+    if (t.dataset.id === det.sessionId) { alvo = t; break; }
   }
+  alvo = alvo || grade.firstElementChild;
+  if (alvo) alvo.focus({ preventScroll: true });
 });
 
 // ---------- Alerta sonoro ----------
