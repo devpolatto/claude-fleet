@@ -3,6 +3,8 @@ package web
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -232,6 +234,68 @@ func TestApiNaoExpoeCaminhoDoTranscript(t *testing.T) {
 		body := do(h, http.MethodGet, path, "127.0.0.1:1", "").Body.String()
 		if strings.Contains(body, "TranscriptPath") || strings.Contains(body, ".jsonl") {
 			t.Errorf("GET %s expõe o caminho do transcript: %s", path, body)
+		}
+	}
+}
+
+// Manifesto e ícones saem sem token: o navegador os busca sem cookie.
+func TestAssetsPublicos(t *testing.T) {
+	_, _, h := novoServidor(t, "s3cr3t-token")
+	for path, ctype := range publicAssets {
+		rec := do(h, http.MethodGet, path, "100.64.0.10:1", "")
+		if rec.Code != http.StatusOK {
+			t.Errorf("GET %s: status = %d, queria 200", path, rec.Code)
+			continue
+		}
+		if got := rec.Header().Get("Content-Type"); got != ctype {
+			t.Errorf("GET %s: Content-Type = %q, queria %q", path, got, ctype)
+		}
+		if rec.Body.Len() == 0 {
+			t.Errorf("GET %s: corpo vazio", path)
+		}
+	}
+	if rec := do(h, http.MethodGet, "/sw.js", "100.64.0.10:1", ""); rec.Code == http.StatusOK {
+		t.Error("rota fora da lista não deveria existir")
+	}
+}
+
+func TestManifestoValido(t *testing.T) {
+	_, _, h := novoServidor(t, "")
+	rec := do(h, http.MethodGet, "/manifest.webmanifest", "127.0.0.1:1", "")
+	var m struct {
+		Name, StartURL, Display string
+		Icons                   []struct{ Src, Sizes, Purpose string }
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+		t.Fatalf("manifesto não é JSON: %v", err)
+	}
+	if m.Name != "Claude Fleet" || m.Display != "standalone" {
+		t.Errorf("manifesto = %+v", m)
+	}
+	for _, ic := range m.Icons {
+		if r := do(h, http.MethodGet, ic.Src, "127.0.0.1:1", ""); r.Code != http.StatusOK {
+			t.Errorf("ícone %s do manifesto: status %d", ic.Src, r.Code)
+		}
+	}
+}
+
+func TestCookieSecureSoEmHTTPS(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	for _, https := range []bool{false, true} {
+		req := httptest.NewRequest(http.MethodGet, "/?t="+token, nil)
+		req.RemoteAddr = "100.64.0.10:1"
+		if https {
+			req.TLS = &tls.ConnectionState{}
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		cookies := rec.Result().Cookies()
+		if len(cookies) != 1 {
+			t.Fatalf("https=%v: cookies = %d", https, len(cookies))
+		}
+		if cookies[0].Secure != https {
+			t.Errorf("https=%v: Secure = %v", https, cookies[0].Secure)
 		}
 	}
 }

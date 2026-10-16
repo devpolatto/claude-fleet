@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -121,5 +126,97 @@ func TestListen(t *testing.T) {
 		for _, ln := range lns {
 			ln.Close()
 		}
+	}
+}
+
+func TestValidateTLS(t *testing.T) {
+	ok := []struct{ addr, cert, key string }{
+		{"127.0.0.1:7777", "", ""},
+		{"100.75.1.2:7777", "c.crt", "c.key"},
+	}
+	for _, c := range ok {
+		if err := validateTLS(c.addr, c.cert, c.key); err != nil {
+			t.Errorf("validateTLS(%q, %q, %q) = %v", c.addr, c.cert, c.key, err)
+		}
+	}
+	ruins := []struct{ addr, cert, key string }{
+		{"100.75.1.2:7777", "c.crt", ""},
+		{"100.75.1.2:7777", "", "c.key"},
+		{"127.0.0.1:7777", "c.crt", "c.key"}, // o hook ficaria sem HTTP
+		{"0.0.0.0:7777", "c.crt", "c.key"},   // idem: listen não abre o loopback à parte
+		{":7777", "c.crt", "c.key"},
+		{"meu-pc.ts.net:7777", "c.crt", "c.key"}, // nome: listen não abre o loopback
+	}
+	for _, c := range ruins {
+		if err := validateTLS(c.addr, c.cert, c.key); err == nil {
+			t.Errorf("validateTLS(%q, %q, %q) deveria falhar", c.addr, c.cert, c.key)
+		}
+	}
+}
+
+func TestParseConfigTLS(t *testing.T) {
+	e := env(map[string]string{"HOME": "/h", "CLAUDE_FLEET_TOKEN": "tok"})
+	cfg, err := parseConfig([]string{"-addr", "100.75.1.2:7777", "-tls-cert", "c.crt", "-tls-key", "c.key"}, e, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TLSCert != "c.crt" || cfg.TLSKey != "c.key" {
+		t.Errorf("cfg = %+v", cfg)
+	}
+	if _, err := parseConfig([]string{"-tls-cert", "c.crt", "-tls-key", "c.key"}, e, io.Discard); err == nil {
+		t.Error("TLS no endereço padrão (loopback) deveria falhar")
+	}
+}
+
+// O listener TLS precisa negociar HTTP/2 mesmo com o loopback HTTP subindo
+// junto: com um http.Server compartilhado, o h2 era fechado após o pedido.
+func TestServeTLSComHTTP2ELoopbackHTTP(t *testing.T) {
+	ref := httptest.NewTLSServer(nil) // só para emprestar certificado e CA
+	cert := ref.TLS.Certificates[0]
+	roots := ref.Client().Transport.(*http.Transport).TLSClientConfig.RootCAs
+	ref.Close()
+
+	lt, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lp, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, r.Proto) })
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- serve(ctx, h, &tls.Config{Certificates: []tls.Certificate{cert}}, []net.Listener{lt, lp})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; err != nil {
+			t.Errorf("serve: %v", err)
+		}
+	})
+
+	get := func(c *http.Client, url string) string {
+		t.Helper()
+		resp, err := c.Get(url)
+		if err != nil {
+			t.Fatalf("GET %s: %v", url, err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return string(b)
+	}
+	h2 := &http.Client{Transport: &http.Transport{
+		TLSClientConfig:   &tls.Config{RootCAs: roots, ServerName: "example.com"},
+		ForceAttemptHTTP2: true,
+	}}
+	for i := 0; i < 3; i++ {
+		if got := get(h2, "https://"+lt.Addr().String()); got != "HTTP/2.0" {
+			t.Errorf("TLS: proto = %q, queria HTTP/2.0", got)
+		}
+	}
+	if got := get(http.DefaultClient, "http://"+lp.Addr().String()); got != "HTTP/1.1" {
+		t.Errorf("loopback: proto = %q, queria HTTP/1.1", got)
 	}
 }

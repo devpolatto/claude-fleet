@@ -22,8 +22,18 @@ const MaxEventBytes = 256 << 10
 // CookieName é o cookie que guarda o token depois da primeira visita com ?t=.
 const CookieName = "fleet_token"
 
-//go:embed static/index.html
+//go:embed static/index.html static/manifest.webmanifest static/*.png
 var static embed.FS
+
+// publicAssets são os arquivos que o navegador busca sem cookie (o manifesto
+// é pedido com credentials "omit") e que não dizem nada sobre a máquina: ficam
+// fora da autenticação por token.
+var publicAssets = map[string]string{
+	"/manifest.webmanifest": "application/manifest+json",
+	"/icon-192.png":         "image/png",
+	"/icon-512.png":         "image/png",
+	"/apple-touch-icon.png": "image/png",
+}
 
 // Store é o que o servidor precisa do store.Store.
 type Store interface {
@@ -59,6 +69,9 @@ func (s *Server) Handler() http.Handler {
 	// /event fica fora da autenticação por token: o hook não conhece o
 	// token. A proteção é aceitar só conexões de loopback.
 	mux.HandleFunc("POST /event", s.handleEvent)
+	for path, ctype := range publicAssets {
+		mux.Handle("GET "+path, assetHandler("static"+path, ctype))
+	}
 
 	mux.Handle("GET /{$}", s.auth(http.HandlerFunc(s.handleIndex)))
 	mux.Handle("GET /stream", s.auth(s.hub))
@@ -98,6 +111,20 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(page)
 }
 
+// assetHandler serve um arquivo embutido com o Content-Type dado.
+func assetHandler(name, ctype string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := static.ReadFile(name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", ctype)
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(data)
+	})
+}
+
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.store.Snapshot())
 }
@@ -124,6 +151,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 				Value:    s.token,
 				Path:     "/",
 				HttpOnly: true,
+				Secure:   r.TLS != nil, // em HTTPS o cookie nunca volta por HTTP
 				SameSite: http.SameSiteStrictMode,
 				MaxAge:   int((30 * 24 * time.Hour).Seconds()),
 			})

@@ -91,21 +91,55 @@ Como fica protegido:
 
 - `POST /event` só aceita conexões vindas da própria máquina; pela tailnet ele responde 403.
 - As outras rotas exigem o token (cookie ou `?t=`), comparado em tempo constante.
-- O tráfego é cifrado pelo Tailscale (WireGuard); o painel em si é HTTP.
+- O tráfego é cifrado pelo Tailscale (WireGuard). Com HTTPS (abaixo), o painel também é, e o cookie ganha `Secure`.
 
 > **Não use `tailscale serve` na frente do painel.** Ele faz proxy a partir da própria máquina, então toda requisição chega como loopback, e o `/event` passaria a aceitar eventos falsos vindos da tailnet. Use o bind direto no IP da tailnet, como acima. Também não exponha a porta na internet.
 
+### HTTPS e instalação como app
+
+O navegador só instala o painel como app (ícone na tela inicial do celular e no GNOME, janela própria) quando ele é servido por HTTPS. O certificado vem do próprio Tailscale e vale para o nome da máquina na tailnet.
+
+1. No painel de administração do Tailscale, em **DNS**, habilite MagicDNS e **HTTPS Certificates**.
+2. Deixe seu usuário gerar certificados sem `sudo` (uma vez só):
+
+   ```sh
+   sudo tailscale set --operator=$USER
+   ```
+
+3. Grave o nome da máquina no `env` e gere o certificado:
+
+   ```sh
+   dominio=$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')   # ex.: meu-pc.tail1234.ts.net
+   printf 'CLAUDE_FLEET_TLS_DOMAIN=%s\n' "$dominio" >> ~/.config/claude-fleet/env
+   tailscale cert --cert-file ~/.config/claude-fleet/tls.crt --key-file ~/.config/claude-fleet/tls.key "$dominio"
+   ```
+
+4. Suba com os dois flags. Só o IP da tailnet vira HTTPS; o `127.0.0.1:7777` do hook continua em HTTP:
+
+   ```sh
+   claude-fleet -addr "$(tailscale ip -4):7777" \
+     -tls-cert ~/.config/claude-fleet/tls.crt -tls-key ~/.config/claude-fleet/tls.key
+   ```
+
+5. No navegador, abra uma vez `https://<nome>.ts.net:7777/?t=<token>` (sempre pelo **nome**: pelo IP o certificado não vale). Com o cookie gravado, instale pelo menu do navegador ("Instalar app" no Chrome do Android; ícone de instalar na barra de endereço no Chrome/Brave do desktop). O app usa o mesmo cookie; se ele expirar (30 dias), abra de novo com `?t=`.
+
+Se o celular disser que não encontrou o endereço (`*.ts.net`) mas o desktop abre, desligue o **DNS seguro** do Chrome (Configurações → Privacidade e segurança → Usar DNS seguro → "Usar o provedor atual"): com um provedor escolhido, o Chrome resolve os nomes por fora e não enxerga o MagicDNS. O **DNS privado** do Android com um nome de servidor fixo causa o mesmo efeito.
+
+`-tls-cert` e `-tls-key` vão juntos e exigem `-addr` num IP específico fora do loopback; nos outros casos o processo sai com erro. O certificado do Tailscale vale 90 dias: o timer da seção 5 o renova, e o painel relê os arquivos sozinho, sem reiniciar.
+
 ## 5. Deixar sempre de pé (systemd de usuário)
 
-O arquivo [`deploy/claude-fleet.service`](deploy/claude-fleet.service) sobe o painel no IP da tailnet com o token de `~/.config/claude-fleet/env`.
+O arquivo [`deploy/claude-fleet.service`](deploy/claude-fleet.service) sobe o painel em HTTPS no IP da tailnet, com o token de `~/.config/claude-fleet/env` e o certificado da seção anterior. O [`claude-fleet-cert.timer`](deploy/claude-fleet-cert.timer) roda [`claude-fleet-cert.service`](deploy/claude-fleet-cert.service) toda semana para renovar o certificado.
 
 ```sh
 mkdir -p ~/.config/systemd/user
-cp deploy/claude-fleet.service ~/.config/systemd/user/
+cp deploy/claude-fleet.service deploy/claude-fleet-cert.service deploy/claude-fleet-cert.timer ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now claude-fleet
+systemctl --user enable --now claude-fleet claude-fleet-cert.timer
 journalctl --user -u claude-fleet -f   # logs
 ```
+
+Sem HTTPS ainda? Tire os dois flags `-tls-*` do `ExecStart` da cópia em `~/.config/systemd/user/` e não habilite o timer.
 
 Para o serviço continuar rodando sem sessão aberta: `sudo loginctl enable-linger "$USER"`. Se o Tailscale ainda não tiver IP quando o serviço subir, ele tenta de novo a cada 10 s.
 

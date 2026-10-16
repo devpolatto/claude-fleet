@@ -1,0 +1,12 @@
+# O certificado do Tailscale vale 90 dias; renovar toda semana sobra margem.
+# O tailscale cert só pede um novo quando o atual está perto de vencer.
+[Unit]
+Description=claude-fleet — renovação semanal do certificado HTTPS
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1w
+Persistent=true
+
+[Install]
+WantedBy=timers.target

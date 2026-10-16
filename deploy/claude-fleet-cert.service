@@ -1,0 +1,13 @@
+# Renova o certificado HTTPS do claude-fleet com o Tailscale. O painel relê os
+# arquivos sozinho quando eles mudam; não precisa reiniciar.
+# Requer HTTPS habilitado na tailnet e "sudo tailscale set --operator=$USER".
+[Unit]
+Description=claude-fleet — renova o certificado HTTPS (tailscale cert)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# CLAUDE_FLEET_TLS_DOMAIN=<máquina>.<tailnet>.ts.net, no mesmo arquivo do token.
+EnvironmentFile=%h/.config/claude-fleet/env
+ExecStart=/bin/sh -c 'exec tailscale cert --cert-file %h/.config/claude-fleet/tls.crt --key-file %h/.config/claude-fleet/tls.key "$$CLAUDE_FLEET_TLS_DOMAIN"'

@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,6 +30,9 @@ type config struct {
 	Addr     string
 	Token    string
 	Projects string
+	// TLSCert e TLSKey ligam HTTPS no endereço da tailnet; o loopback do
+	// hook continua em HTTP.
+	TLSCert, TLSKey string
 }
 
 const (
@@ -70,11 +74,20 @@ func run(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	hub := web.NewHub(st)
-	srv := &http.Server{
-		Handler:           web.NewServer(st, hub, cfg.Token).Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
+	var tlsCfg *tls.Config
+	if cfg.TLSCert != "" {
+		certs, err := web.NewCertReloader(cfg.TLSCert, cfg.TLSKey)
+		if err != nil {
+			for _, ln := range listeners {
+				ln.Close()
+			}
+			return err
+		}
+		tlsCfg = &tls.Config{GetCertificate: certs.GetCertificate, MinVersion: tls.VersionTLS12}
 	}
+
+	hub := web.NewHub(st)
+	handler := web.NewServer(st, hub, cfg.Token).Handler()
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -82,11 +95,38 @@ func run(ctx context.Context, cfg config) error {
 	go func() { defer wg.Done(); store.NewRefresher(st).Run(ctx, store.DefaultRefreshInterval) }()
 	go func() { defer wg.Done(); pruneLoop(ctx, st) }()
 
+	serveErr := serve(ctx, handler, tlsCfg, listeners)
+	wg.Wait()
+	return serveErr
+}
+
+// serve atende cada listener com um http.Server próprio até ctx ser
+// cancelado ou um deles falhar. listen devolve primeiro o endereço pedido;
+// com tlsCfg, só ele vira HTTPS, e o loopback extra, usado pelo hook, segue
+// em HTTP. Um servidor por listener porque um http.Server compartilhado
+// entre Serve e ServeTLS pode ficar sem HTTP/2: se o Serve sobe primeiro, a
+// conexão h2 negociada no TLS é fechada logo após o pedido.
+func serve(ctx context.Context, handler http.Handler, tlsCfg *tls.Config, listeners []net.Listener) error {
+	servers := make([]*http.Server, len(listeners))
 	errc := make(chan error, len(listeners))
-	for _, ln := range listeners {
-		log.Printf("claude-fleet: escutando em http://%s", ln.Addr())
+	for i, ln := range listeners {
+		srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+		useTLS := i == 0 && tlsCfg != nil
+		scheme := "http"
+		if useTLS {
+			srv.TLSConfig = tlsCfg
+			scheme = "https"
+		}
+		servers[i] = srv
+		log.Printf("claude-fleet: escutando em %s://%s", scheme, ln.Addr())
 		go func(ln net.Listener) {
-			if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			var err error
+			if useTLS {
+				err = srv.ServeTLS(ln, "", "")
+			} else {
+				err = srv.Serve(ln)
+			}
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errc <- err
 			}
 		}(ln)
@@ -101,8 +141,9 @@ func run(ctx context.Context, cfg config) error {
 	defer cancel()
 	// O Hub encerra as conexões SSE quando ctx é cancelado; sem isso o
 	// Shutdown esperaria por elas até o timeout.
-	_ = srv.Shutdown(shutdownCtx)
-	wg.Wait()
+	for _, srv := range servers {
+		_ = srv.Shutdown(shutdownCtx)
+	}
 	return serveErr
 }
 
@@ -151,6 +192,8 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 	fs.StringVar(&cfg.Addr, "addr", defaultAddr, "endereço de escuta (host:porta)")
 	fs.StringVar(&cfg.Token, "token", getenv("CLAUDE_FLEET_TOKEN"), "token de acesso; obrigatório fora do loopback (padrão: $CLAUDE_FLEET_TOKEN)")
 	fs.StringVar(&cfg.Projects, "projects", "", "diretório dos transcripts (padrão: ~/.claude/projects)")
+	fs.StringVar(&cfg.TLSCert, "tls-cert", "", "certificado TLS (PEM); liga HTTPS no endereço da tailnet, junto com -tls-key")
+	fs.StringVar(&cfg.TLSKey, "tls-key", "", "chave do certificado TLS (PEM)")
 	if err := fs.Parse(args); err != nil {
 		return config{}, err
 	}
@@ -169,7 +212,28 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 	if err := validateBind(cfg.Addr, cfg.Token); err != nil {
 		return config{}, err
 	}
+	if err := validateTLS(cfg.Addr, cfg.TLSCert, cfg.TLSKey); err != nil {
+		return config{}, err
+	}
 	return cfg, nil
+}
+
+// validateTLS exige -tls-cert e -tls-key juntos e só aceita TLS num IP
+// específico fora do loopback: é o único caso em que listen abre também o
+// 127.0.0.1 em HTTP, por onde o hook entrega os eventos.
+func validateTLS(addr, cert, key string) error {
+	if cert == "" && key == "" {
+		return nil
+	}
+	if cert == "" || key == "" {
+		return errors.New("-tls-cert e -tls-key vão juntos")
+	}
+	host, _, _ := net.SplitHostPort(addr)
+	ip, err := netip.ParseAddr(host)
+	if err != nil || ip.Unmap().IsLoopback() || ip.IsUnspecified() {
+		return fmt.Errorf("TLS exige -addr num IP específico fora do loopback (ex.: o IP da tailnet), não %q: o hook precisa do 127.0.0.1 em HTTP", addr)
+	}
+	return nil
 }
 
 // validateBind exige token quando addr não é exclusivamente loopback.
