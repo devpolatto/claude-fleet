@@ -55,8 +55,8 @@
     border-bottom: 1px solid var(--border);
     padding: 16px 16px 14px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "marca vivo" "contador contador";
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "marca som vivo" "contador contador contador";
     align-items: center;
     gap: 12px;
     transition: background-color .3s;
@@ -88,6 +88,30 @@
   }
   header.reconectando #conexao { color: var(--aguardando); }
   header.reconectando #conexao::before { background: var(--aguardando); box-shadow: none; }
+
+  /* Toggle do alerta sonoro: âmbar quando ligado, tracejado quando o
+     navegador ainda bloqueia o áudio. */
+  #som {
+    grid-area: som;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  #som[hidden] { display: none; }
+  #som[aria-pressed="true"] {
+    border-color: rgba(251, 191, 36, .5);
+    background: rgba(251, 191, 36, .14);
+    color: var(--aguardando);
+  }
+  #som.bloqueado { border-style: dashed; opacity: .7; }
+  #som:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
   #contador { grid-area: contador; display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
@@ -571,8 +595,8 @@
     main { padding-top: 32px; }
     header {
       padding: 20px 32px;
-      grid-template-columns: auto auto minmax(0, 1fr) auto;
-      grid-template-areas: "marca contador . vivo";
+      grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+      grid-template-areas: "marca contador . som vivo";
       gap: 20px;
     }
   }
@@ -621,6 +645,7 @@
     <h1>Claude Fleet</h1>
   </div>
   <div id="contador"><span class="chip">conectando…</span></div>
+  <button type="button" id="som" aria-pressed="false" aria-label="Som dos alertas" hidden></button>
   <p id="conexao" role="status">conectando…</p>
 </header>
 <main>
@@ -675,6 +700,8 @@ const ICONES = {
   ferramenta: { size: 12, paths: [{ d: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z', stroke: 'currentColor', w: 2 }] },
   check: { size: 10, paths: [{ d: 'M5 12.5l4.5 4.5L19 7.5', stroke: 'currentColor', w: 3 }] },
   alerta: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'currentColor' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--icone-interno, var(--aguardando-bg))', w: 2.4 }] },
+  somLigado: { size: 16, paths: [{ d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z', fill: 'currentColor' }, { d: 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11', stroke: 'currentColor', w: 2 }] },
+  somDesligado: { size: 16, paths: [{ d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z', fill: 'currentColor' }, { d: 'M16 9.5l5 5M21 9.5l-5 5', stroke: 'currentColor', w: 2 }] },
   aviso: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'var(--parado)' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--surface)', w: 2.4 }] },
 };
 
@@ -1297,6 +1324,136 @@ dlg.addEventListener('close', () => {
   }
 });
 
+// ---------- Alerta sonoro ----------
+// Toca quando uma sessão ou subagente entra em aguardando e repete a cada
+// 30 s enquanto algo seguir assim. O som é gerado com Web Audio; o
+// navegador só libera o áudio depois de um gesto na página.
+
+const somBtn = document.getElementById('som');
+const SOM_CHAVE = 'fleet.som';
+const LEMBRETE_MS = 30000;
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+
+let somLigado = false;
+let audio = null;            // AudioContext único, criado sob demanda
+let aguardandoAntes = null;  // chaves em aguardando no snapshot anterior; null = sem linha de base
+let referencia = 0;          // último toque ou linha de base: o lembrete conta a partir daqui
+
+function lerSom() {
+  try { return localStorage.getItem(SOM_CHAVE) === '1'; } catch (_) { return false; }
+}
+
+function gravarSom(ligado) {
+  try { localStorage.setItem(SOM_CHAVE, ligado ? '1' : '0'); } catch (_) { /* só nesta página */ }
+}
+
+// garantirAudio cria o AudioContext e tenta destravá-lo. Fora de um gesto do
+// usuário o resume() é recusado e o contexto segue suspenso.
+function garantirAudio() {
+  if (!audio) {
+    try {
+      audio = new AudioCtx();
+    } catch (_) {
+      return null;
+    }
+    audio.addEventListener('statechange', atualizarSomBtn);
+  }
+  if (audio.state === 'suspended') audio.resume().catch(() => {});
+  return audio;
+}
+
+// tocar emite dois bipes curtos; com o áudio bloqueado, não agenda nada para
+// não acumular toques que soariam todos juntos ao destravar.
+function tocar() {
+  referencia = Date.now();
+  const ctx = garantirAudio();
+  if (!ctx || ctx.state !== 'running') return;
+  const t0 = ctx.currentTime + 0.01;
+  for (const [freq, atraso] of [[880, 0], [1320, 0.18]]) {
+    const osc = ctx.createOscillator();
+    const ganho = ctx.createGain();
+    const t = t0 + atraso;
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    // Envelope curto para o bipe não estalar.
+    ganho.gain.setValueAtTime(0.0001, t);
+    ganho.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+    ganho.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    osc.connect(ganho).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.16);
+  }
+}
+
+function atualizarSomBtn() {
+  const bloqueado = somLigado && (!audio || audio.state !== 'running');
+  somBtn.setAttribute('aria-pressed', String(somLigado));
+  somBtn.classList.toggle('bloqueado', bloqueado);
+  somBtn.title = !somLigado ? 'Som dos alertas: desligado'
+    : bloqueado ? 'Som dos alertas: ligado — toque na página para liberar o som'
+    : 'Som dos alertas: ligado';
+  somBtn.replaceChildren(icone(somLigado ? 'somLigado' : 'somDesligado'));
+}
+
+// chavesAguardando: "<sessão>" ou "<sessão>/<subagente>" para cada um em aguardando.
+function chavesAguardando(sessoes) {
+  const chaves = new Set();
+  for (const s of sessoes) {
+    if (s.Status === 'aguardando') chaves.add(s.ID);
+    for (const a of s.Subagents || []) {
+      if (a.Status === 'aguardando') chaves.add(s.ID + '/' + a.ID);
+    }
+  }
+  return chaves;
+}
+
+// avaliarSom compara com o snapshot anterior: chave nova toca uma vez. O
+// primeiro snapshot da conexão só vira linha de base.
+function avaliarSom(sessoes) {
+  const agora = chavesAguardando(sessoes);
+  const antes = aguardandoAntes;
+  aguardandoAntes = agora;
+  if (antes === null) {
+    referencia = Date.now();
+    return;
+  }
+  for (const k of agora) {
+    if (!antes.has(k)) {
+      if (somLigado) tocar();
+      return;
+    }
+  }
+}
+
+if (AudioCtx) {
+  somLigado = lerSom();
+  somBtn.hidden = false;
+  if (somLigado) garantirAudio(); // provavelmente suspenso até o primeiro gesto
+  atualizarSomBtn();
+
+  somBtn.addEventListener('click', () => {
+    somLigado = !somLigado;
+    gravarSom(somLigado);
+    if (somLigado) {
+      const ctx = garantirAudio();
+      // A confirmação espera o resume(), que dentro do clique é aceito.
+      if (ctx) ctx.resume().then(tocar, () => {}).finally(atualizarSomBtn);
+    }
+    atualizarSomBtn();
+  });
+
+  // Som salvo como ligado: o primeiro gesto em qualquer ponto destrava o áudio.
+  const destravar = () => { if (somLigado) garantirAudio(); };
+  document.addEventListener('pointerdown', destravar);
+  document.addEventListener('keydown', destravar);
+
+  setInterval(() => {
+    if (somLigado && aguardandoAntes && aguardandoAntes.size > 0 && Date.now() - referencia >= LEMBRETE_MS) {
+      tocar();
+    }
+  }, 5000);
+}
+
 // conectado alterna o indicador do cabeçalho entre "ao vivo" e "reconectando…".
 function conectado(ok, texto) {
   topo.classList.toggle('reconectando', !ok);
@@ -1305,7 +1462,10 @@ function conectado(ok, texto) {
 
 // SSE: cada "snapshot" traz a lista completa e substitui a grade.
 const es = new EventSource('/stream');
-es.addEventListener('open', () => conectado(true));
+es.addEventListener('open', () => {
+  conectado(true);
+  aguardandoAntes = null; // conexão nova: o próximo snapshot é a linha de base
+});
 es.addEventListener('snapshot', (e) => {
   conectado(true);
   let sessoes;
@@ -1314,7 +1474,9 @@ es.addEventListener('snapshot', (e) => {
   } catch (_) {
     return; // snapshot corrompido: mantém a grade anterior
   }
-  render(Array.isArray(sessoes) ? sessoes : []);
+  sessoes = Array.isArray(sessoes) ? sessoes : [];
+  render(sessoes);
+  avaliarSom(sessoes);
 });
 es.addEventListener('error', () => {
   // CONNECTING: o navegador vai tentar de novo sozinho.

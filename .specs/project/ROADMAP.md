@@ -30,7 +30,7 @@
 ### Features
 
 **Serviço systemd de usuário** - DONE (antecipado no M1: `deploy/claude-fleet.service`)
-**Alerta "aguardando permissão"** (vibração/notificação no navegador; avaliar se substitui ou complementa o `telegram-notify`) - PLANNED
+**Alerta "aguardando permissão"** (vibração/notificação no navegador; avaliar se substitui ou complementa o `telegram-notify`) - IN PROGRESS: som no navegador com toggle (`features/alerta-sonoro`); vibração e notificação do sistema seguem PLANNED
 **Instalação como PWA** (ícone na tela inicial do celular) - PLANNED
 
 ---

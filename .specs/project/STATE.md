@@ -97,7 +97,7 @@ _Nenhum._
 
 ## Deferred Ideas
 
-- [ ] Alerta no navegador/vibração quando um agente fica aguardando permissão — avaliar sobreposição com o hook `telegram-notify` existente — Captured during: fleet-mvp/spec
+- [ ] Alerta no navegador/vibração quando um agente fica aguardando permissão — avaliar sobreposição com o hook `telegram-notify` existente — Captured during: fleet-mvp/spec — o som virou `features/alerta-sonoro` (2026-10-16); vibração e notificação do sistema seguem aqui
 - [ ] Histórico em SQLite e custo por dia/projeto — Captured during: fleet-mvp/spec
 - [ ] Detectar sessão morta sem `SessionEnd` (PID ou inatividade do transcript) — Captured during: fleet-mvp/design
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec
