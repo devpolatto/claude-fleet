@@ -3,7 +3,7 @@
 Painel web, feito para o celular, que mostra ao vivo as sessões do Claude Code rodando nesta máquina e os subagentes de cada uma. Cada sessão é um quadradinho que pulsa enquanto trabalha e fica amarelo quando espera permissão. Um toque abre os detalhes: tempo de vida, tokens por categoria e custo estimado.
 
 <p align="center">
-  <img src="docs/img/painel-celular.png" width="300" alt="Painel no celular: grade de sessões, duas aguardando permissão em amarelo, outras ativas com subagentes, uma parada, uma desconhecida e uma encerrada">
+  <img src="docs/img/painel-celular.png" width="300" alt="Painel no celular: grade de sessões, uma aguardando permissão e outra com subagente aguardando (as duas destacadas em amarelo), sessões ativas, uma parada, uma desconhecida e uma encerrada">
   &nbsp;&nbsp;
   <img src="docs/img/painel-detalhes.png" width="300" alt="Detalhes de uma sessão no celular: status, diretório, custo estimado, tempo de vida, modelos usados e tokens por agente">
 </p>
