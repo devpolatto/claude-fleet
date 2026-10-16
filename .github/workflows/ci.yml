@@ -1,0 +1,42 @@
+# CI: formatação, vet, testes com -race e o teste de integração do hook.
+# O job "test" é o check obrigatório da proteção da main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          fora=$(gofmt -l .)
+          if [ -n "$fora" ]; then
+            echo "Arquivos fora do gofmt:"; echo "$fora"; exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test -race -count=1 ./...
+
+      - name: teste do hook
+        run: bash hook/test.sh
