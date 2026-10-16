@@ -21,6 +21,8 @@ Use as skills do plugin, carregando-as com a ferramenta Skill **antes** da prime
 - Design → código: `figma:figma-design-to-code` (obrigatória antes de `get_design_context`); motion: `figma:figma-implement-motion`.
 - Código → Figma: `figma:figma-generate-design` junto com `figma:figma-use`.
 
+O arquivo do projeto é `tVFsjlauIBbPrj2HSXNron` ([claude-fleet — painel v2](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2)). Ele espelha a interface: toda mudança visual que você fizer, ou que te pedirem para conferir, termina com o Figma atualizado, reaproveitando os componentes e variáveis que já existem lá e usando só dados fictícios. Se a tarefa for só de código e você não conseguir atualizar o Figma, diga no relato o que ficou faltando.
+
 Ao implementar um design, traduza as cores e espaçamentos do Figma para os tokens existentes; se o Figma usa um valor sem token equivalente, diga isso no relato em vez de inventar um token parecido. Se o MCP do Figma pedir autenticação, pare e devolva isso para quem chamou: a autenticação é feita pelo usuário.
 
 ## Conferir
@@ -33,4 +35,4 @@ Se não conseguir abrir o navegador, diga isso; não afirme que conferiu visualm
 
 ## Resposta
 
-Em poucas linhas: o que mudou (arquivo e trecho), tokens criados ou alterados, o que foi conferido e em quais larguras, e as divergências em relação ao Figma. Não cole o HTML de volta. Não commite: quem chamou decide o commit e o PR.
+Em poucas linhas: o que mudou (arquivo e trecho), tokens criados ou alterados, o que foi conferido e em quais larguras, o que foi atualizado no Figma (com link do nó) e as divergências que restaram em relação a ele. Não cole o HTML de volta. Não commite: quem chamou decide o commit e o PR.
