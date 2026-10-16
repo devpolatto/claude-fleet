@@ -53,7 +53,7 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 
 **Acceptance Criteria**:
 
-1. WHEN chega `SubagentStart` com `agent_id` THEN o tile da sessão SHALL exibir um mini-tile ativo para o subagente, com o `agent_type`.
+1. WHEN chega `SubagentStart` com `agent_id` THEN o tile da sessão SHALL exibir um mini-tile ativo para o subagente, rotulado com a `description` do `.meta.json` (o nome curto que o Claude dá na chamada do `Agent`) e, sem ela, com o `agent_type`.
 2. WHEN um evento de ferramenta chega com `agent_id` THEN a atividade SHALL ser atribuída ao subagente (mini-tile pulsa) e não só à sessão.
 3. WHEN chega `SubagentStop` THEN o mini-tile SHALL ficar concluído.
 4. WHEN a sessão-pai está **parada** mas um subagente segue ativo THEN o tile-pai SHALL indicar "subagente em background" (mini-tile pulsando).
@@ -76,7 +76,7 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 2. O modal SHALL mostrar: status, projeto e `cwd`, início, **tempo de vida** contando ao vivo, última atividade ("há 12 s"), última ferramenta e modelo(s) usados.
 3. O modal SHALL mostrar tokens separados em input, cache write (5m e 1h), cache read e output, mais o total, para a sessão principal, para cada subagente e para a soma.
 4. O modal SHALL mostrar o **custo estimado em USD** por linha e no total, com o rótulo "estimativa · preço de lista da API".
-5. O modal SHALL listar os subagentes com tipo, status, tempo de vida, tokens e custo. A descrição do `.meta.json` não é exibida nem lida (decisão do usuário, 2026-10-15: o tipo basta).
+5. O modal SHALL listar os subagentes com descrição (do `.meta.json`) como título, tipo, status, tempo de vida, tokens e custo. Em 2026-10-16 o usuário reverteu a decisão de 2026-10-15 de mostrar só o tipo: com quase todo subagente sendo `general-purpose`, o tipo não distingue um do outro.
 6. WHEN toco num mini-tile de subagente THEN o modal SHALL abrir focado nesse subagente.
 7. WHILE o modal está aberto THEN os números SHALL se atualizar sozinhos (≤ 5 s).
 

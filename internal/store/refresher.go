@@ -17,9 +17,9 @@ const DefaultRefreshInterval = 5 * time.Second
 
 // AgentUsage é o consumo de um subagente lido do disco.
 type AgentUsage struct {
-	Usage                Usage
-	Models               map[string]Usage
-	Type, TranscriptPath string
+	Usage                             Usage
+	Models                            map[string]Usage
+	Type, Description, TranscriptPath string
 	// FirstAt e LastAt são o primeiro e o último timestamp do transcript.
 	// Só são usados ao criar um subagente que apareceu no disco sem evento.
 	FirstAt, LastAt time.Time
@@ -43,10 +43,9 @@ type SessionUsage struct {
 // false.
 //
 // Com TranscriptMissing, Main e Models não são tocados: os totais anteriores
-// ficam. Subagente ainda desconhecido é criado como concluido, com o Type do
-// .meta.json. Em subagente já conhecido o status não muda; Type e
-// TranscriptPath só são preenchidos se estiverem vazios. A description do
-// .meta.json não é lida (decisão do usuário: o painel mostra só o tipo).
+// ficam. Subagente ainda desconhecido é criado como concluido, com Type e
+// Description do .meta.json. Em subagente já conhecido o status não muda;
+// Type, Description e TranscriptPath só são preenchidos se estiverem vazios.
 func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -86,6 +85,7 @@ func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 			ag = &Agent{
 				ID:          id,
 				Type:        au.Type,
+				Description: au.Description,
 				Status:      StatusConcluido,
 				StartedAt:   au.FirstAt,
 				LastEventAt: au.LastAt,
@@ -102,6 +102,9 @@ func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 		}
 		if ag.Type == "" {
 			m.setString(&ag.Type, au.Type)
+		}
+		if ag.Description == "" {
+			m.setString(&ag.Description, au.Description)
 		}
 		if ag.TranscriptPath == "" {
 			m.setString(&ag.TranscriptPath, au.TranscriptPath)
@@ -274,6 +277,7 @@ func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
 		u.ParseErrors += f.ParseErrors()
 		au := AgentUsage{
 			Type:           sf.Type,
+			Description:    sf.Description,
 			TranscriptPath: sf.TranscriptPath,
 			FirstAt:        f.FirstTS(),
 			LastAt:         f.LastTS(),

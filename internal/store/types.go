@@ -51,7 +51,7 @@ func (u Usage) add(o Usage) Usage {
 
 // Agent é um subagente lançado dentro de uma sessão.
 type Agent struct {
-	ID, Type               string
+	ID, Type, Description  string
 	Status                 Status
 	StartedAt, LastEventAt time.Time
 	EndedAt                *time.Time // preenchido no SubagentStop
@@ -82,7 +82,7 @@ type Session struct {
 
 // AgentView é o resumo de um subagente para o mini-tile.
 type AgentView struct {
-	ID, Type               string
+	ID, Type, Description  string
 	Status                 Status
 	StartedAt, LastEventAt time.Time
 	EndedAt                *time.Time

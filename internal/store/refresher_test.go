@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
@@ -148,6 +147,9 @@ func TestRefresherTotalPrincipalMaisSubagentes(t *testing.T) {
 	if a1.Status != StatusAtivo {
 		t.Errorf("a1.Status = %s, quero ativo (refresher não muda status)", a1.Status)
 	}
+	if a1.Description != "procura arquivos" {
+		t.Errorf("a1.Description = %q", a1.Description)
+	}
 	if a1.Type != "general-purpose" {
 		t.Errorf("a1.Type = %q, quero o do evento", a1.Type)
 	}
@@ -165,8 +167,8 @@ func TestRefresherSubagenteSoNoDisco(t *testing.T) {
 	if a2.Status != StatusConcluido {
 		t.Errorf("a2.Status = %s, quero concluido", a2.Status)
 	}
-	if a2.Type != "general-purpose" {
-		t.Errorf("a2.Type = %q", a2.Type)
+	if a2.Type != "general-purpose" || a2.Description != "escreve testes" {
+		t.Errorf("a2 Type/Description = %q/%q", a2.Type, a2.Description)
 	}
 	if want := time.Date(2026, 10, 15, 12, 2, 0, 0, time.UTC); !a2.StartedAt.Equal(want) {
 		t.Errorf("a2.StartedAt = %v, quero %v", a2.StartedAt, want)
@@ -467,21 +469,18 @@ func TestSanitizeName(t *testing.T) {
 	}
 }
 
-// A description do .meta.json não é lida: o painel mostra só o tipo.
-func TestDescricaoDoSubagenteNaoELida(t *testing.T) {
+// A description do .meta.json chega ao snapshot: o mini-tile a usa como rótulo.
+func TestDescricaoDoSubagenteNoSnapshot(t *testing.T) {
 	s := New()
 	startSession(s, fixture(t))
 	NewRefresher(s).RefreshOnce()
-	b, err := json.Marshal(mustGet(t, s))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, desc := range []string{"procura arquivos", "escreve testes"} {
-		if strings.Contains(string(b), desc) {
-			t.Errorf("o detalhe da sessão contém a descrição %q", desc)
+	got := map[string]string{}
+	for _, v := range s.Snapshot() {
+		for _, a := range v.Subagents {
+			got[a.ID] = a.Description
 		}
 	}
-	if !strings.Contains(string(b), `"Type":"Explore"`) {
-		t.Errorf("o tipo do subagente deveria continuar: %s", b)
+	if got["a1"] != "procura arquivos" || got["a2"] != "escreve testes" {
+		t.Errorf("descrições no snapshot = %v", got)
 	}
 }

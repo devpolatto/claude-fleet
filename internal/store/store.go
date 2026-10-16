@@ -316,6 +316,7 @@ func (s *Store) Snapshot() []SessionView {
 			v.Subagents = append(v.Subagents, AgentView{
 				ID:          a.ID,
 				Type:        a.Type,
+				Description: a.Description,
 				Status:      a.Status,
 				StartedAt:   a.StartedAt,
 				LastEventAt: a.LastEventAt,

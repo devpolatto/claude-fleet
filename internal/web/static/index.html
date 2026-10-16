@@ -546,6 +546,7 @@
   .agente .cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
   .agente .titulo { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .agente .tipo { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agente .subtipo { flex: none; font-size: 11px; color: var(--muted); }
   .agente .em-foco {
     flex: none;
     padding: 2px 6px;
@@ -754,11 +755,12 @@ function avisoSub(texto) {
 function miniTile(a) {
   const st = ROTULO[a.Status] ? a.Status : 'desconhecido';
   const tipo = a.Type || 'subagente';
+  const rotulo = a.Description || tipo;
   const mini = el('span', 'sub s-' + st);
   mini.dataset.agent = a.ID;
-  mini.title = tipo + ' · ' + ROTULO[st] + (a.LastTool ? ' · ' + a.LastTool : '');
+  mini.title = (a.Description ? a.Description + ' · ' : '') + tipo + ' · ' + ROTULO[st] + (a.LastTool ? ' · ' + a.LastTool : '');
   if (st === 'aguardando') mini.append(icone('alerta', 10));
-  mini.append(el('span', 'tipo', tipo));
+  mini.append(el('span', 'tipo', rotulo));
   return mini;
 }
 
@@ -990,11 +992,12 @@ function subagentesOrdenados(d) {
     (a.ID < b.ID ? -1 : a.ID > b.ID ? 1 : 0));
 }
 
-// nomesAgentes dá um rótulo curto e único por subagente ("Explore", "Explore 2").
+// nomesAgentes dá um rótulo curto e único por subagente: a descrição dada na
+// chamada do Agent ou, sem ela, o tipo ("Explore", "Explore 2").
 function nomesAgentes(subs) {
   const vistos = {};
   return subs.map((a) => {
-    const base = a.Type || 'subagente';
+    const base = a.Description || a.Type || 'subagente';
     vistos[base] = (vistos[base] || 0) + 1;
     return vistos[base] > 1 ? base + ' ' + vistos[base] : base;
   });
@@ -1078,6 +1081,7 @@ function montarAgente(a, nome) {
   const cab = el('div', 'cab');
   const titulo = el('div', 'titulo');
   titulo.append(el('span', 'tipo', nome));
+  if (a.Description && a.Type) titulo.append(el('span', 'subtipo', a.Type));
   if (foco) titulo.append(el('span', 'em-foco', 'em foco'));
   cab.append(titulo, statusSpan(a.Status));
   li.append(cab);
