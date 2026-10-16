@@ -1,0 +1,14 @@
+claude-fleet
+Copyright (c) 2026 devpolatto. Licenciado sob MIT (veja LICENSE).
+
+Exceção: .claude/skills/tlc-spec-driven/
+
+  Skill "tlc-spec-driven", versão 2.0.0, de Felipe Rodrigues
+  (https://github.com/felipfr), Tech Lead's Club.
+  Origem: https://github.com/tech-leads-club/agent-skills
+          (packages/skills-catalog/skills/(development)/tlc-spec-driven)
+  Licença: Creative Commons Attribution 4.0 International (CC-BY-4.0)
+           https://creativecommons.org/licenses/by/4.0/
+
+  Copiada sem alterações. Esses arquivos não estão cobertos pela licença MIT
+  do projeto.

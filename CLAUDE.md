@@ -17,7 +17,7 @@ Painel web, feito para o celular, que mostra ao vivo as sessões do Claude Code 
 | `internal/web/static` | Frontend inteiro: `index.html` (HTML + CSS + JS puro), `login.html`, `sw.js`, manifest e ícones, via `embed` |
 | `deploy/` | Units systemd de usuário |
 | `.specs/` | Planejamento (skill `tlc-spec-driven`): `project/` e uma pasta por feature com `spec.md`, `design.md`, `tasks.md`, `uat.md` |
-| `.claude/` | `agents/` (subagentes do projeto) e `skills/tlc-spec-driven` (cópia da skill de planejamento, CC-BY-4.0, Tech Lead's Club) |
+| `.claude/` | `agents/` (subagentes do projeto) e `skills/tlc-spec-driven` (cópia da skill de planejamento v2.0.0, CC-BY-4.0, origem e licença no `NOTICE`) |
 
 ## Comandos
 
@@ -36,7 +36,7 @@ O CI (`.github/workflows/ci.yml`, job `test`) roda exatamente esses quatro check
 - **Nada vai direto na `main`.** Ela é protegida por ruleset: só entra por PR, com o check `test` verde, sem force-push. Trabalhe numa branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) e abra o PR com `gh pr create`.
 - Commits em português, Conventional Commits, escopo pelo pacote ou área: `feat(ui)`, `feat(web)`, `fix(store)`, `feat(push)`, `docs(specs)`, `ci`. Um commit por mudança lógica.
 - Mensagens de commit e descrições de PR **sem** linha de atribuição a ferramenta (`Co-Authored-By: Claude …`, `Generated with Claude Code`).
-- Feature nova começa no `.specs/features/<nome>/spec.md`; o código e a atualização do `STATE.md`/`uat.md` andam no mesmo PR. A skill `tlc-spec-driven` vem com o repositório (`.claude/skills/`) e guia spec, design e tasks; não altere a cópia sem indicar a mudança (exigência da CC-BY-4.0).
+- Feature nova começa no `.specs/features/<nome>/spec.md`; o código e a atualização do `STATE.md`/`uat.md` andam no mesmo PR. A skill `tlc-spec-driven` vem com o repositório (`.claude/skills/`) e guia spec, design e tasks; não altere a cópia sem indicar a mudança no `NOTICE` (exigência da CC-BY-4.0). Onde a skill e este arquivo divergirem (idioma e escopo dos commits, por exemplo), vale este arquivo.
 
 ## Invariantes (não quebre sem uma AD nova no STATE.md)
 
