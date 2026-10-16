@@ -1,4 +1,8 @@
-# claude-fleet
+<p align="center">
+  <img src="internal/web/static/icon-192.png" width="96" alt="Logo do Claude Fleet: quatro quadrados arredondados em verde, amarelo, cinza e um tracejado, como os estados das sessões">
+</p>
+
+<h1 align="center">claude-fleet</h1>
 
 Painel web, feito para o celular, que mostra ao vivo as sessões do Claude Code rodando nesta máquina e os subagentes de cada uma. Cada sessão é um quadradinho que pulsa enquanto trabalha e fica amarelo quando espera permissão. Um toque abre os detalhes: tempo de vida, tokens por categoria e custo estimado.
 
