@@ -1,6 +1,6 @@
 # State
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-16
 **Current Work:** fleet-mvp concluído (T1–T18; M1 entregue em 2026-10-15). Painel v2 no ar como serviço systemd na tailnet. Próximo: M2
 
 ---
@@ -48,6 +48,16 @@
 **Reason:** No spike T1, `async: true` não bloqueou, mas perdeu 1 de 5 execuções quando o processo terminou. Perder um evento final deixa o tile preso.
 **Trade-off:** Até 1 s de atraso por evento, e só quando o servidor está fora do ar.
 **Impact:** `hook/fleet-hook.sh` e o instalador (T12, T15) não usam `async`.
+
+---
+
+### AD-007: Uso do plano vem do status line, não do token OAuth (2026-10-16)
+
+**Decision:** A feature `uso-plano` lê `rate_limits` (`five_hour`, `seven_day`) do JSON que o Claude Code entrega ao comando de status line; um `fleet-statusline.sh` repassa ao `POST /statusline` (só loopback) e o servidor guarda só esses campos.
+**Reason:** Recurso documentado, sem ler credencial e no mesmo caminho do hook (loopback → lista branca → Store → SSE).
+**Trade-off:** O dado só se atualiza com alguma sessão interativa respondendo; ocupa o `statusLine`.
+**Alternative:** Ler o token em `~/.claude/.credentials.json` e consultar `GET /api/oauth/usage` (o que o `/usage` faz): endpoint não documentado e credencial no servidor.
+**Impact:** Novo script embutido, rota `/statusline`, `install-hooks` passa a cuidar do `statusLine`; segunda tela no frontend.
 
 ---
 
@@ -100,6 +110,7 @@ _Nenhum._
 - [x] Alerta no navegador/vibração quando um agente fica aguardando permissão — avaliar sobreposição com o hook `telegram-notify` existente — Captured during: fleet-mvp/spec — feito: som em `features/alerta-sonoro` e push em `features/notificacao-push` (2026-10-16); o `telegram-notify` fica (aprova à distância)
 - [ ] Histórico em SQLite e custo por dia/projeto — Captured during: fleet-mvp/spec
 - [ ] Detectar sessão morta sem `SessionEnd` (PID ou inatividade do transcript) — Captured during: fleet-mvp/design
+- [ ] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16), design pendente
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec — especificada em `features/pwa` (2026-10-16)
 
 ---
