@@ -168,33 +168,33 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| HOOK-01 | P1 Grade — hook envia evento ao servidor (≤ 1 s, exit 0 sempre) | Design | Pending |
-| HOOK-02 | P1 Grade — hooks registrados nos 10 eventos sem remover os existentes | Design | Pending |
-| INGEST-01 | P1 Acesso — `/event` só aceita loopback | Design | Pending |
-| INGEST-02 | P1 Acesso — sanitização: só metadados, corpo nunca logado | Design | Pending |
-| STATE-01 | P1 Grade — máquina de estados evento → status | Design | Pending |
-| STATE-02 | P1 Subagentes — rastrear subagentes por `agent_id` | Design | Pending |
-| STATE-03 | P1 Grade — limpeza (encerradas 15 min, inativas 12 h) | Design | Pending |
-| STATE-04 | P1 Grade — sessão criada no primeiro evento desconhecido | Design | Pending |
-| UI-01 | P1 Grade — grade responsiva (360 px) | Design | Pending |
-| UI-02 | P1 Grade — visual por status (pulso, amarelo, cinza, esmaecido) | Design | Pending |
-| UI-03 | P1 Grade — atualização por SSE com reconexão | Design | Pending |
-| UI-04 | P1 Grade/Subagentes — conteúdo do tile + mini-tiles | Design | Pending |
-| DET-01 | P1 Pop-up — modal na mesma página, abre/fecha | Design | Pending |
-| DET-02 | P1 Pop-up — status, tempo de vida ao vivo, última atividade, modelos | Design | Pending |
-| DET-03 | P1 Pop-up — tokens por categoria, por agente e somados | Design | Pending |
-| DET-04 | P1 Pop-up — custo estimado com rótulo | Design | Pending |
-| DET-05 | P1 Pop-up — lista de subagentes com detalhes; foco no subagente tocado | Design | Pending |
-| DET-06 | P1 Pop-up — atualização ao vivo enquanto aberto | Design | Pending |
-| TOK-01 | P1 Pop-up — leitura incremental do transcript + dedup por `message.id` | Design | Pending |
-| TOK-02 | P1 Pop-up — transcripts de subagentes + `.meta.json` | Design | Pending |
-| TOK-03 | P1 Pop-up — custo por mensagem via tabela de preço (fast 2x, n/d) | Design | Pending |
-| TOK-04 | P1 Pop-up — total da sessão = principal + subagentes | Design | Pending |
-| SEC-01 | P1 Acesso — bind padrão 127.0.0.1 | Design | Pending |
-| SEC-02 | P1 Acesso — token obrigatório fora do loopback (cookie HttpOnly) | Design | Pending |
-| SEC-03 | P1 Acesso — nenhuma rota expõe conteúdo | Design | Pending |
-| INST-01 | P2 Instalação — install/uninstall com backup, diff, idempotência | Design | Pending |
-| BOOT-01 | P2 Descoberta — varredura de transcripts recentes no start | Design | Pending |
+| HOOK-01 | P1 Grade — hook envia evento ao servidor (≤ 1 s, exit 0 sempre) | Design | Verified |
+| HOOK-02 | P1 Grade — hooks registrados nos 10 eventos sem remover os existentes | Design | Verified |
+| INGEST-01 | P1 Acesso — `/event` só aceita loopback | Design | Verified |
+| INGEST-02 | P1 Acesso — sanitização: só metadados, corpo nunca logado | Design | Verified |
+| STATE-01 | P1 Grade — máquina de estados evento → status | Design | Verified |
+| STATE-02 | P1 Subagentes — rastrear subagentes por `agent_id` | Design | Verified |
+| STATE-03 | P1 Grade — limpeza (encerradas 15 min, inativas 12 h) | Design | Verified |
+| STATE-04 | P1 Grade — sessão criada no primeiro evento desconhecido | Design | Verified |
+| UI-01 | P1 Grade — grade responsiva (360 px) | Design | Verified |
+| UI-02 | P1 Grade — visual por status (pulso, amarelo, cinza, esmaecido) | Design | Verified |
+| UI-03 | P1 Grade — atualização por SSE com reconexão | Design | Verified |
+| UI-04 | P1 Grade/Subagentes — conteúdo do tile + mini-tiles | Design | Verified |
+| DET-01 | P1 Pop-up — modal na mesma página, abre/fecha | Design | Verified |
+| DET-02 | P1 Pop-up — status, tempo de vida ao vivo, última atividade, modelos | Design | Verified |
+| DET-03 | P1 Pop-up — tokens por categoria, por agente e somados | Design | Verified |
+| DET-04 | P1 Pop-up — custo estimado com rótulo | Design | Verified |
+| DET-05 | P1 Pop-up — lista de subagentes com detalhes; foco no subagente tocado | Design | Verified |
+| DET-06 | P1 Pop-up — atualização ao vivo enquanto aberto | Design | Verified |
+| TOK-01 | P1 Pop-up — leitura incremental do transcript + dedup por `message.id` | Design | Verified |
+| TOK-02 | P1 Pop-up — transcripts de subagentes + `.meta.json` | Design | Verified |
+| TOK-03 | P1 Pop-up — custo por mensagem via tabela de preço (fast 2x, n/d) | Design | Verified |
+| TOK-04 | P1 Pop-up — total da sessão = principal + subagentes | Design | Verified |
+| SEC-01 | P1 Acesso — bind padrão 127.0.0.1 | Design | Verified |
+| SEC-02 | P1 Acesso — token obrigatório fora do loopback (cookie HttpOnly) | Design | Verified |
+| SEC-03 | P1 Acesso — nenhuma rota expõe conteúdo | Design | Verified |
+| INST-01 | P2 Instalação — install/uninstall com backup, diff, idempotência | Design | Verified |
+| BOOT-01 | P2 Descoberta — varredura de transcripts recentes no start | Design | Verified |
 | OPS-01 | P3 Atalhos — filtros e resumo no topo | - | Pending |
 
 **Coverage:** 28 total, 27 mapped to tasks, 1 unmapped (OPS-01, P3 — fora do M1).
@@ -203,7 +203,7 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 
 ## Success Criteria
 
-- [ ] No UAT, 2 sessões de terminal + 1 subagente em background aparecem corretamente no celular via Tailscale, com cada transição visível em ≤ 2 s.
-- [ ] Tokens do modal = soma independente do transcript (diferença 0); custo coerente com a tabela de preços.
-- [ ] Com o servidor parado, um prompt no Claude Code não demora mais que 1 s a mais para começar a responder.
-- [ ] Nenhum trecho de prompt de teste aparece no log, na API ou na página.
+- [x] No UAT, 2 sessões de terminal + 1 subagente em background aparecem corretamente no celular via Tailscale, com cada transição visível em ≤ 2 s.
+- [x] Tokens do modal = soma independente do transcript (diferença 0); custo coerente com a tabela de preços.
+- [x] Com o servidor parado, um prompt no Claude Code não demora mais que 1 s a mais para começar a responder.
+- [x] Nenhum trecho de prompt de teste aparece no log, na API ou na página.

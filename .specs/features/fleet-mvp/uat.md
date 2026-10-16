@@ -2,7 +2,7 @@
 
 **Data:** 2026-10-15 · **Claude Code:** 2.1.301 · **Binário:** `~/.local/bin/claude-fleet` (commit `10518e3`)
 **Ambiente:** hooks reais instalados em `~/.claude/settings.json` (19:46:57; backup `settings.json.bak-20261015-194657`), servidor em `127.0.0.1:7777` sem token.
-**Escopo desta rodada:** parte local. A parte do celular depende do Tailscale (B-001).
+**Escopo:** parte local e acesso pelo celular via Tailscale (B-001 resolvido em 2026-10-15).
 
 Legenda: ✅ verificado · 👀 falta conferir no navegador · 📱 falta conferir no celular · ⚠️ desvio
 
@@ -10,7 +10,7 @@ Legenda: ✅ verificado · 👀 falta conferir no navegador · 📱 falta confer
 
 | Critério | Resultado | Evidência |
 | --- | --- | --- |
-| 2 terminais + 1 subagente em background no celular, transições ≤ 2 s | ✅ latência local · 📱 celular | Hook → snapshot no `/stream`: 257 ms em UserPromptSubmit, PermissionRequest, PostToolBatch e Stop (a janela de coalescência é de 250 ms). Subagente `Explore` real em segundo plano: apareceu ativo com `LastTool=Bash` e passou a concluído. Segundo terminal: 👀 |
+| 2 terminais + 1 subagente em background no celular, transições ≤ 2 s | ✅ latência local · ✅ celular | Hook → snapshot no `/stream`: 257 ms em UserPromptSubmit, PermissionRequest, PostToolBatch e Stop (a janela de coalescência é de 250 ms). Subagente `Explore` real em segundo plano: apareceu ativo com `LastTool=Bash` e passou a concluído. Segundo terminal: ✅ (sessão interativa no tmux). Celular: painel aberto pela tailnet com token, confirmado pelo usuário |
 | Tokens do modal = soma independente do transcript | ✅ | T14: sessão do spike + 1 subagente, diferença 0 nas 5 categorias (script Python independente do Go) |
 | Servidor parado não atrasa o Claude Code > 1 s | ✅ | Hook real com nada escutando na porta: 9–11 ms, exit 0. Com servidor mudo, o `-m 1` corta em ~1,0 s (`hook/test.sh`). Com servidor no ar: 9 ms |
 | Nenhum trecho de prompt de teste no log, API ou página | ✅ | Texto-sentinela enviado em `prompt`, `tool_input` e `last_assistant_message` pelo hook real: 0 ocorrências no log do servidor, em `/api/sessions`, `/api/session/{id}`, `/` e `/stream` |
@@ -55,8 +55,8 @@ Legenda: ✅ verificado · 👀 falta conferir no navegador · 📱 falta confer
 | --- | --- | --- |
 | 1 | Sem flags, só `127.0.0.1` | ✅ log: `escutando em http://127.0.0.1:7777` |
 | 2 | Bind exposto sem token recusa subir | ✅ código 2 com mensagem (T11) |
-| 3 | Token por `?t=` → cookie `HttpOnly`; sem token → 401 | ✅ testes do T11 · 📱 no celular |
-| 4 | `/event` fora do loopback → 403 | ✅ testes do T11 · 📱 |
+| 3 | Token por `?t=` → cookie `HttpOnly`; sem token → 401 | ✅ testes do T11 · ✅ pela tailnet: 401 sem token, 200 com `?t=`; celular abriu |
+| 4 | `/event` fora do loopback → 403 | ✅ testes do T11 · ✅ `POST /event` em `100.x.y.z` → 403; hook no loopback → 204 |
 | 5 | Só metadados; corpo nunca logado | ✅ busca do texto-sentinela acima |
 
 ### P2
@@ -87,7 +87,14 @@ O usuário abriu o painel em <http://127.0.0.1:7777> e confirmou: "está tudo fu
 - ✅ **Sem regressão:** aprovando ("Yes"), aguardando → ativo na hora (`PostToolUse`) → parado em 1 s (`Stop`). Com `/exit`, a sessão foi a **encerrado**.
 - Observação: sessões que terminaram enquanto o servidor estava parado voltam no boot como "desconhecido" e só somem pela regra de 12 h sem eventos.
 
+## Celular via Tailscale (2026-10-15)
+
+- O primeiro acesso deu `ERR_CONNECTION_REFUSED`. Causa: o serviço ainda tinha o drop-in temporário `local.conf` (bind só em `127.0.0.1`). Sem o drop-in, a unit do repo resolve o IP da tailnet e usa o token de `~/.config/claude-fleet/env`.
+- O servidor passou a escutar em `100.x.y.z:7777` e em `127.0.0.1:7777` (para os hooks).
+- Verificado daqui: sem token → 401; com `?t=` → 200; `POST /event` pela tailnet → 403; hook no loopback → 204.
+- ✅ O usuário abriu o painel v2 no celular pela tailnet e confirmou que funcionou.
+- Observação: um acesso anterior pela VLAN deu timeout, pelo mesmo bind em loopback e pelo `ufw` ativo no PC. O acesso pela VLAN não foi adotado; vale a AD-004 (só tailnet).
+
 ## Pendente
 
 - 👀 `prefers-reduced-motion` (opcional).
-- 📱 **Celular:** instalar o Tailscale (B-001), subir com `-addr <IP da tailnet>:7777` e token e repetir a grade e o modal.

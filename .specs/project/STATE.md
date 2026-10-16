@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-10-15
-**Current Work:** fleet-mvp — design aprovado; T1–T17 concluídos; próximo: T18 (UAT — local já possível; celular bloqueado por B-001)
+**Current Work:** fleet-mvp concluído (T1–T18; M1 entregue em 2026-10-15). Painel v2 no ar como serviço systemd na tailnet. Próximo: M2
 
 ---
 
@@ -53,13 +53,7 @@
 
 ## Active Blockers
 
-### B-001: Tailscale não instalado na máquina
-
-**Discovered:** 2026-10-15
-**Impact:** Impede o acesso pelo celular no UAT (T18); não bloqueia o desenvolvimento local.
-**Workaround:** Testar no desktop em `127.0.0.1`.
-**Resolution:** Instalar o Tailscale na máquina e no celular antes do T18.
-**Status (2026-10-15):** painel já roda como serviço systemd de usuário (`claude-fleet.service`) com o drop-in `local.conf` (loopback, sem token). Ao instalar o Tailscale: criar `~/.config/claude-fleet/env`, apagar o drop-in e reiniciar o serviço.
+_Nenhum._
 
 ---
 
@@ -78,6 +72,19 @@
 **Problem:** Depois do `PermissionRequest` não chega nenhum evento quando o usuário responde "No"; o tile ficava preso em "aguardando". O spike, feito com `claude -p`, tinha visto um `PostToolBatch` e escondeu isso.
 **Solution:** Usar a linha `system/turn_duration` do transcript como fim de turno quando ela é posterior ao último evento.
 **Prevents:** Concluir sobre o comportamento interativo a partir de testes em `-p`.
+
+---
+
+## Resolved Blockers
+
+### B-001: Tailscale não instalado na máquina
+
+**Discovered:** 2026-10-15
+**Impact:** Impede o acesso pelo celular no UAT (T18); não bloqueia o desenvolvimento local.
+**Workaround:** Testar no desktop em `127.0.0.1`.
+**Resolution:** Instalar o Tailscale na máquina e no celular antes do T18.
+**Status (2026-10-15):** painel já roda como serviço systemd de usuário (`claude-fleet.service`) com o drop-in `local.conf` (loopback, sem token). Ao instalar o Tailscale: criar `~/.config/claude-fleet/env`, apagar o drop-in e reiniciar o serviço.
+**Resolvido (2026-10-15):** Tailscale instalado; o serviço escuta em `100.x.y.z:7777` com token, o drop-in de loopback foi removido e o acesso pelo celular foi confirmado.
 
 ---
 

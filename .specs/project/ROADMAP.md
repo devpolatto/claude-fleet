@@ -1,7 +1,7 @@
 # Roadmap
 
 **Current Milestone:** M1 — MVP do painel
-**Status:** Planning
+**Status:** M1 concluído (2026-10-15)
 
 ---
 
@@ -12,7 +12,7 @@
 
 ### Features
 
-**fleet-mvp** - PLANNED
+**fleet-mvp** - DONE (2026-10-15; UAT em `.specs/features/fleet-mvp/uat.md`)
 
 - Coleta de eventos via hooks globais do Claude Code
 - Máquina de estados de sessões e subagentes em memória
@@ -29,7 +29,7 @@
 
 ### Features
 
-**Serviço systemd de usuário** - PLANNED
+**Serviço systemd de usuário** - DONE (antecipado no M1: `deploy/claude-fleet.service`)
 **Alerta "aguardando permissão"** (vibração/notificação no navegador; avaliar se substitui ou complementa o `telegram-notify`) - PLANNED
 **Instalação como PWA** (ícone na tela inicial do celular) - PLANNED
 
