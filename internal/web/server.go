@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -22,8 +23,18 @@ const MaxEventBytes = 256 << 10
 // CookieName é o cookie que guarda o token depois da primeira visita com ?t=.
 const CookieName = "fleet_token"
 
-//go:embed static/index.html static/manifest.webmanifest static/*.png
+// MaxLoginBytes limita o corpo de POST /login (só o campo token).
+const MaxLoginBytes = 4 << 10
+
+// cookieMaxAge é a validade do cookie, renovada a cada visita à página.
+const cookieMaxAge = 30 * 24 * time.Hour
+
+//go:embed static/index.html static/login.html static/manifest.webmanifest static/*.png
 var static embed.FS
+
+// loginPage é a tela de token, servida no lugar do 401 em texto quando quem
+// pede é a página: no app instalado não há barra de endereço para o ?t=.
+var loginPage = template.Must(template.ParseFS(static, "static/login.html"))
 
 // publicAssets são os arquivos que o navegador busca sem cookie (o manifesto
 // é pedido com credentials "omit") e que não dizem nada sobre a máquina: ficam
@@ -69,6 +80,7 @@ func (s *Server) Handler() http.Handler {
 	// /event fica fora da autenticação por token: o hook não conhece o
 	// token. A proteção é aceitar só conexões de loopback.
 	mux.HandleFunc("POST /event", s.handleEvent)
+	mux.HandleFunc("POST /login", s.handleLogin)
 	for path, ctype := range publicAssets {
 		mux.Handle("GET "+path, assetHandler("static"+path, ctype))
 	}
@@ -139,30 +151,95 @@ func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // auth exige o token quando ele está configurado. O token chega por ?t= na
-// primeira visita, que grava um cookie HttpOnly; depois, só o cookie.
+// primeira visita ou pela tela de login, que gravam um cookie HttpOnly;
+// depois, só o cookie.
+//
+// Na página (GET /), um ?t= válido grava o cookie e redireciona para a URL
+// sem o token, que assim não fica na barra nem no histórico; o cookie é
+// renovado a cada visita, e sem credencial a resposta é a tela de login. As
+// demais rotas aceitam ?t= sem redirecionar e respondem 401 em texto.
 func (s *Server) auth(next http.Handler) http.Handler {
 	if s.token == "" {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if t := r.URL.Query().Get("t"); t != "" && s.tokenOK(t) {
-			http.SetCookie(w, &http.Cookie{
-				Name:     CookieName,
-				Value:    s.token,
-				Path:     "/",
-				HttpOnly: true,
-				Secure:   r.TLS != nil, // em HTTPS o cookie nunca volta por HTTP
-				SameSite: http.SameSiteStrictMode,
-				MaxAge:   int((30 * 24 * time.Hour).Seconds()),
-			})
+		page := r.URL.Path == "/"
+		if t := r.URL.Query().Get("t"); t != "" {
+			if s.tokenOK(t) {
+				s.setCookie(w, r)
+				if page {
+					q := r.URL.Query()
+					q.Del("t")
+					u := *r.URL
+					u.RawQuery = q.Encode()
+					http.Redirect(w, r, u.RequestURI(), http.StatusSeeOther)
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+			if page {
+				s.loginPage(w, http.StatusUnauthorized, true)
+				return
+			}
+		}
+		if c, err := r.Cookie(CookieName); err == nil && s.tokenOK(c.Value) {
+			if page {
+				s.setCookie(w, r) // validade conta a partir do último uso
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
-		if c, err := r.Cookie(CookieName); err == nil && s.tokenOK(c.Value) {
-			next.ServeHTTP(w, r)
+		if page {
+			s.loginPage(w, http.StatusUnauthorized, false)
 			return
 		}
 		http.Error(w, "não autorizado", http.StatusUnauthorized)
+	})
+}
+
+// handleLogin recebe o token da tela de login. Válido: grava o cookie e volta
+// para a página; inválido: mostra a tela de novo com o aviso.
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if s.token == "" {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, MaxLoginBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	if !s.tokenOK(r.PostForm.Get("token")) {
+		s.loginPage(w, http.StatusUnauthorized, true)
+		return
+	}
+	s.setCookie(w, r)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *Server) loginPage(w http.ResponseWriter, status int, erro bool) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	if err := loginPage.Execute(w, struct{ Erro bool }{erro}); err != nil {
+		log.Printf("web: falha ao montar a tela de login: %v", err)
+	}
+}
+
+// setCookie grava o cookie do token. SameSite=Lax, e não Strict: abrir o app
+// instalado pelo ícone chega como navegação vinda de fora, e o navegador não
+// envia cookie Strict nesse caso. Lax não abre brecha aqui: as rotas com
+// cookie só leem, e os POSTs (/event, /login) não dependem dele.
+func (s *Server) setCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    s.token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil, // em HTTPS o cookie nunca volta por HTTP
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(cookieMaxAge.Seconds()),
 	})
 }
 

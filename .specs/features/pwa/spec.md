@@ -81,8 +81,10 @@ Abro o painel no navegador do celular e do desktop digitando o endereço ou proc
 
 ## Edge Cases
 
-- WHEN abro o app instalado pela primeira vez e o cookie do token não existe nele THEN a página SHALL mostrar o 401 de hoje; o README SHALL orientar a abrir uma vez `/?t=<token>` no navegador antes de instalar (no Android o app instalado usa os mesmos cookies do Chrome; no desktop, idem para o perfil do navegador).
-- WHEN o cookie expira (30 dias) THEN o app SHALL cair no mesmo 401; reabrir com `?t=` resolve. Avaliar no Execute se o cookie deve se renovar a cada visita válida.
+- WHEN abro o app instalado pelo ícone THEN o cookie do token SHALL ser enviado: ele usa `SameSite=Lax`, porque a abertura pelo ícone chega como navegação vinda de fora e um cookie `Strict` não ia junto (achado no teste de 2026-10-16: o app abria em "não autorizado").
+- WHEN o app abre sem cookie válido (nunca gravado ou vencido) THEN a página SHALL mostrar a tela de login, onde colo o token; no app instalado não há barra de endereço para o `?t=`.
+- WHEN abro `/?t=<token>` THEN o servidor SHALL gravar o cookie e redirecionar para `/`, para o token não ficar na barra nem no histórico.
+- WHEN uso a página com cookie válido THEN a validade SHALL ser renovada: só vence depois de 30 dias sem uso.
 - WHEN o app está aberto e o servidor reinicia THEN o comportamento SHALL ser o mesmo da aba: "reconectando…" e volta sozinho.
 - WHEN o Chrome do celular usa **DNS seguro** com um provedor escolhido THEN o nome `*.ts.net` não resolve ("não foi possível encontrar o endereço"); a solução é "Usar o provedor atual" (achado no teste de 2026-10-16, documentado no README). O DNS privado do Android com servidor fixo tem o mesmo efeito.
 - WHEN acesso pelo IP (`https://100.x.x.x`) em vez do nome THEN o certificado não vale; o README SHALL indicar sempre o nome `*.ts.net`.

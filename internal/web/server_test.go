@@ -131,18 +131,18 @@ func TestComToken(t *testing.T) {
 	})
 
 	var cookie *http.Cookie
-	t.Run("?t= grava cookie", func(t *testing.T) {
+	t.Run("?t= grava cookie e limpa a URL", func(t *testing.T) {
 		rec := do(h, http.MethodGet, "/?t="+token, "100.64.0.10:1", "")
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, queria 200", rec.Code)
+		if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/" {
+			t.Fatalf("status = %d, Location = %q; queria 303 para /", rec.Code, rec.Header().Get("Location"))
 		}
 		cookies := rec.Result().Cookies()
 		if len(cookies) != 1 {
 			t.Fatalf("cookies = %d, queria 1", len(cookies))
 		}
 		cookie = cookies[0]
-		if cookie.Name != CookieName || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.Path != "/" {
-			t.Errorf("cookie = %+v, queria HttpOnly, SameSite=Strict e Path=/", cookie)
+		if cookie.Name != CookieName || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" {
+			t.Errorf("cookie = %+v, queria HttpOnly, SameSite=Lax e Path=/", cookie)
 		}
 	})
 	t.Run("cookie autentica", func(t *testing.T) {
@@ -297,5 +297,93 @@ func TestCookieSecureSoEmHTTPS(t *testing.T) {
 		if cookies[0].Secure != https {
 			t.Errorf("https=%v: Secure = %v", https, cookies[0].Secure)
 		}
+	}
+}
+
+func TestRedirectPreservaOutrosParametros(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	rec := do(h, http.MethodGet, "/?x=1&t="+token, "100.64.0.10:1", "")
+	if loc := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || loc != "/?x=1" {
+		t.Errorf("status = %d, Location = %q; queria 303 para /?x=1", rec.Code, loc)
+	}
+}
+
+// Fora da página, ?t= autentica sem redirecionar: SSE e API não seguem 303.
+func TestTokenNaQueryDaAPISemRedirect(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	if rec := do(h, http.MethodGet, "/api/sessions?t="+token, "100.64.0.10:1", ""); rec.Code != http.StatusOK {
+		t.Errorf("status = %d, queria 200", rec.Code)
+	}
+}
+
+func TestPaginaSemCredencialMostraLogin(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	for _, target := range []string{"/", "/?t=errado"} {
+		rec := do(h, http.MethodGet, target, "100.64.0.10:1", "")
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("GET %s: status = %d, queria 401", target, rec.Code)
+		}
+		if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+			t.Errorf("GET %s: Content-Type = %q, queria a tela de login", target, ct)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, `action="/login"`) || strings.Contains(body, token) {
+			t.Errorf("GET %s: tela de login inesperada", target)
+		}
+		if got := strings.Contains(body, "Token inválido"); got != (target != "/") {
+			t.Errorf("GET %s: aviso de token inválido = %v", target, got)
+		}
+	}
+	if rec := do(h, http.MethodGet, "/api/sessions", "100.64.0.10:1", ""); strings.Contains(rec.Body.String(), "<form") {
+		t.Error("a API não deveria devolver a tela de login")
+	}
+}
+
+func TestLogin(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	post := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = "100.64.0.10:1"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec := post("token=" + token)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/" {
+		t.Fatalf("token certo: status = %d, Location = %q", rec.Code, rec.Header().Get("Location"))
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != CookieName {
+		t.Fatalf("token certo: cookies = %+v", cookies)
+	}
+	if r := do(h, http.MethodGet, "/api/sessions", "100.64.0.10:1", "", cookies[0]); r.Code != http.StatusOK {
+		t.Errorf("cookie do login: status = %d", r.Code)
+	}
+
+	rec = post("token=errado")
+	if rec.Code != http.StatusUnauthorized || len(rec.Result().Cookies()) != 0 || !strings.Contains(rec.Body.String(), "Token inválido") {
+		t.Errorf("token errado: status = %d, cookies = %d", rec.Code, len(rec.Result().Cookies()))
+	}
+	if rec := post("token=" + strings.Repeat("x", MaxLoginBytes)); rec.Code != http.StatusBadRequest {
+		t.Errorf("corpo grande: status = %d, queria 400", rec.Code)
+	}
+}
+
+// A validade do cookie conta do último uso: a página o regrava; a API não.
+func TestCookieRenovadoNaPagina(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	c := &http.Cookie{Name: CookieName, Value: token}
+	if rec := do(h, http.MethodGet, "/", "100.64.0.10:1", "", c); rec.Code != http.StatusOK || len(rec.Result().Cookies()) != 1 {
+		t.Errorf("página: status = %d, cookies = %d; queria 200 e cookie renovado", rec.Code, len(rec.Result().Cookies()))
+	}
+	if rec := do(h, http.MethodGet, "/api/sessions", "100.64.0.10:1", "", c); len(rec.Result().Cookies()) != 0 {
+		t.Error("a API não deveria regravar o cookie")
 	}
 }

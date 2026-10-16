@@ -85,12 +85,12 @@ Um endereço fora do loopback sem token é recusado: o processo sai com código 
 
    Com um IP específico, o servidor também escuta em `127.0.0.1:7777`, para o hook continuar entregando os eventos.
 
-3. No celular, conectado à tailnet, abra uma vez `http://<IP da tailnet>:7777/?t=<token>`. A página grava um cookie (`HttpOnly`, `SameSite=Strict`, 30 dias) e, daí em diante, basta `http://<IP da tailnet>:7777/`.
+3. No celular, conectado à tailnet, abra uma vez `http://<IP da tailnet>:7777/?t=<token>`. A página grava um cookie (`HttpOnly`, `SameSite=Lax`, 30 dias desde o último uso) e redireciona para `/`, tirando o token da barra e do histórico; daí em diante, basta `http://<IP da tailnet>:7777/`. Sem cookie, a página mostra uma tela para colar o token, que grava o mesmo cookie.
 
 Como fica protegido:
 
 - `POST /event` só aceita conexões vindas da própria máquina; pela tailnet ele responde 403.
-- As outras rotas exigem o token (cookie ou `?t=`), comparado em tempo constante.
+- As outras rotas exigem o token (cookie, `?t=` ou a tela de login), comparado em tempo constante.
 - O tráfego é cifrado pelo Tailscale (WireGuard). Com HTTPS (abaixo), o painel também é, e o cookie ganha `Secure`.
 
 > **Não use `tailscale serve` na frente do painel.** Ele faz proxy a partir da própria máquina, então toda requisição chega como loopback, e o `/event` passaria a aceitar eventos falsos vindos da tailnet. Use o bind direto no IP da tailnet, como acima. Também não exponha a porta na internet.
@@ -121,7 +121,7 @@ O navegador só instala o painel como app (ícone na tela inicial do celular e n
      -tls-cert ~/.config/claude-fleet/tls.crt -tls-key ~/.config/claude-fleet/tls.key
    ```
 
-5. No navegador, abra uma vez `https://<nome>.ts.net:7777/?t=<token>` (sempre pelo **nome**: pelo IP o certificado não vale). Com o cookie gravado, instale pelo menu do navegador ("Instalar app" no Chrome do Android; ícone de instalar na barra de endereço no Chrome/Brave do desktop). O app usa o mesmo cookie; se ele expirar (30 dias), abra de novo com `?t=`.
+5. No navegador, abra uma vez `https://<nome>.ts.net:7777/?t=<token>` (sempre pelo **nome**: pelo IP o certificado não vale). Com o cookie gravado, instale pelo menu do navegador ("Instalar app" no Chrome do Android; ícone de instalar na barra de endereço no Chrome/Brave do desktop). O app usa o mesmo cookie, renovado a cada abertura; se ele faltar ou vencer (30 dias sem uso), o próprio app mostra a tela de login.
 
 Se o celular disser que não encontrou o endereço (`*.ts.net`) mas o desktop abre, desligue o **DNS seguro** do Chrome (Configurações → Privacidade e segurança → Usar DNS seguro → "Usar o provedor atual"): com um provedor escolhido, o Chrome resolve os nomes por fora e não enxerga o MagicDNS. O **DNS privado** do Android com um nome de servidor fixo causa o mesmo efeito.
 

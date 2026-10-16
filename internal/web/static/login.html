@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0d12">
+<meta name="referrer" content="no-referrer">
+<title>Claude Fleet</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d12;
+    --surface: #141821;
+    --surface-2: #1b202b;
+    --border: #262c38;
+    --text: #e9ecf2;
+    --muted: #8e97a8;
+    --ativo: #34d399;
+    --aguardando: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  form {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 24px 20px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+  }
+  .marca { display: flex; align-items: center; gap: 10px; }
+  h1 { margin: 0; font-size: 17px; font-weight: 700; }
+  p { margin: 0; color: var(--muted); font-size: 13px; }
+  label { font-size: 13px; font-weight: 600; }
+  input {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+  }
+  input:focus-visible { outline: 2px solid var(--ativo); outline-offset: 1px; }
+  button {
+    padding: 11px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--ativo);
+    color: #06281c;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .erro { color: var(--aguardando); font-weight: 600; }
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+  <div class="marca">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" rx="2.5" fill="#34d399"/>
+      <rect x="12" y="1" width="9" height="9" rx="2.5" fill="#fbbf24"/>
+      <rect x="1" y="12" width="9" height="9" rx="2.5" fill="#8b93a1"/>
+      <rect x="12.75" y="12.75" width="7.5" height="7.5" rx="2" fill="none" stroke="#a0a7b4" stroke-width="1.5" stroke-dasharray="2 2"/>
+    </svg>
+    <h1>Claude Fleet</h1>
+  </div>
+  <p>Informe o token de acesso. Ele fica guardado neste aparelho por 30 dias desde o último uso.</p>
+  {{if .Erro}}<p class="erro" role="alert">Token inválido.</p>{{end}}
+  <label for="token">Token</label>
+  <input id="token" name="token" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" required autofocus>
+  <button type="submit">Entrar</button>
+</form>
+</body>
+</html>
