@@ -112,6 +112,7 @@ _Nenhum._
 - [ ] Detectar sessão morta sem `SessionEnd` (PID ou inatividade do transcript) — Captured during: fleet-mvp/design
 - [ ] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16), design pendente
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec — especificada em `features/pwa` (2026-10-16)
+- [x] Custo e tokens por modelo e acerto de cache no pop-up — Captured during: issue #3 (2026-10-16) — feito em `features/custo-por-modelo` (2026-10-17)
 
 ---
 
