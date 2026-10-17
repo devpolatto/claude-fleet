@@ -543,17 +543,6 @@
   }
   .metrica .v.txt { font-family: inherit; }
 
-  .modelos { display: flex; flex-wrap: wrap; gap: 6px; }
-  .modelo {
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    font-family: var(--mono);
-    font-size: 11px;
-    overflow-wrap: anywhere;
-  }
-
   /* Tabela: uma linha por agente e uma coluna por categoria; cabe em 360 px. */
   .tabela-wrap {
     overflow-x: auto;
@@ -577,6 +566,7 @@
     font-size: 11px;
     font-weight: 400;
   }
+  .tokens.por-modelo tbody th { max-width: 110px; font-family: var(--mono); }
   .tokens td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .tokens td.zero { color: var(--faint); }
   .tokens tr.soma th, .tokens tr.soma td { font-weight: 700; }
@@ -1224,6 +1214,93 @@ function montarTabela(d, subs, nomes) {
   return box;
 }
 
+// custoConhecido: uso zerado (transcript ainda não lido) conta como custo
+// conhecido de US$ 0, igual ao Store faz ao somar.
+function custoConhecido(u) {
+  return !!u && (!!u.CostKnown || ((u.CostUSD || 0) === 0 && somaTokens(u.Tokens) === 0));
+}
+
+// somarUso soma dois Usage; o custo só é conhecido se os dois forem.
+function somarUso(a, b) {
+  const t = {};
+  for (const [k] of CATEGORIAS) t[k] = ((a.Tokens || {})[k] || 0) + ((b.Tokens || {})[k] || 0);
+  return { Tokens: t, CostUSD: (a.CostUSD || 0) + (b.CostUSD || 0), CostKnown: custoConhecido(a) && custoConhecido(b) };
+}
+
+// usoPorModelo soma, por nome de modelo, a sessão principal e todos os
+// subagentes: o mesmo modelo costuma aparecer em vários deles.
+function usoPorModelo(d, subs) {
+  const soma = new Map();
+  for (const models of [d.Models, ...subs.map((a) => a.Models)]) {
+    for (const [m, u] of Object.entries(models || {})) soma.set(m, somarUso(soma.get(m) || {}, u));
+  }
+  return soma;
+}
+
+const pct = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 });
+
+// taxaCache: cache read ÷ (input + cache write + cache read); "—" sem
+// nenhum token de entrada.
+function taxaCache(t) {
+  t = t || {};
+  const lido = t.CacheRead || 0;
+  const den = (t.Input || 0) + (t.Cache5m || 0) + (t.Cache1h || 0) + lido;
+  return den > 0 ? pct.format(lido / den) : '—';
+}
+
+// montarModelos: uma linha por modelo, do mais caro ao mais barato, com
+// tokens, custo e acerto de cache; com dois modelos ou mais, uma linha Total.
+function montarModelos(d, subs) {
+  const porModelo = usoPorModelo(d, subs);
+  if (!porModelo.size) return el('p', 'vazio-det', '—');
+  const linhas = [...porModelo]
+    .sort(([na, a], [nb, b]) => (b.CostUSD || 0) - (a.CostUSD || 0) || (na < nb ? -1 : na > nb ? 1 : 0))
+    .map(([nome, uso]) => ({ nome, uso }));
+  if (linhas.length > 1) linhas.push({ nome: 'Total', uso: d.Total, total: true });
+
+  const tabela = el('table', 'tokens por-modelo');
+  const thead = el('thead');
+  const hr = el('tr');
+  for (const [rot, titulo] of [
+    ['Modelo', null],
+    ['Tokens', 'soma das 5 categorias'],
+    ['Custo', ROTULO_ESTIMATIVA],
+    ['Cache', 'acerto de cache: cache read ÷ (input + cache write + cache read)'],
+  ]) {
+    const th = el('th', null, rot);
+    th.scope = 'col';
+    if (titulo) th.title = titulo;
+    hr.append(th);
+  }
+  thead.append(hr);
+  tabela.append(thead);
+
+  const tbody = el('tbody');
+  for (const l of linhas) {
+    const tr = el('tr', l.total ? 'soma' : null);
+    const th = el('th', null, l.nome);
+    th.scope = 'row';
+    th.title = l.nome;
+    const t = (l.uso && l.uso.Tokens) || {};
+    const n = somaTokens(t);
+    const tdTokens = el('td', n === 0 ? 'zero' : null, compacto(n));
+    tdTokens.title = milhar.format(n) + ' tokens';
+    const custo = formatarUso(l.uso);
+    const tdCusto = el('td', custo === 'n/d' ? 'zero' : null, custo);
+    if (custo === 'n/d') tdCusto.title = 'modelo sem preço na tabela';
+    const cache = taxaCache(t);
+    tr.append(th, tdTokens, tdCusto, el('td', cache === '—' ? 'zero' : null, cache));
+    tbody.append(tr);
+  }
+  tabela.append(tbody);
+
+  const wrap = el('div', 'tabela-wrap');
+  wrap.append(tabela);
+  const box = el('div');
+  box.append(wrap, el('p', 'legenda', 'Custo: ' + ROTULO_ESTIMATIVA + ' · Cache = cache read ÷ (input + cache write + cache read)'));
+  return box;
+}
+
 function metaItem(rotulo, valor) {
   const s = el('span');
   const b = valor instanceof Node ? valor : el('b', null, valor);
@@ -1324,13 +1401,7 @@ function renderDetalhe() {
     metrica('Última ferramenta', d.LastTool || '—', { texto: true }));
   frag.append(met);
 
-  // Modelos usados pela sessão principal e pelos subagentes.
-  const modelos = new Set(Object.keys(d.Models || {}));
-  for (const a of subs) for (const m of Object.keys(a.Models || {})) modelos.add(m);
-  const boxModelos = el('div', 'modelos');
-  for (const m of [...modelos].sort()) boxModelos.append(el('span', 'modelo', m));
-  if (!modelos.size) boxModelos.append(el('span', 'vazio-det', '—'));
-  frag.append(secao('Modelos', boxModelos));
+  frag.append(secao('Modelos', montarModelos(d, subs)));
 
   frag.append(secao('Tokens por agente', montarTabela(d, subs, nomes)));
 
