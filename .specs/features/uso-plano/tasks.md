@@ -332,6 +332,8 @@ T9, T12, T15, T16 ──→ T17
 - [ ] Telas de celular (vertical e horizontal) e desktop com a tela de uso; componente dos pontinhos
 - [ ] Diferenças conhecidas entre Figma e código anotadas
 
+**Bloqueado** (2026-10-18): a sessão não tinha o MCP do Figma; plugin ativado no perfil, falta autenticar (`/mcp`).
+
 **Tests**: none (artefato de design) · **Gate**: comparação visual
 **Commit**: nenhum no repositório (link no PR)
 
@@ -368,10 +370,12 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Início da janela de 5 h = `five_hour.resets_at − 5 h` quando há dado do plano válido; senão `now − 5 h`
-- [ ] Soma igual à contagem manual sobre as fixtures (inclui um subagente e uma mensagem repetida)
-- [ ] `SetWindows` só avisa quando o total muda; as janelas não vão para o `uso-plano.json`
-- [ ] Gate passa, com `TestWindowsSomaContraContagemManual` e `TestWindowsUsaInicioDaJanelaDoPlano`
+- [x] Início da janela de 5 h = `five_hour.resets_at − 5 h` quando há dado do plano válido; senão `now − 5 h`
+- [x] Soma igual à contagem manual sobre as fixtures (inclui um subagente e uma mensagem repetida)
+- [x] `SetWindows` só avisa quando o total muda; as janelas não vão para o `uso-plano.json`
+- [x] Gate passa, com `TestWindowsSomaContraContagemManual` e `TestWindowsUsaInicioDaJanelaDoPlano`
+
+**Feito** (fc272f8). Decisões: a janela semanal segue a mesma regra da de 5 h (`seven_day.resets_at − 7 d` com dado do plano válido, senão `now − 7 d`); início do plano fora de `[now − duração, now]` volta para a janela corrida; conta sem tokens recebe janelas zeradas; diretório da conta passa por `EvalSymlinks`; custo calculado uma vez por modelo, em ordem fixa, para o float não oscilar e gerar aviso à toa. Desvio: dentro de `tokens` os campos saem como `Input`, `Cache5m`, `Cache1h`, `CacheRead`, `Output` (o `pricing.Tokens` não tem tags JSON, igual em `/api/sessions`). Teste extra `TestProjectDirsPorConta`.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(ratelimit): tokens e custo das janelas de 5 h e 7 dias`
