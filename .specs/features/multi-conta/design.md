@@ -74,7 +74,7 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
   - `Parse(specs []string, home string) (List, error)`: valida `nome=dir`, expande `~/` com `home`, exige caminho absoluto depois disso e recusa nome fora de `^[a-z0-9-]{1,20}$`, nome repetido, diretório repetido e o nome reservado `outra`.
   - ~~`Implicit(dir string) List`~~: removida na implementação (T4). Sem `-account`, o Store roda sem contas, `Resolve` numa `List` nil devolve `""` e a interface fica como hoje.
   - `(List) Resolve(transcriptPath string) string`: faz `filepath.Clean` e devolve a primeira conta cujo `<Dir>/projects/` é prefixo, ou `""` se a `List` for nil (sem `-account`). Fora de todas, devolve `"outra"` e chama `OnUnknown(configDir)` uma vez por diretório.
-  - `(List) ProjectsDirs() []string`: `<Dir>/projects` de cada conta, para o Bootstrap.
+  - ~~`(List) ProjectsDirs() []string`~~: na implementação (T1) virou `(*List) All() []Account` + `(Account) ProjectsDir() string`, para o log levar o nome da conta junto.
   - `(*List) OnUnknown(func(configDir string))`: `main` liga ao `log`. O `configDir` é deduzido como o pai do segmento `projects`, nunca o caminho inteiro.
 - **Dependencies**: só stdlib (`path/filepath`, `strings`, `sync`).
 - **Reuses**: nada; é uma folha, como `pricing`.
@@ -100,7 +100,7 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
   - `config.Accounts []string` preenchido por `fs.Func("account", "conta do Claude Code: nome=diretório de configuração (repetível)", …)`.
   - `-projects` junto com `-account`: erro `"use só -account (o -projects vira <dir>/projects de cada conta)"`, saída 2.
   - Sem `-account`: Store sem `WithAccounts` e Bootstrap só em `cfg.Projects`, como hoje. Com `-account`: `account.Parse(accounts, HOME)`.
-  - Laço `for _, d := range accounts.ProjectsDirs() { st.Bootstrap(d, …) }`, com log do total por conta.
+  - Laço `for _, a := range accounts.All() { st.Bootstrap(a.ProjectsDir(), …) }`, com log do total por conta.
 - **Reuses**: `parseConfig`, `bootstrapMaxAge`.
 
 ### `cmd/claude-fleet` (`install-hooks` / `uninstall-hooks`)

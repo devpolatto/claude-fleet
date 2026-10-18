@@ -1,6 +1,6 @@
 # multi-conta Specification
 
-> Status: **spec aprovada** em 2026-10-18 (AD-009 registrada no `STATE.md`). Design aprovado em 2026-10-18; tasks em `tasks.md`, aguardando aprovação.
+> Status: **spec aprovada** em 2026-10-18 (AD-009 registrada no `STATE.md`). Design e tasks aprovados em 2026-10-18; implementação concluída (T1–T10), UAT em andamento (T11).
 
 ## Problem Statement
 
