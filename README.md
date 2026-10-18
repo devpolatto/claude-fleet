@@ -46,8 +46,10 @@ O instalador grava o script do hook em `~/.claude/claude-fleet/fleet-hook.sh` e 
 claude-fleet install-hooks
 ```
 
+- O mesmo comando grava `fleet-statusline.sh` ao lado e registra o `statusLine` do `settings.json`, que leva o uso do plano (janela de 5 h e semana, como o `/usage`) para a segunda tela do painel. O script não imprime nada, então a linha de status fica vazia; o Claude Code esconde as dicas do rodapé (como `esc to interrupt`) enquanto houver um `statusLine` configurado.
+- Se o `settings.json` já tem um `statusLine` seu, o instalador não mexe nele e avisa: os hooks funcionam, mas a tela de uso fica sem dado.
 - Rodar de novo não duplica nada ("nada a fazer").
-- Para remover: `claude-fleet uninstall-hooks`. Só as entradas do claude-fleet saem; o script em `~/.claude/claude-fleet/` fica, e pode ser apagado à mão.
+- Para remover: `claude-fleet uninstall-hooks`. Só as entradas do claude-fleet saem (hooks e o `statusLine`, se for o dele); os scripts em `~/.claude/claude-fleet/` ficam, e podem ser apagados à mão.
 - Opções: `-settings <arquivo>` (outro settings), `-dir <diretório>` (onde gravar o script) e `-yes` (sem confirmação).
 - Sessões do Claude Code já abertas podem só enxergar os hooks novos depois de abrir `/hooks` ou reiniciar.
 
@@ -220,6 +222,7 @@ Claude Code ──hook (stdin JSON)──▶ fleet-hook.sh ──curl -m 1──
 - O **status** vem dos hooks, na hora: ativo, aguardando permissão, parado, encerrado ou desconhecido (sessão descoberta no boot).
 - **Tokens e custo** vêm dos transcripts, com até 5 s de atraso, contando cada mensagem uma vez só.
 - Sessões encerradas somem depois de 15 min; sem nenhum evento por 12 h, também.
+- O **uso do plano** vem do status line: `fleet-statusline.sh` repassa o JSON a `POST /statusline` (só loopback), e o servidor guarda só `rate_limits.five_hour` e `rate_limits.seven_day` de cada conta, em `~/.config/claude-fleet/uso-plano.json`. O dado só se atualiza enquanto alguma sessão interativa está respondendo; a tela mostra há quanto tempo ele chegou.
 
 ## Desenvolvimento
 
