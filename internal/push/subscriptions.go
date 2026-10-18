@@ -9,6 +9,8 @@ import (
 	"os"
 	"sort"
 	"sync"
+
+	"github.com/devpolatto/claude-fleet/internal/atomicfile"
 )
 
 // Subscription é a inscrição de um aparelho, no formato de
@@ -122,5 +124,5 @@ func (s *Subscriptions) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(s.path, data)
+	return atomicfile.Write(s.path, data, 0o600)
 }

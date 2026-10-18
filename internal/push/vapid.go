@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path/filepath"
 	"time"
+
+	"github.com/devpolatto/claude-fleet/internal/atomicfile"
 )
 
 // vapidSubject é o contato exigido pelos serviços de push no claim "sub".
@@ -58,7 +59,7 @@ func LoadOrCreateVAPID(path string) (*VAPID, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := writeFileAtomic(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})); err != nil {
+		if err := atomicfile.Write(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), 0o600); err != nil {
 			return nil, err
 		}
 		return newVAPID(key)
@@ -108,26 +109,4 @@ func (v *VAPID) authorization(endpoint string, now time.Time) (string, error) {
 	s.FillBytes(sig[32:])
 	jwt := signing + "." + base64.RawURLEncoding.EncodeToString(sig)
 	return "vapid t=" + jwt + ", k=" + v.PublicKey(), nil
-}
-
-// writeFileAtomic grava data em path com permissão 600, via arquivo
-// temporário e rename, para nunca deixar um arquivo pela metade.
-func writeFileAtomic(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name()) // no-op depois do rename
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
 }
