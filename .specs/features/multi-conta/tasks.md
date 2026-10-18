@@ -1,7 +1,7 @@
 # multi-conta Tasks
 
 **Design**: `.specs/features/multi-conta/design.md`
-**Status**: In Progress (aprovadas em 2026-10-18; fases 1 e 2 concluídas)
+**Status**: In Progress (aprovadas em 2026-10-18; fases 1 a 3 concluídas)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -158,9 +158,11 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Cenário novo passa e os cenários antigos continuam passando
-- [ ] O `HOME` real não é tocado (tudo em `mktemp -d`)
-- [ ] Gate full passa
+- [x] Cenário novo passa e os cenários antigos continuam passando
+- [x] O `HOME` real não é tocado (tudo em `mktemp -d`)
+- [x] Gate full passa
+
+**Feito** (a3a6bcc). O caso 6 também confere que a API não expõe o diretório da conta e que o `install-hooks` com `CLAUDE_CONFIG_DIR` não cria `~/.claude` no `HOME` temporário.
 
 **Tests**: integration · **Gate**: full
 **Commit**: `test(hook): sessões de duas contas pelo hook instalado`
@@ -178,11 +180,13 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Com uma conta só (sem `Account`), a página fica pixel a pixel como hoje
-- [ ] Com duas contas, cada tile mostra o nome da conta, legível em 160 px e com contraste AA nos dois tons
-- [ ] Sessão já oculta antes da feature continua oculta; ocultar uma sessão de uma conta não oculta a mesma pasta na outra
-- [ ] Sem fonte, CDN nem dependência externa; respeita `prefers-reduced-motion`
-- [ ] Conferido no navegador: desktop e celular, vertical e horizontal
+- [x] Com uma conta só (sem `Account`), a página fica pixel a pixel como hoje
+- [x] Com duas contas, cada tile mostra o nome da conta, legível em 160 px e com contraste AA nos dois tons
+- [x] Sessão já oculta antes da feature continua oculta; ocultar uma sessão de uma conta não oculta a mesma pasta na outra
+- [x] Sem fonte, CDN nem dependência externa; respeita `prefers-reduced-motion`
+- [x] Conferido no navegador: desktop e celular, vertical e horizontal
+
+**Feito** pelo `ui-figma`. Desvio: no tile de 160 px (abaixo de 600 px) não cabem chip, id e custo; com chip, o id sai do tile e continua no pop-up. Hash djb2 aditivo (na variante XOR, "pessoal" e "trabalho" caíam na mesma cor). Tokens: `--conta-1…4` (azul, violeta, rosa, ciano; contraste 7,96–8,67:1) e `--conta-outra` (6,74:1); sem verde e amarelo, para não confundir com ativo e aguardando. Conferido com Playwright headless em 1280×800, 390×844 e 844×390, com e sem `-account`, sem erro no console; sem `-account` a página e a chave de ocultação ficam como antes.
 
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): conta da sessão no tile e no pop-up`
@@ -238,8 +242,10 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Exemplo usa nomes fictícios e `%h` em vez de caminho pessoal
-- [ ] `systemd-analyze --user verify deploy/claude-fleet.service` sem erro novo
+- [x] Exemplo usa nomes fictícios e `%h` em vez de caminho pessoal
+- [x] `systemd-analyze --user verify deploy/claude-fleet.service` sem erro novo
+
+**Feito** (bfe4241). Desvio: em vez de só um comentário, a unit repassa `$CLAUDE_FLEET_ARGS` do `env` ao servidor, e as contas entram ali sem editar o `ExecStart`. `systemd-analyze --user verify` sem erro novo.
 
 **Tests**: none (documentação) · **Gate**: `systemd-analyze` + leitura
 **Commit**: `docs: várias contas do Claude Code no README e na unit`
