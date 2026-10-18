@@ -521,3 +521,88 @@ func TestParseHooksFlags(t *testing.T) {
 		t.Errorf("flag inválida: código %d, queria 2", code)
 	}
 }
+
+func TestInstallHooksUsaClaudeConfigDir(t *testing.T) {
+	home, conta := t.TempDir(), t.TempDir()
+	e := env(map[string]string{"HOME": home, "CLAUDE_CONFIG_DIR": conta})
+
+	var out bytes.Buffer
+	if code := runHooksCmd("install-hooks", []string{"-yes"}, e, nil, &out, io.Discard); code != 0 {
+		t.Fatalf("install-hooks: código %d\n%s", code, out.String())
+	}
+	data, err := os.ReadFile(filepath.Join(conta, "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(conta, "claude-fleet", hookScriptName)
+	if !strings.Contains(string(data), script) {
+		t.Errorf("settings da conta sem o comando %s:\n%s", script, data)
+	}
+	if _, err := os.Stat(script); err != nil {
+		t.Errorf("script não gravado na conta: %v", err)
+	}
+	if !strings.Contains(out.String(), filepath.Join(conta, "settings.json")) {
+		t.Errorf("saída não diz qual settings altera:\n%s", out.String())
+	}
+	if ents, _ := os.ReadDir(home); len(ents) != 0 {
+		t.Errorf("HOME foi tocado: %v", ents)
+	}
+
+	if code := runHooksCmd("uninstall-hooks", []string{"-yes"}, e, nil, io.Discard, io.Discard); code != 0 {
+		t.Fatalf("uninstall-hooks: código %d", code)
+	}
+	data, _ = os.ReadFile(filepath.Join(conta, "settings.json"))
+	if strings.Contains(string(data), hookScriptName) {
+		t.Errorf("uninstall-hooks não removeu da conta:\n%s", data)
+	}
+
+	tests := []struct {
+		name                  string
+		vars                  map[string]string
+		args                  []string
+		wantSettings, wantDir string
+	}{
+		{"variável define os padrões", map[string]string{"HOME": "/home/x", "CLAUDE_CONFIG_DIR": "/home/x/.claude-p/"}, nil,
+			"/home/x/.claude-p/settings.json", "/home/x/.claude-p/claude-fleet"},
+		{"flags vencem a variável", map[string]string{"HOME": "/home/x", "CLAUDE_CONFIG_DIR": "/home/x/.claude-p"},
+			[]string{"-settings", "/t/s.json", "-dir", "/t/d"}, "/t/s.json", "/t/d"},
+		{"variável igual a ~/.claude é o padrão de sempre", map[string]string{"HOME": "/home/x", "CLAUDE_CONFIG_DIR": "/home/x/.claude"}, nil,
+			"/home/x/.claude/settings.json", "/home/x/.claude/claude-fleet"},
+		{"variável vazia cai no HOME", map[string]string{"HOME": "/home/x", "CLAUDE_CONFIG_DIR": ""}, nil,
+			"/home/x/.claude/settings.json", "/home/x/.claude/claude-fleet"},
+		{"variável dispensa o HOME", map[string]string{"CLAUDE_CONFIG_DIR": "/c"}, nil, "/c/settings.json", "/c/claude-fleet"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o, err := parseHooksFlags("install-hooks", tt.args, env(tt.vars), io.Discard)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if o.settings != tt.wantSettings || o.dir != tt.wantDir {
+				t.Errorf("settings=%q dir=%q, queria %q e %q", o.settings, o.dir, tt.wantSettings, tt.wantDir)
+			}
+		})
+	}
+}
+
+func TestInstallHooksRecusaConfigDirRelativo(t *testing.T) {
+	for _, dir := range []string{"~/.claude-pessoal", "~", ".claude-pessoal", "./x"} {
+		t.Run(dir, func(t *testing.T) {
+			cwd := t.TempDir()
+			t.Chdir(cwd)
+			e := env(map[string]string{"HOME": t.TempDir(), "CLAUDE_CONFIG_DIR": dir})
+			for _, cmd := range []string{"install-hooks", "uninstall-hooks"} {
+				var errOut bytes.Buffer
+				if code := runHooksCmd(cmd, []string{"-yes"}, e, nil, io.Discard, &errOut); code != 2 {
+					t.Errorf("%s: código %d, queria 2", cmd, code)
+				}
+				if !strings.Contains(errOut.String(), "~") {
+					t.Errorf("%s: mensagem não cita o ~: %q", cmd, errOut.String())
+				}
+			}
+			if ents, _ := os.ReadDir(cwd); len(ents) != 0 {
+				t.Errorf("criou algo no diretório atual: %v", ents)
+			}
+		})
+	}
+}
