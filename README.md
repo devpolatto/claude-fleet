@@ -26,7 +26,7 @@ Painel web, feito para o celular, que mostra ao vivo as sessões do Claude Code 
 
 ## Requisitos
 
-- Linux, Go 1.27 ou mais novo, `curl`.
+- Linux, Go 1.27.2 ou mais novo (o mínimo sobe a cada CVE da stdlib, AD-008), `curl`.
 - Claude Code com hooks (testado na 2.1.301).
 - Para o celular: [Tailscale](https://tailscale.com) na máquina e no celular, na mesma tailnet.
 
