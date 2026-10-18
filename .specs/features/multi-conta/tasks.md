@@ -1,7 +1,7 @@
 # multi-conta Tasks
 
 **Design**: `.specs/features/multi-conta/design.md`
-**Status**: Draft (aguardando aprovação)
+**Status**: In Progress (aprovadas em 2026-10-18; fase 1 concluída)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -65,11 +65,13 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] `Parse` recusa: sem `=`, nome vazio, nome fora de `^[a-z0-9-]{1,20}$`, `outra`, nome repetido, diretório repetido (depois de `Clean`) e caminho relativo; expande `~/` com `home`
-- [ ] `Resolve` devolve a conta de prefixo mais longo, `""` na implícita e `"outra"` fora de todas; aplica `filepath.Clean` (um caminho com `..` que sai da conta não casa)
-- [ ] `<dir>/projectsX/…` não casa com `<dir>/projects` (prefixo por segmento, não por string)
-- [ ] `OnUnknown` é chamado uma vez por diretório de configuração, com o pai do segmento `projects` (nunca o caminho do transcript); seguro sob `-race` com chamadas concorrentes
-- [ ] Gate passa: `go test -race -count=1 ./internal/account/` com ≥ 6 funções de teste (`TestParseRecusaNomeInvalido`, `TestParseExpandeTil`, `TestParseRecusaRepetido`, `TestResolvePrefixoMaisLongoVence`, `TestResolveForaDasContasViraOutraELogaUmaVez`, `TestResolveLimpaPontoPonto`)
+- [x] `Parse` recusa: sem `=`, nome vazio, nome fora de `^[a-z0-9-]{1,20}$`, `outra`, nome repetido, diretório repetido (depois de `Clean`) e caminho relativo; expande `~/` com `home`
+- [x] `Resolve` devolve a conta de prefixo mais longo, `""` na implícita e `"outra"` fora de todas; aplica `filepath.Clean` (um caminho com `..` que sai da conta não casa)
+- [x] `<dir>/projectsX/…` não casa com `<dir>/projects` (prefixo por segmento, não por string)
+- [x] `OnUnknown` é chamado uma vez por diretório de configuração, com o pai do segmento `projects` (nunca o caminho do transcript); seguro sob `-race` com chamadas concorrentes
+- [x] Gate passa: `go test -race -count=1 ./internal/account/` com ≥ 6 funções de teste (`TestParseRecusaNomeInvalido`, `TestParseExpandeTil`, `TestParseRecusaRepetido`, `TestResolvePrefixoMaisLongoVence`, `TestResolveForaDasContasViraOutraELogaUmaVez`, `TestResolveLimpaPontoPonto`)
+
+**Feito** (47fec57). Desvio do design: `Parse`/`Implicit` devolvem `*List` (há mutex dentro) e, no lugar de `ProjectsDirs()`, há `All()` + `Account.ProjectsDir()`, para o `main` logar o nome junto com o diretório. `List` nil resolve tudo para `""`.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(account): contas do Claude Code por diretório de configuração`
@@ -107,12 +109,14 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Com `CLAUDE_CONFIG_DIR=<tmp>`: grava em `<tmp>/settings.json` e `<tmp>/claude-fleet/`; o `HOME` fake fica intocado
-- [ ] `-settings`/`-dir` explícitos vencem a variável
-- [ ] `CLAUDE_CONFIG_DIR=~/x` e `CLAUDE_CONFIG_DIR=x` saem com 2 e mensagem que cita o `~`
-- [ ] `CLAUDE_CONFIG_DIR=$HOME/.claude` dá o mesmo resultado de sem a variável (sem hook duplicado)
-- [ ] `uninstall-hooks` usa a mesma regra
-- [ ] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com os testes novos (`TestInstallHooksUsaClaudeConfigDir`, `TestInstallHooksRecusaConfigDirRelativo`)
+- [x] Com `CLAUDE_CONFIG_DIR=<tmp>`: grava em `<tmp>/settings.json` e `<tmp>/claude-fleet/`; o `HOME` fake fica intocado
+- [x] `-settings`/`-dir` explícitos vencem a variável
+- [x] `CLAUDE_CONFIG_DIR=~/x` e `CLAUDE_CONFIG_DIR=x` saem com 2 e mensagem que cita o `~`
+- [x] `CLAUDE_CONFIG_DIR=$HOME/.claude` dá o mesmo resultado de sem a variável (sem hook duplicado)
+- [x] `uninstall-hooks` usa a mesma regra
+- [x] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com os testes novos (`TestInstallHooksUsaClaudeConfigDir`, `TestInstallHooksRecusaConfigDirRelativo`)
+
+**Feito** (56749a2). Desvio: a linha `Conta: <dir>` não foi acrescentada; o `Mudanças em <settings>` que já sai antes do diff diz qual arquivo muda (critério 4 da spec), e o teste confere isso.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): install-hooks na conta do CLAUDE_CONFIG_DIR`
@@ -247,8 +251,10 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Critérios do `uso-plano` citam `account.List.Resolve` e o formato do design do multi-conta
-- [ ] Nenhuma contradição entre as duas specs
+- [x] Critérios do `uso-plano` citam `account.List.Resolve` e o formato do design do multi-conta
+- [x] Nenhuma contradição entre as duas specs
+
+**Feito** (7fa0ead).
 
 **Tests**: none (spec) · **Gate**: leitura
 **Commit**: `docs(specs): uso-plano guarda o plano por conta`
