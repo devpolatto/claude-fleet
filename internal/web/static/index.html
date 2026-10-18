@@ -42,6 +42,8 @@
     --conta-4-texto: #8ee6f0;
     --conta-outra: var(--surface-2);
     --conta-outra-texto: var(--desconhecido);
+    /* Troca entre a tela de sessões e a de uso do plano. */
+    --tela-transicao: .25s;
   }
 
   * { box-sizing: border-box; }
@@ -49,6 +51,10 @@
   html, body { margin: 0; }
 
   body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
     background: var(--bg);
     color: var(--text);
     font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -207,8 +213,78 @@
   .filtro-conta.filtrando { background: var(--conta-bg); box-shadow: none; color: var(--conta-fg); }
   .filtro-conta.filtrando select { color: var(--conta-fg); }
 
+  /* ---------- Duas telas: sessões e uso do plano ----------
+     As duas ocupam a mesma célula da grade e deslizam no eixo X. A tela de
+     fora fica invisível e com altura zero só depois do deslize, para não
+     esticar a rolagem da outra. touch-action: pan-y deixa a rolagem vertical
+     com o navegador; o arrasto horizontal fica com o JS. */
+  #telas {
+    flex: 1 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  .tela {
+    grid-area: 1 / 1;
+    min-width: 0;
+    transition: transform var(--tela-transicao) ease, visibility 0s;
+  }
+  #tela-uso { transform: translateX(100%); }
+  #telas[data-tela="uso"] #tela-sessoes { transform: translateX(-100%); }
+  #telas[data-tela="uso"] #tela-uso { transform: none; }
+  #telas:not([data-tela="uso"]) #tela-uso,
+  #telas[data-tela="uso"] #tela-sessoes {
+    visibility: hidden;
+    max-height: 0;
+    overflow: hidden;
+    transition: transform var(--tela-transicao) ease, visibility 0s var(--tela-transicao), max-height 0s var(--tela-transicao);
+  }
+  #telas.sem-transicao #tela-sessoes, #telas.sem-transicao #tela-uso { transition: none; }
+
+  #tela-uso h2 { font-size: 17px; margin: 0; font-weight: 700; }
+  #tela-uso .provisorio { color: var(--muted); text-align: center; margin: 0; max-width: 36em; }
+
+  /* ---------- Pontinhos: qual tela está aberta ---------- */
+  #pontos {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    align-self: center;
+    display: flex;
+    gap: 2px;
+    margin: 0 0 max(8px, env(safe-area-inset-bottom));
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  #pontos button {
+    width: 32px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  #pontos button::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--faint);
+    transition: width var(--tela-transicao) ease, background-color var(--tela-transicao);
+  }
+  #pontos button:hover::before { background: var(--muted); }
+  #pontos button[aria-current="true"]::before { width: 20px; background: var(--text); }
+  #pontos button:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+
   /* ---------- Grade centralizada ---------- */
-  main {
+  .tela {
     padding: 20px 16px 28px;
     display: flex;
     flex-direction: column;
@@ -689,7 +765,7 @@
   @media (min-width: 600px) {
     :root { --tile-w: 200px; }
     #grade { gap: 14px; }
-    main { padding-top: 32px; }
+    .tela { padding-top: 32px; }
     header {
       padding: 20px 32px;
       grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
@@ -727,7 +803,8 @@
      baixas no desktop. */
   @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
     header:not(.reconectando) { display: none; }
-    main { padding-top: 12px; padding-bottom: 12px; gap: 12px; }
+    .tela { padding-top: 12px; padding-bottom: 12px; gap: 12px; }
+    #pontos { margin-bottom: 4px; }
   }
 
   /* Sem animação para quem pediu menos movimento: o anel fica fixo. */
@@ -736,6 +813,7 @@
     .tile { transition: none; }
     .tile:active { transform: none; }
     header { transition: none; }
+    :root { --tela-transicao: 0s; }
   }
 </style>
 </head>
@@ -760,11 +838,21 @@
   <button type="button" id="som" aria-pressed="false" aria-label="Som dos alertas" hidden></button>
   <p id="conexao" role="status">conectando…</p>
 </header>
-<main>
-  <div id="grade" aria-live="polite"></div>
-  <p id="vazio" hidden>Nenhuma sessão no momento.</p>
-  <p class="nota">Custos estimados pelo preço de lista da API.</p>
-</main>
+<div id="telas">
+  <section id="tela-sessoes" class="tela" aria-label="Sessões">
+    <div id="grade" aria-live="polite"></div>
+    <p id="vazio" hidden>Nenhuma sessão no momento.</p>
+    <p class="nota">Custos estimados pelo preço de lista da API.</p>
+  </section>
+  <section id="tela-uso" class="tela" aria-labelledby="uso-titulo" inert>
+    <h2 id="uso-titulo">Uso do plano</h2>
+    <p class="provisorio">Os medidores da janela de 5 h e da semana aparecem aqui.</p>
+  </section>
+</div>
+<nav id="pontos" aria-label="Telas">
+  <button type="button" data-tela="sessoes" aria-label="Sessões" aria-current="true"></button>
+  <button type="button" data-tela="uso" aria-label="Uso do plano" aria-current="false"></button>
+</nav>
 <dialog id="detalhe" aria-labelledby="det-titulo">
   <div class="det">
     <div class="alca" aria-hidden="true"></div>
@@ -1722,6 +1810,107 @@ dlg.addEventListener('close', () => {
   alvo = alvo || grade.firstElementChild;
   if (alvo) alvo.focus({ preventScroll: true });
 });
+
+// ---------- Duas telas: sessões e uso do plano ----------
+// Troca por arrasto horizontal de um dedo, pelos pontinhos e pelas setas.
+// A tela escondida fica inert (sem Tab nem leitor de tela). A última tela
+// aberta fica no localStorage deste aparelho.
+
+const telas = document.getElementById('telas');
+const pontos = document.getElementById('pontos');
+const TELA_CHAVE = 'fleet.tela';
+const TELAS = ['sessoes', 'uso'];
+const SECAO = { sessoes: document.getElementById('tela-sessoes'), uso: document.getElementById('tela-uso') };
+// Arrasto: anda pelo menos 60 px e é claramente horizontal (|dx| > 2·|dy|).
+const ARRASTO_MIN = 60;
+
+let telaAtual = 'sessoes';
+
+function lerTela() {
+  try {
+    const v = localStorage.getItem(TELA_CHAVE);
+    return TELAS.includes(v) ? v : 'sessoes';
+  } catch (_) { return 'sessoes'; }
+}
+
+function gravarTela(t) {
+  try { localStorage.setItem(TELA_CHAVE, t); } catch (_) { /* só nesta página */ }
+}
+
+function mostrarTela(t, gravar) {
+  if (!TELAS.includes(t)) return;
+  telaAtual = t;
+  telas.dataset.tela = t;
+  for (const nome of TELAS) SECAO[nome].inert = nome !== t;
+  for (const b of pontos.querySelectorAll('button')) {
+    b.setAttribute('aria-current', b.dataset.tela === t ? 'true' : 'false');
+  }
+  // O foco não pode ficar preso na tela que acabou de virar inert.
+  const foco = document.activeElement;
+  if (foco && foco !== document.body && SECAO[t === 'uso' ? 'sessoes' : 'uso'].contains(foco)) {
+    pontos.querySelector('button[aria-current="true"]').focus({ preventScroll: true });
+  }
+  if (gravar) gravarTela(t);
+}
+
+function trocarTela(passo) {
+  const i = TELAS.indexOf(telaAtual) + passo;
+  if (i >= 0 && i < TELAS.length && TELAS[i] !== telaAtual) mostrarTela(TELAS[i], true);
+}
+
+// Abre direto na tela lembrada, sem deslizar no carregamento.
+telas.classList.add('sem-transicao');
+mostrarTela(lerTela(), false);
+requestAnimationFrame(() => requestAnimationFrame(() => telas.classList.remove('sem-transicao')));
+
+pontos.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tela]');
+  if (b) mostrarTela(b.dataset.tela, true);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || dlg.open) return;
+  const alvo = e.target;
+  if (alvo && alvo.closest && alvo.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+  e.preventDefault();
+  trocarTela(e.key === 'ArrowRight' ? 1 : -1);
+});
+
+// Só toque e caneta: no desktop o mouse seleciona texto, e lá há setas e
+// pontinhos. Um arrasto vertical vira rolagem do navegador e chega aqui como
+// pointercancel, então não troca de tela.
+let arrasto = null;
+let engolirClique = false;
+
+telas.addEventListener('pointerdown', (e) => {
+  engolirClique = false;
+  arrasto = null;
+  if (e.pointerType === 'mouse' || !e.isPrimary || dlg.open) return;
+  if (e.target.closest('select')) return;
+  arrasto = { id: e.pointerId, x: e.clientX, y: e.clientY };
+});
+
+telas.addEventListener('pointerup', (e) => {
+  if (!arrasto || e.pointerId !== arrasto.id) return;
+  const dx = e.clientX - arrasto.x;
+  const dy = e.clientY - arrasto.y;
+  arrasto = null;
+  if (dlg.open || Math.abs(dx) < ARRASTO_MIN || Math.abs(dx) <= 2 * Math.abs(dy)) return;
+  // O dedo que trocou de tela não abre o tile em que soltou.
+  engolirClique = true;
+  setTimeout(() => { engolirClique = false; }, 400);
+  trocarTela(dx < 0 ? 1 : -1);
+});
+
+telas.addEventListener('pointercancel', () => { arrasto = null; });
+
+telas.addEventListener('click', (e) => {
+  if (!engolirClique) return;
+  engolirClique = false;
+  e.preventDefault();
+  e.stopPropagation();
+}, true);
 
 // ---------- Alerta sonoro ----------
 // Toca quando uma sessão ou subagente entra em aguardando e repete a cada
