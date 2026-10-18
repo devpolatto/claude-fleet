@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Teste de integração do hook (gate da T12): `bash hook/test.sh`.
 #
-# Sobe o servidor real numa porta livre e verifica o hook em cinco casos:
+# Sobe o servidor real numa porta livre e verifica o hook em seis casos:
 #   1. servidor ligado: o evento chega e a sessão fica "ativo";
 #   2. servidor desligado: termina em ≤ 1,1 s;
 #   3. servidor que aceita e nunca responde: termina em ≤ 1,1 s (valida o -m 1);
 #   4. porta inválida em CLAUDE_FLEET_PORT;
-#   5. stdin vazio.
-# Em todos: exit 0 e stdout/stderr vazios.
+#   5. stdin vazio;
+#   6. duas contas (CLAUDE_CONFIG_DIR): install-hooks em cada uma, servidor
+#      com -account e a conta certa em cada sessão, mais "outra" para um
+#      diretório não declarado.
+# Nos casos 1 a 5: exit 0 e stdout/stderr vazios.
 set -u
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -45,11 +48,12 @@ now_ms() {
 	fi
 }
 
-# run_hook <porta> <payload>: roda o hook e deixa em $rc, $out, $err e $elapsed.
+# run_hook <porta> <payload> [script]: roda o hook (por padrão o do
+# repositório) e deixa em $rc, $out, $err e $elapsed.
 run_hook() {
 	local start end
 	start=$(now_ms)
-	printf '%s' "$2" | CLAUDE_FLEET_PORT=$1 "$hook" >"$tmp/out" 2>"$tmp/err"
+	printf '%s' "$2" | CLAUDE_FLEET_PORT=$1 "${3:-$hook}" >"$tmp/out" 2>"$tmp/err"
 	rc=$?
 	end=$(now_ms)
 	elapsed=$((end - start))
@@ -78,6 +82,23 @@ check_fast() {
 
 payload() {
 	printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"teste"}' "$1" "$tmp"
+}
+
+# payload_tp <session_id> <transcript_path>: SessionStart com transcript.
+payload_tp() {
+	printf '{"hook_event_name":"SessionStart","session_id":"%s","cwd":"%s","transcript_path":"%s","source":"startup"}' "$1" "$tmp" "$2"
+}
+
+# wait_ready <porta> <pid> <log>: espera o servidor responder.
+wait_ready() {
+	for _ in $(seq 1 100); do
+		curl -q -s -f --noproxy '*' -o /dev/null "http://127.0.0.1:$1/api/sessions" && return 0
+		kill -0 "$2" 2>/dev/null || break
+		sleep 0.1
+	done
+	echo "FAIL  servidor não ficou pronto na porta $1"
+	cat "$3"
+	return 1
 }
 
 command -v go >/dev/null || { echo "FAIL  go não encontrado"; exit 1; }
@@ -132,20 +153,7 @@ mkdir -p "$tmp/projects"
 "$tmp/claude-fleet" -addr "127.0.0.1:$port" -projects "$tmp/projects" >"$tmp/server.log" 2>&1 &
 server_pid=$!
 
-ready=""
-for _ in $(seq 1 100); do
-	if curl -q -s -f --noproxy '*' -o /dev/null "http://127.0.0.1:$port/api/sessions"; then
-		ready=1
-		break
-	fi
-	kill -0 "$server_pid" 2>/dev/null || break
-	sleep 0.1
-done
-if [ -z "$ready" ]; then
-	echo "FAIL  servidor não ficou pronto na porta $port"
-	cat "$tmp/server.log"
-	exit 1
-fi
+wait_ready "$port" "$server_pid" "$tmp/server.log" || exit 1
 echo "Servidor pronto em 127.0.0.1:$port"
 
 # Caso 1: servidor ligado.
@@ -195,6 +203,58 @@ check_quiet "$case4" && check_fast "$case4" && pass "$case4 (${elapsed} ms)"
 case5="5 stdin vazio"
 run_hook "${hole_port:-$port}" ""
 check_quiet "$case5" && check_fast "$case5" && pass "$case5 (${elapsed} ms)"
+
+# Caso 6: duas contas. HOME aponta para o temporário: nada fora dele muda.
+case6="6 duas contas"
+home6="$tmp/home"
+mkdir -p "$home6"
+installed=1
+for c in pessoal trabalho; do
+	if ! HOME="$home6" CLAUDE_CONFIG_DIR="$home6/.claude-$c" "$tmp/claude-fleet" install-hooks -yes >"$tmp/install-$c.log" 2>&1; then
+		fail "$case6" "install-hooks na conta $c falhou: $(cat "$tmp/install-$c.log")"
+		installed=""
+	elif ! grep -q "$home6/.claude-$c/claude-fleet/fleet-hook.sh" "$home6/.claude-$c/settings.json"; then
+		fail "$case6" "settings.json da conta $c sem o hook"
+		installed=""
+	fi
+done
+if [ -e "$home6/.claude" ]; then
+	fail "$case6" "install-hooks com CLAUDE_CONFIG_DIR criou $home6/.claude"
+	installed=""
+fi
+if [ -n "$installed" ]; then
+	port6=$("$tmp/helper-bin" freeport)
+	"$tmp/claude-fleet" -addr "127.0.0.1:$port6" -state-dir "$tmp/state6" \
+		-account "pessoal=$home6/.claude-pessoal" -account "trabalho=$home6/.claude-trabalho" \
+		>"$tmp/server6.log" 2>&1 &
+	server_pid=$!
+	if wait_ready "$port6" "$server_pid" "$tmp/server6.log"; then
+		ok6=1
+		for c in pessoal trabalho naodeclarada; do
+			sid6="hook-test-$c-$$"
+			script="$home6/.claude-$c/claude-fleet/fleet-hook.sh"
+			[ -x "$script" ] || script="$hook"
+			want="$c"
+			[ "$c" = naodeclarada ] && want="outra"
+			run_hook "$port6" "$(payload_tp "$sid6" "$home6/.claude-$c/projects/-tmp-proj/$sid6.jsonl")" "$script"
+			check_quiet "$case6 ($c)" || { ok6=""; continue; }
+			body=$(curl -q -s --noproxy '*' "http://127.0.0.1:$port6/api/session/$sid6")
+			if ! printf '%s' "$body" | grep -q "\"Account\":\"$want\""; then
+				fail "$case6" "sessão da conta $c sem Account \"$want\"; resposta: $body"
+				ok6=""
+			elif printf '%s' "$body" | grep -q "$home6"; then
+				fail "$case6" "a API expôs o diretório da conta $c"
+				ok6=""
+			fi
+		done
+		[ -n "$ok6" ] && pass "$case6 (pessoal, trabalho e outra)"
+	else
+		failures=$((failures + 1))
+	fi
+	kill "$server_pid" 2>/dev/null
+	wait "$server_pid" 2>/dev/null
+	server_pid=""
+fi
 
 if [ "$failures" -ne 0 ]; then
 	echo "$failures caso(s) falharam"
