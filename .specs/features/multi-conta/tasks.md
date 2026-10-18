@@ -1,7 +1,7 @@
 # multi-conta Tasks
 
 **Design**: `.specs/features/multi-conta/design.md`
-**Status**: In Progress (aprovadas em 2026-10-18; fase 1 concluída)
+**Status**: In Progress (aprovadas em 2026-10-18; fases 1 e 2 concluídas)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -88,11 +88,13 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] `New()` sem opção segue igual: todos os testes atuais do `store` passam sem alteração
-- [ ] Evento com `transcript_path` dentro de uma conta grava `Account`; evento sem caminho mantém a conta; mudar de conta (resume em outro diretório) atualiza e notifica
-- [ ] `Bootstrap` marca a conta pelo diretório varrido
-- [ ] `Snapshot()` e `Get()` trazem `Account`; nenhum campo com o diretório
-- [ ] Gate passa: `go test -race -count=1 ./internal/store/` com os 4 testes novos (`TestApplyGravaContaPeloTranscript`, `TestApplySemTranscriptMantemConta`, `TestBootstrapMarcaContaPorDiretorio`, `TestSemContasNaoMudaNada`)
+- [x] `New()` sem opção segue igual: todos os testes atuais do `store` passam sem alteração
+- [x] Evento com `transcript_path` dentro de uma conta grava `Account`; evento sem caminho mantém a conta; mudar de conta (resume em outro diretório) atualiza e notifica
+- [x] `Bootstrap` marca a conta pelo diretório varrido
+- [x] `Snapshot()` e `Get()` trazem `Account`; nenhum campo com o diretório
+- [x] Gate passa: `go test -race -count=1 ./internal/store/` com os 4 testes novos (`TestApplyGravaContaPeloTranscript`, `TestApplySemTranscriptMantemConta`, `TestBootstrapMarcaContaPorDiretorio`, `TestSemContasNaoMudaNada`)
+
+**Feito** (43da8ba). Resolver a conta acontece sob o lock do Store; o aviso de conta desconhecida (um `log.Printf`) roda ali dentro, uma vez por diretório.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(store): conta da sessão pelo transcript_path`
@@ -133,11 +135,13 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Sem `-account`: comportamento e saída de hoje (testes atuais de `parseConfig` passam)
-- [ ] `-account a=… -projects …` sai com 2 e a mensagem do design
-- [ ] `-account` inválido sai com 2 com a mensagem do `account.Parse`
-- [ ] Log na partida lista as contas e quantas sessões o Bootstrap achou em cada uma
-- [ ] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com `TestParseConfigAccountComProjectsFalha` e um caso de `-account` válido
+- [x] Sem `-account`: comportamento e saída de hoje (testes atuais de `parseConfig` passam)
+- [x] `-account a=… -projects …` sai com 2 e a mensagem do design
+- [x] `-account` inválido sai com 2 com a mensagem do `account.Parse`
+- [x] Log na partida lista as contas e quantas sessões o Bootstrap achou em cada uma
+- [x] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com `TestParseConfigAccountComProjectsFalha` e um caso de `-account` válido
+
+**Feito** (1e8c7d7, b6816a3). Desvio do design: **sem conta implícita**. Sem `-account`, o Store roda sem `WithAccounts` e nenhuma sessão tem conta, exatamente como hoje; `account.Implicit` saiu. Motivo: o `-projects` aceita qualquer caminho, e derivar dele `<dir>/projects` marcaria como "outra" sessões que hoje aparecem normalmente. Com isso, "outra" só existe quando há `-account`. Conferido também com o binário real: eventos de duas contas e de um diretório não declarado dão `p`, `t` e `outra`, sem caminho na API, e o aviso no log sai uma vez por diretório.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): flag -account e descoberta de sessões por conta`

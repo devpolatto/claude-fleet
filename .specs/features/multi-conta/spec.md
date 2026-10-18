@@ -29,7 +29,7 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 ## Como identificar a conta: AD-009 (aprovada em 2026-10-18)
 
-**Decision:** A conta de uma sessão é o **diretório de configuração** de onde vem o transcript. Todo evento do hook traz `transcript_path`, que já é aceito pelo `ingest` e tem a forma `<config>/projects/<projeto>/<session_id>.jsonl`. O servidor compara esse caminho com as contas configuradas (`-account nome=dir`, repetível) e grava na sessão só o **nome** da conta. Sem `-account`, existe uma conta implícita, `~/.claude`, e a interface não mostra conta nenhuma.
+**Decision:** A conta de uma sessão é o **diretório de configuração** de onde vem o transcript. Todo evento do hook traz `transcript_path`, que já é aceito pelo `ingest` e tem a forma `<config>/projects/<projeto>/<session_id>.jsonl`. O servidor compara esse caminho com as contas configuradas (`-account nome=dir`, repetível) e grava na sessão só o **nome** da conta. Sem `-account`, nenhuma sessão tem conta e a interface não mostra conta nenhuma (a "conta implícita" de que as outras specs falam é esse caso).
 **Reason:** Não muda o hook nem a lista branca do `ingest`, não lê o ambiente da sessão e funciona também para as sessões achadas pelo Bootstrap, que não têm evento.
 **Trade-off:** A conta precisa ser declarada no servidor, que roda como serviço systemd e não herda o `CLAUDE_CONFIG_DIR` de ninguém. Um diretório não declarado aparece como "outra" (ver Edge Cases).
 **Alternative:** (a) O hook mandar `$CLAUDE_CONFIG_DIR` num cabeçalho. Seria campo novo vindo do cliente e mudaria o hook (AD-006), sem cobrir o Bootstrap. (b) Descobrir sozinho todos os `~/.claude*`. Seria mágico demais: pegaria backups e diretórios abandonados.
@@ -58,7 +58,7 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 **Acceptance Criteria**:
 
-1. O servidor SHALL aceitar `-account nome=dir` (repetível; `dir` aceita `~`). Sem nenhum, SHALL valer uma conta implícita em `~/.claude` (ou no `-projects` legado; ver o critério 6).
+1. O servidor SHALL aceitar `-account nome=dir` (repetível; `dir` aceita `~`). Sem nenhum, o servidor SHALL funcionar como hoje (`-projects`, padrão `~/.claude/projects`), sem conta em nenhuma sessão.
 2. WHEN chega um evento cujo `transcript_path` está dentro de `<dir>/projects/` de uma conta THEN a sessão SHALL receber o `nome` dessa conta. O prefixo mais longo vence quando um diretório contém outro.
 3. Os subagentes SHALL herdar a conta da sessão-mãe.
 4. WHEN o servidor sobe THEN o Bootstrap SHALL varrer o `projects/` de **cada** conta e marcar as sessões encontradas com a conta correspondente.

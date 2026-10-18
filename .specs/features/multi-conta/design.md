@@ -72,8 +72,8 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
   - `type Account struct { Name, Dir string }`: `Dir` absoluto e limpo.
   - `type List struct { … }`: contas ordenadas por `Dir` mais longo primeiro, mais o callback de conta desconhecida.
   - `Parse(specs []string, home string) (List, error)`: valida `nome=dir`, expande `~/` com `home`, exige caminho absoluto depois disso e recusa nome fora de `^[a-z0-9-]{1,20}$`, nome repetido, diretório repetido e o nome reservado `outra`.
-  - `Implicit(dir string) List`: a conta única sem nome (`-projects` legado ou `~/.claude`). `Resolve` devolve `""` para ela, e a interface fica como hoje.
-  - `(List) Resolve(transcriptPath string) string`: faz `filepath.Clean` e devolve a primeira conta cujo `<Dir>/projects/` é prefixo, ou `""` se for a implícita. Fora de todas, devolve `"outra"` e chama `OnUnknown(configDir)` uma vez por diretório.
+  - ~~`Implicit(dir string) List`~~: removida na implementação (T4). Sem `-account`, o Store roda sem contas, `Resolve` numa `List` nil devolve `""` e a interface fica como hoje.
+  - `(List) Resolve(transcriptPath string) string`: faz `filepath.Clean` e devolve a primeira conta cujo `<Dir>/projects/` é prefixo, ou `""` se a `List` for nil (sem `-account`). Fora de todas, devolve `"outra"` e chama `OnUnknown(configDir)` uma vez por diretório.
   - `(List) ProjectsDirs() []string`: `<Dir>/projects` de cada conta, para o Bootstrap.
   - `(*List) OnUnknown(func(configDir string))`: `main` liga ao `log`. O `configDir` é deduzido como o pai do segmento `projects`, nunca o caminho inteiro.
 - **Dependencies**: só stdlib (`path/filepath`, `strings`, `sync`).
@@ -99,7 +99,7 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
 - **Interfaces**:
   - `config.Accounts []string` preenchido por `fs.Func("account", "conta do Claude Code: nome=diretório de configuração (repetível)", …)`.
   - `-projects` junto com `-account`: erro `"use só -account (o -projects vira <dir>/projects de cada conta)"`, saída 2.
-  - Sem `-account`: `account.Implicit(filepath.Dir(cfg.Projects))`. Com `-account`: `account.Parse(cfg.Accounts, HOME)`.
+  - Sem `-account`: Store sem `WithAccounts` e Bootstrap só em `cfg.Projects`, como hoje. Com `-account`: `account.Parse(accounts, HOME)`.
   - Laço `for _, d := range accounts.ProjectsDirs() { st.Bootstrap(d, …) }`, com log do total por conta.
 - **Reuses**: `parseConfig`, `bootstrapMaxAge`.
 
@@ -131,14 +131,14 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
 ```go
 // internal/account
 type Account struct {
-	Name string // [a-z0-9-]{1,20}; "" só na conta implícita
+	Name string // [a-z0-9-]{1,20}
 	Dir  string // diretório de configuração, absoluto e limpo
 }
 
 // internal/store (campos novos)
 type Session struct {
 	// …
-	Account string // nome da conta; "" quando há só a conta implícita
+	Account string // nome da conta; "" sem -account
 }
 type SessionView struct {
 	// …
@@ -155,7 +155,7 @@ Para o `uso-plano` (CONTA-07), `<state>/uso-plano.json` vira:
   "trabalho": { … } }
 ```
 
-com a chave `""` para a conta implícita. Um arquivo antigo, de valor único, é lido como `{"": valor}`.
+com a chave `""` para quem roda sem `-account`. Um arquivo antigo, de valor único, é lido como `{"": valor}`.
 
 ---
 
@@ -178,7 +178,7 @@ com a chave `""` para a conta implícita. Um arquivo antigo, de valor único, é
 | Decision | Choice | Rationale |
 | --- | --- | --- |
 | Onde resolver a conta | No Store, ao receber `TranscriptPath` | Um ponto só para evento e Bootstrap; o `ingest` não muda (AD-003) |
-| Conta implícita | Nome `""`, sem chip | Quem tem uma conta só não vê nada novo (meta da spec) |
+| Sem `-account` | Store sem contas, `Account` vazio, sem chip | Quem tem uma conta só não vê nada novo (meta da spec); ver o desvio no T4 |
 | Cor do chip | `hash(nome) % 4` sobre `--conta-1…4` | Estável entre aparelhos e recargas, sem nova flag de cor |
 | `~` em `-account` | Expandido pelo servidor com `HOME` | O `sh -c` da unit systemd não expande `~` depois de `=` |
 | Links simbólicos | `filepath.Clean`, sem `EvalSymlinks` | Evita um `stat` por evento; caso raro, documentado na spec |
