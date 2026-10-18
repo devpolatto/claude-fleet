@@ -57,10 +57,12 @@ type ModelKey struct {
 	Fast  bool
 }
 
-// call é a contribuição de uma mensagem (um message.id) aos totais.
+// call é a contribuição de uma mensagem (um message.id) aos totais. ts é o
+// timestamp da última linha lida com esse id; zero se ela não trazia um válido.
 type call struct {
 	key    ModelKey
 	tokens Tokens
+	ts     time.Time
 }
 
 // File acompanha um transcript JSONL. O valor zero não é útil; use New.
@@ -186,8 +188,10 @@ func (f *File) processLocked(raw []byte) {
 		f.parseErrors++
 		return
 	}
+	var ts time.Time
 	if l.Timestamp != "" {
-		if ts, err := time.Parse(time.RFC3339Nano, l.Timestamp); err == nil {
+		if t, err := time.Parse(time.RFC3339Nano, l.Timestamp); err == nil {
+			ts = t
 			if f.first.IsZero() || ts.Before(f.first) {
 				f.first = ts
 			}
@@ -218,7 +222,7 @@ func (f *File) processLocked(raw []byte) {
 	} else {
 		tok.Cache5m = u.CacheCreationInputTokens
 	}
-	c := call{key: ModelKey{Model: l.Message.Model, Fast: u.Speed == "fast"}, tokens: tok}
+	c := call{key: ModelKey{Model: l.Message.Model, Fast: u.Speed == "fast"}, tokens: tok, ts: ts}
 
 	id := l.Message.ID
 	if id == "" {
@@ -254,6 +258,24 @@ func (f *File) ByModel() map[ModelKey]Tokens {
 	m := make(map[ModelKey]Tokens, len(f.byModel))
 	for k, v := range f.byModel {
 		m[k] = v
+	}
+	return m
+}
+
+// SumSince soma, por modelo e velocidade, as mensagens deduplicadas cujo
+// timestamp é igual ou posterior a t. Uma mensagem repetida em várias linhas
+// conta uma vez, com o timestamp da última linha (L-001). Mensagem sem
+// timestamp válido não tem como ser posta na janela: só entra quando t é zero,
+// caso em que todas as mensagens entram (como em ByModel).
+func (f *File) SumSince(t time.Time) map[ModelKey]Tokens {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	m := make(map[ModelKey]Tokens)
+	for _, c := range f.calls {
+		if !t.IsZero() && (c.ts.IsZero() || c.ts.Before(t)) {
+			continue
+		}
+		m[c.key] = m[c.key].Add(c.tokens)
 	}
 	return m
 }
