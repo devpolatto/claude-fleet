@@ -1,6 +1,7 @@
 # uso-plano Specification
 
 > Status: **spec aprovada** em 2026-10-16 (fonte pelo status line, AD-007; troca de tela com um dedo). Próximo passo: design.
+> Emendada em 2026-10-18 pelo `multi-conta` (CONTA-07, AD-009): o uso é guardado e mostrado **por conta** do Claude Code.
 
 ## Problem Statement
 
@@ -56,9 +57,10 @@ O Claude Code entrega ao comando de **status line** um JSON que inclui `rate_lim
 
 1. WHEN o Claude Code roda o status line THEN `fleet-statusline.sh` SHALL repassar o JSON a `POST /statusline` no loopback, com as mesmas regras do hook: `curl -m 1`, sem stdout nem stderr, sempre `exit 0`.
 2. WHEN o servidor recebe o JSON THEN ele SHALL guardar apenas `five_hour` e `seven_day` (`used_percentage`, `resets_at`) e a hora do recebimento; nenhum outro campo (`cwd`, `transcript_path`, `session_id`, modelo, custo) SHALL ser gravado nem logado.
+   O `transcript_path` SHALL ser usado só para descobrir a conta com `account.List.Resolve` (`features/multi-conta`), e o valor SHALL ser guardado sob o nome dessa conta (`""` na conta implícita). Conta `"outra"` é descartada.
 3. WHEN `POST /statusline` chega de fora do loopback THEN o servidor SHALL recusar (403), como o `/event`.
 4. WHEN o valor muda THEN o servidor SHALL avisar a página por SSE em ≤ 2 s.
-5. O último valor SHALL ser gravado em `<state>/uso-plano.json` (0600, escrita atômica) e relido ao subir, para a tela não nascer vazia depois de reiniciar o serviço.
+5. O último valor **de cada conta** SHALL ser gravado em `<state>/uso-plano.json` (0600, escrita atômica), como um mapa `{"<conta>": {five_hour, seven_day, received_at}}`, e relido ao subir, para a tela não nascer vazia depois de reiniciar o serviço.
 6. WHEN rodo `claude-fleet install-hooks` THEN ele SHALL configurar o `statusLine` apontando para o script; `uninstall-hooks` SHALL removê-lo.
 
 **Independent Test**: Mandar um JSON de status line por `curl` ao `/statusline`, ver o valor em `/api/state` (ou no SSE) e conferir que só `rate_limits` foi guardado; reiniciar o serviço e ver o valor de novo.
@@ -71,7 +73,7 @@ O Claude Code entrega ao comando de **status line** um JSON que inclui `rate_lim
 
 1. WHEN arrasto um dedo para a esquerda na grade THEN a página SHALL ir para a tela de uso; arrastar para a direita SHALL voltar. Pontinhos embaixo SHALL indicar a tela atual e também servir de toque para trocar.
 2. A troca SHALL funcionar com o celular na vertical e na horizontal, e no desktop pelas setas ← → e pelos pontinhos.
-3. A tela SHALL mostrar dois medidores, **Sessão (5 h)** e **Semana**, cada um com o percentual usado, a hora local do reset e a contagem regressiva ("reinicia em 2 h 14 min").
+3. A tela SHALL mostrar dois medidores, **Sessão (5 h)** e **Semana**, cada um com o percentual usado, a hora local do reset e a contagem regressiva ("reinicia em 2 h 14 min"). Com mais de uma conta, SHALL haver um par de medidores por conta, com o nome dela; com uma só, a tela fica sem nome de conta.
 4. A tela SHALL mostrar há quanto tempo o dado chegou ("atualizado há 3 min").
 5. Cores dos medidores SHALL sair dos tokens em `:root`, com um tom de alerta a partir de 80% e outro a partir de 95%.
 6. A troca de tela SHALL respeitar `prefers-reduced-motion` (sem animação de deslize, troca direta).
@@ -102,8 +104,9 @@ O Claude Code entrega ao comando de **status line** um JSON que inclui `rate_lim
 - WHEN `resets_at` já passou THEN o medidor daquela janela SHALL mostrar "reiniciada, aguardando dado novo" em vez do percentual antigo.
 - WHEN o JSON do status line vem sem `rate_limits` (chave de API, Bedrock, plano sem limite) THEN o servidor SHALL manter o último valor e não apagar nada.
 - WHEN já existe um `statusLine` no `settings.json` que não é o do Fleet THEN `install-hooks` SHALL não sobrescrevê-lo e SHALL avisar, deixando a feature sem fonte.
-- WHEN várias sessões abertas mandam o status line ao mesmo tempo THEN vale o recebido por último (os valores são da conta, iguais entre sessões).
+- WHEN várias sessões abertas mandam o status line ao mesmo tempo THEN vale o recebido por último **dentro da mesma conta** (os valores são iguais entre sessões da mesma conta e diferentes entre contas).
 - WHEN o servidor está fora THEN o status line SHALL terminar em ≤ 1 s sem afetar o Claude Code (AD-006).
+- WHEN o `uso-plano.json` está no formato antigo (um valor só, sem conta) THEN o servidor SHALL lê-lo como a conta implícita (`""`).
 - WHEN o arquivo de estado não pode ser lido ou gravado THEN a feature SHALL funcionar só em memória e registrar no log.
 
 ---
