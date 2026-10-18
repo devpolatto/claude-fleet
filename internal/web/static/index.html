@@ -130,7 +130,10 @@
   #som:focus-visible, #push:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
   #push[aria-busy="true"] { opacity: .6; cursor: progress; }
 
-  #contador { grid-area: contador; display: flex; flex-wrap: wrap; gap: 8px; }
+  /* Linha dos contadores + filtro de conta. O <select> fica fora do
+     #contador, que é recriado a cada snapshot (não fecha nem perde o foco). */
+  .resumo { grid-area: contador; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+  #contador { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
     display: inline-flex;
     align-items: center;
@@ -159,6 +162,50 @@
     border-radius: 50%;
     background: var(--aguardando);
   }
+
+  /* Filtro por conta: chip com <select> nativo (teclado e leitor de tela de
+     graça); com uma conta escolhida, ganha a cor do chip dela. */
+  .filtro-conta {
+    position: relative;
+    gap: 2px;
+    padding: 0 0 0 10px;
+    box-shadow: inset 0 0 0 1px var(--border);
+    cursor: pointer;
+  }
+  .filtro-conta[hidden] { display: none; }
+  .filtro-conta select {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 16ch;
+    margin: 0;
+    padding: 5px 24px 5px 2px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .filtro-conta select:focus { outline: none; }
+  .filtro-conta option { background: var(--surface); color: var(--text); }
+  .filtro-conta::after {
+    content: "";
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
+  .filtro-conta:focus-within { outline: 2px solid var(--text); outline-offset: 2px; }
+  .filtro-conta.filtrando { background: var(--conta-bg); box-shadow: none; color: var(--conta-fg); }
+  .filtro-conta.filtrando select { color: var(--conta-fg); }
 
   /* ---------- Grade centralizada ---------- */
   main {
@@ -723,7 +770,12 @@
     </svg>
     <h1>Claude Fleet</h1>
   </div>
-  <div id="contador"><span class="chip">conectando…</span></div>
+  <div class="resumo">
+    <div id="contador"><span class="chip">conectando…</span></div>
+    <label class="chip filtro-conta" id="filtro-conta-rotulo" hidden>conta
+      <select id="filtro-conta" aria-label="Filtrar a grade por conta"></select>
+    </label>
+  </div>
   <button type="button" id="push" aria-pressed="false" aria-label="Notificações neste aparelho" hidden></button>
   <button type="button" id="som" aria-pressed="false" aria-label="Som dos alertas" hidden></button>
   <p id="conexao" role="status">conectando…</p>
@@ -1007,18 +1059,79 @@ function alternarOculta(s) {
   render(ultimoSnapshot);
 }
 
+// ---------- Filtro por conta ----------
+// Só visual: esconde tiles de outras contas. Som e push seguem todas as
+// sessões (avaliarSom recebe o snapshot inteiro; o push é do servidor). A
+// escolha fica neste navegador; se a conta salva sumiu dos tiles, mostra
+// "todas" sem apagar a escolha, que volta quando a conta reaparecer.
+
+const CONTA_CHAVE = 'fleet.conta';
+const filtroRot = document.getElementById('filtro-conta-rotulo');
+const filtroSel = document.getElementById('filtro-conta');
+let contaEscolhida = lerConta();  // '' = todas
+let contasNasOpcoes = null;       // evita recriar as opções (fecharia o <select> aberto)
+
+function lerConta() {
+  try { return localStorage.getItem(CONTA_CHAVE) || ''; } catch (_) { return ''; }
+}
+
+function gravarConta(c) {
+  try {
+    if (c) localStorage.setItem(CONTA_CHAVE, c);
+    else localStorage.removeItem(CONTA_CHAVE);
+  } catch (_) { /* só nesta página */ }
+}
+
+// contasDe: contas distintas do snapshot, "outra" por último. Sem conta não conta.
+function contasDe(sessoes) {
+  const set = new Set();
+  for (const s of sessoes) if (s.Account) set.add(s.Account);
+  return [...set].sort((a, b) => (a === 'outra') - (b === 'outra') || a.localeCompare(b));
+}
+
+// atualizarFiltro mostra o seletor só com 2+ contas e devolve a conta em
+// vigor ('' = todas).
+function atualizarFiltro(contas) {
+  const mostrar = contas.length > 1;
+  filtroRot.hidden = !mostrar;
+  const chave = contas.join(' ');
+  if (chave !== contasNasOpcoes) {
+    contasNasOpcoes = chave;
+    const todas = el('option', null, 'todas');
+    todas.value = '';
+    filtroSel.replaceChildren(todas, ...contas.map((c) => {
+      const o = el('option', null, c);
+      o.value = c;
+      return o;
+    }));
+  }
+  const vigente = mostrar && contas.includes(contaEscolhida) ? contaEscolhida : '';
+  if (filtroSel.value !== vigente) filtroSel.value = vigente;
+  filtroRot.className = 'chip filtro-conta' + (vigente ? ' conta c-' + corConta(vigente) + ' filtrando' : '');
+  filtroRot.title = vigente ? 'Mostrando só a conta ' + vigente : 'Mostrando todas as contas';
+  return vigente;
+}
+
+filtroSel.addEventListener('change', () => {
+  contaEscolhida = filtroSel.value;
+  gravarConta(contaEscolhida);
+  render(ultimoSnapshot);
+});
+
 function render(sessoes) {
   ultimoSnapshot = sessoes;
   // Preserva o foco de teclado entre snapshots.
   const ativoEl = document.activeElement;
   const focoId = ativoEl && ativoEl.classList && ativoEl.classList.contains('tile') ? ativoEl.dataset.id : null;
 
-  const visiveis = sessoes.filter((s) => !estaOculta(s));
-  const nOcultas = sessoes.length - visiveis.length;
+  const conta = atualizarFiltro(contasDe(sessoes));
+  const daConta = conta ? sessoes.filter((s) => s.Account === conta) : sessoes;
+  const visiveis = daConta.filter((s) => !estaOculta(s));
+  const nOcultas = daConta.length - visiveis.length;
   if (nOcultas === 0) mostrarOcultas = false;
 
   const frag = document.createDocumentFragment();
-  for (const s of ordenar(sessoes)) {
+  for (const s of ordenar(daConta)) {
     const oculta = estaOculta(s);
     // Oculta em aguardando aparece como qualquer outra: nada trava escondido.
     if (oculta && precisaAtencao(s)) frag.append(montarTile(s, false));
@@ -1026,11 +1139,19 @@ function render(sessoes) {
   }
   grade.replaceChildren(frag);
   vazio.hidden = grade.children.length > 0;
-  vazio.textContent = sessoes.length > 0 ? 'Todas as sessões estão ocultas.' : 'Nenhuma sessão no momento.';
+  vazio.textContent = daConta.length > 0 ? 'Todas as sessões estão ocultas.' : 'Nenhuma sessão no momento.';
 
+  // "sessões" segue o filtro; "aguardando" é alerta e conta todas as contas.
   const aguardam = sessoes.filter(precisaAtencao).length;
-  contador.replaceChildren(chip(visiveis.length, visiveis.length === 1 ? 'sessão' : 'sessões'));
-  if (aguardam > 0) contador.append(chip(aguardam, 'aguardando', 'alerta'));
+  const foraDoFiltro = aguardam - daConta.filter(precisaAtencao).length;
+  const cSessoes = chip(visiveis.length, visiveis.length === 1 ? 'sessão' : 'sessões');
+  if (conta) cSessoes.title = 'da conta ' + conta;
+  contador.replaceChildren(cSessoes);
+  if (aguardam > 0) {
+    const cAg = chip(aguardam, 'aguardando', 'alerta');
+    if (foraDoFiltro > 0) cAg.title = 'inclui ' + foraDoFiltro + ' de outra' + (foraDoFiltro === 1 ? ' conta' : 's contas') + ', fora do filtro';
+    contador.append(cAg);
+  }
   if (nOcultas > 0) {
     const b = el('button', 'chip ocultas');
     b.type = 'button';
