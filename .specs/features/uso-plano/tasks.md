@@ -1,7 +1,7 @@
 # uso-plano Tasks
 
 **Design**: `.specs/features/uso-plano/design.md`
-**Status**: In Progress (Phase 1 feita em 2026-10-18)
+**Status**: In Progress (Phases 1–3 feitas em 2026-10-18)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -144,12 +144,14 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Janela ausente mantém a anterior; JSON sem janela não muda nada nem mexe no `ReceivedAt`
-- [ ] Avisa e grava na mudança de percentual ou `resets_at`, ou quando o último aviso tem ≥ 1 min; em chamadas repetidas com o mesmo valor dentro do minuto, não avisa nem grava (relógio injetado)
-- [ ] Arquivo `0600`, mapa por conta; formato antigo vira a conta `""`; arquivo corrompido ou ilegível: log e começa vazio; `path` vazio: só memória
-- [ ] Contas de `names` aparecem no `Snapshot` sem dado; `Snapshot` ordenado e é cópia (mexer no retorno não muda o estado)
-- [ ] Seguro sob `-race` com `Apply` e `Snapshot` concorrentes
-- [ ] Gate passa, com `TestApplyJanelaAusenteMantemAnterior`, `TestApplySemJanelaNaoMuda`, `TestApplyAvisaSoNaMudancaOuDepoisDeUmMinuto`, `TestLoadFormatoAntigoViraContaImplicita`, `TestLoadArquivoCorrompidoComecaVazio`, `TestGravaComPermissao600`, `TestContasDeclaradasNascemSemDado`
+- [x] Janela ausente mantém a anterior; JSON sem janela não muda nada nem mexe no `ReceivedAt`
+- [x] Avisa e grava na mudança de percentual ou `resets_at`, ou quando o último aviso tem ≥ 1 min; em chamadas repetidas com o mesmo valor dentro do minuto, não avisa nem grava (relógio injetado)
+- [x] Arquivo `0600`, mapa por conta; formato antigo vira a conta `""`; arquivo corrompido ou ilegível: log e começa vazio; `path` vazio: só memória
+- [x] Contas de `names` aparecem no `Snapshot` sem dado; `Snapshot` ordenado e é cópia (mexer no retorno não muda o estado)
+- [x] Seguro sob `-race` com `Apply` e `Snapshot` concorrentes
+- [x] Gate passa, com `TestApplyJanelaAusenteMantemAnterior`, `TestApplySemJanelaNaoMuda`, `TestApplyAvisaSoNaMudancaOuDepoisDeUmMinuto`, `TestLoadFormatoAntigoViraContaImplicita`, `TestLoadArquivoCorrompidoComecaVazio`, `TestGravaComPermissao600`, `TestContasDeclaradasNascemSemDado`
+
+**Feito** (c964fad). Decisões: `Load` com arquivo ilegível devolve o `Tracker` vazio e o erro, e o `main` loga; o `Tracker` continua tentando gravar, então a próxima leitura válida conserta um arquivo corrompido (desvio: o design dizia "só em memória"); `ReceivedAt` em memória acompanha toda leitura com janela, e aviso e gravação saem no máximo uma vez por minuto quando o valor não muda; contas sem dado não vão para o arquivo; o arquivo é considerado do formato antigo quando o topo tem `five_hour`, `seven_day` ou `received_at`.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(ratelimit): último uso do plano por conta, em disco`
@@ -166,10 +168,12 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Fora do loopback: 403; corpo grande: 413; JSON inválido: 400; nenhuma resposta nem log cita o corpo
-- [ ] Com `-account`: conta certa pelo `transcript_path`; `outra` e caminho vazio descartados. Sem contas: tudo em `""`
-- [ ] `/api/uso` sem token: 401; com token: `[]Entry` (lista vazia como `[]`), sem `transcript_path` nem outro campo do status line
-- [ ] Gate passa, com `TestStatuslineSoDoLoopback`, `TestStatuslineResolveConta`, `TestStatuslineSemUsageResponde204`, `TestApiUsoExigeToken`
+- [x] Fora do loopback: 403; corpo grande: 413; JSON inválido: 400; nenhuma resposta nem log cita o corpo
+- [x] Com `-account`: conta certa pelo `transcript_path`; `outra` e caminho vazio descartados. Sem contas: tudo em `""`
+- [x] `/api/uso` sem token: 401; com token: `[]Entry` (lista vazia como `[]`), sem `transcript_path` nem outro campo do status line
+- [x] Gate passa, com `TestStatuslineSoDoLoopback`, `TestStatuslineResolveConta`, `TestStatuslineSemUsageResponde204`, `TestApiUsoExigeToken`
+
+**Feito** (26edb31). Desvios: `Usage` sem `Subscribe` (fica no `UsageSource` do Hub, T6); sem `SetUsage` o corpo nem é lido; limite é `ratelimit.MaxBytes`, sem constante nova no `web`.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(web): rota /statusline e /api/uso`
@@ -186,10 +190,12 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Sem `WithUsage`, o comportamento e os testes atuais não mudam
-- [ ] Mudança de uso chega ao cliente em ≤ 2 s (no teste, dentro de `Coalesce` + folga) sem `snapshot` junto
-- [ ] Lista vazia sai como `data: []`
-- [ ] Gate passa, com `TestHubEnviaUsoAoConectar` e `TestHubMudancaDeUsoNaoReenviaSnapshot`
+- [x] Sem `WithUsage`, o comportamento e os testes atuais não mudam
+- [x] Mudança de uso chega ao cliente em ≤ 2 s (no teste, dentro de `Coalesce` + folga) sem `snapshot` junto
+- [x] Lista vazia sai como `data: []`
+- [x] Gate passa, com `TestHubEnviaUsoAoConectar` e `TestHubMudancaDeUsoNaoReenviaSnapshot`
+
+**Feito** (94372d4). Desvio: cada cliente do SSE passou a ter um canal por tipo de evento (`snapshot` e `uso`), para um `uso` não tomar o lugar de um `snapshot` ainda não lido por um cliente lento (`TestHubUsoNaoTomaOLugarDoSnapshotNoClienteLento`).
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(web): evento uso no SSE`
@@ -206,9 +212,11 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Conferido com o binário: `curl` com a fixture do T3 em `/statusline`, valor em `/api/uso`; reiniciar o servidor e o valor continua lá; o arquivo tem `0600` e só as janelas e `received_at`
-- [ ] Sem `-state-dir` gravável, o servidor sobe e o uso funciona em memória
-- [ ] Gate passa
+- [x] Conferido com o binário: `curl` com a fixture do T3 em `/statusline`, valor em `/api/uso`; reiniciar o servidor e o valor continua lá; o arquivo tem `0600` e só as janelas e `received_at`
+- [x] Sem `-state-dir` gravável, o servidor sobe e o uso funciona em memória
+- [x] Gate passa
+
+**Feito** (281c8b8). `loadUsage` cria o `StateDir` (0700) se faltar. Conferido com o binário: fixture por `curl`, valor em `/api/uso` e no evento `uso`, mesmo valor depois de reiniciar, arquivo `0600` sem `transcript_path`, `session_id` nem `cwd`, e nada disso no log.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): uso do plano ligado ao servidor`
@@ -225,12 +233,14 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] `settings.json` sem `statusLine`: ganha `{"type": "command", "command": "<dir>/fleet-statusline.sh"}`; o diff mostra a mudança antes da confirmação
-- [ ] `statusLine` alheio: fica byte a byte igual, aviso no stdout, hooks instalados, saída 0
-- [ ] Segunda execução sem mudança: "nada a fazer", sem backup novo
-- [ ] `uninstall-hooks` remove hooks e `statusLine` do Fleet, mantém um `statusLine` alheio
-- [ ] Respeita `CLAUDE_CONFIG_DIR` como os hooks (multi-conta)
-- [ ] Gate passa, com `TestInstallHooksRegistraStatusLine`, `TestInstallHooksNaoSobrescreveStatusLineAlheio`, `TestInstallHooksTrocaStatusLineAntigoDoFleet`, `TestUninstallHooksRemoveSoStatusLineDoFleet`, `TestInstallHooksGravaOsDoisScripts`
+- [x] `settings.json` sem `statusLine`: ganha `{"type": "command", "command": "<dir>/fleet-statusline.sh"}`; o diff mostra a mudança antes da confirmação
+- [x] `statusLine` alheio: fica byte a byte igual, aviso no stdout, hooks instalados, saída 0
+- [x] Segunda execução sem mudança: "nada a fazer", sem backup novo
+- [x] `uninstall-hooks` remove hooks e `statusLine` do Fleet, mantém um `statusLine` alheio
+- [x] Respeita `CLAUDE_CONFIG_DIR` como os hooks (multi-conta)
+- [x] Gate passa, com `TestInstallHooksRegistraStatusLine`, `TestInstallHooksNaoSobrescreveStatusLineAlheio`, `TestInstallHooksTrocaStatusLineAntigoDoFleet`, `TestUninstallHooksRemoveSoStatusLineDoFleet`, `TestInstallHooksGravaOsDoisScripts`
+
+**Feito** (8067c8b). Escolhas: o `fleet-statusline.sh` é gravado mesmo com `statusLine` alheio, para quem quiser ligá-lo à mão; o aviso de `statusLine` alheio sai em toda execução; a mensagem final cita o comando registrado.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): install-hooks registra o statusLine do uso do plano`
@@ -393,7 +403,9 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Texto confere com as mensagens reais do `install-hooks`
+- [x] Texto confere com as mensagens reais do `install-hooks`
+
+**Feito** (0079b27).
 
 **Tests**: none (documentação) · **Gate**: leitura
 **Commit**: `docs: uso do plano e statusLine no README`
