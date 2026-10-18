@@ -14,8 +14,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/account"
 	"github.com/devpolatto/claude-fleet/internal/ingest"
 	"github.com/devpolatto/claude-fleet/internal/push"
+	"github.com/devpolatto/claude-fleet/internal/ratelimit"
 	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
@@ -73,17 +75,27 @@ type Push interface {
 	SendAll(ctx context.Context, msg push.Message, topic string) int
 }
 
+// Usage é o que o servidor precisa do ratelimit.Tracker.
+type Usage interface {
+	Apply(account string, r ratelimit.Reading) bool
+	Snapshot() []ratelimit.Entry
+}
+
 // Server monta as rotas do painel.
 type Server struct {
-	store Store
-	hub   http.Handler
-	push  Push // nil: push desligado, as rotas respondem 503
-	token string
-	now   func() time.Time
+	store    Store
+	hub      http.Handler
+	push     Push          // nil: push desligado, as rotas respondem 503
+	usage    Usage         // nil: /statusline descarta e /api/uso devolve []
+	accounts *account.List // nil: sem -account, tudo na conta ""
+	token    string
+	now      func() time.Time
 
 	// eventErrors conta payloads recusados em /event (400/413), sem guardar
 	// nada do corpo.
 	eventErrors atomic.Int64
+	// statuslineErrors faz o mesmo para /statusline.
+	statuslineErrors atomic.Int64
 }
 
 // NewServer cria o servidor. Com token vazio, as rotas de leitura ficam
@@ -95,8 +107,19 @@ func NewServer(st Store, hub http.Handler, token string) *Server {
 // SetPush liga as rotas de push; chamar antes de Handler.
 func (s *Server) SetPush(p Push) { s.push = p }
 
+// SetUsage liga o uso do plano: /statusline passa a registrar as leituras
+// em u, na conta resolvida por accounts (nil: conta ""); chamar antes de
+// Handler.
+func (s *Server) SetUsage(u Usage, accounts *account.List) {
+	s.usage = u
+	s.accounts = accounts
+}
+
 // EventErrors devolve quantos payloads foram recusados em /event.
 func (s *Server) EventErrors() int64 { return s.eventErrors.Load() }
+
+// StatuslineErrors devolve quantos payloads foram recusados em /statusline.
+func (s *Server) StatuslineErrors() int64 { return s.statuslineErrors.Load() }
 
 // Handler devolve o roteador completo.
 func (s *Server) Handler() http.Handler {
@@ -104,6 +127,9 @@ func (s *Server) Handler() http.Handler {
 	// /event fica fora da autenticação por token: o hook não conhece o
 	// token. A proteção é aceitar só conexões de loopback.
 	mux.HandleFunc("POST /event", s.handleEvent)
+	// /statusline segue a mesma regra: o script do status line não conhece
+	// o token.
+	mux.HandleFunc("POST /statusline", s.handleStatusline)
 	mux.HandleFunc("POST /login", s.handleLogin)
 	for path, a := range publicAssets {
 		mux.Handle("GET "+path, assetHandler("static"+path, a))
@@ -113,6 +139,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /stream", s.auth(s.hub))
 	mux.Handle("GET /api/sessions", s.auth(http.HandlerFunc(s.handleSessions)))
 	mux.Handle("GET /api/session/{id}", s.auth(http.HandlerFunc(s.handleSession)))
+	mux.Handle("GET /api/uso", s.auth(http.HandlerFunc(s.handleUso)))
 	mux.Handle("GET /api/push/key", s.auth(http.HandlerFunc(s.handlePushKey)))
 	mux.Handle("POST /api/push/subscription", s.auth(http.HandlerFunc(s.handlePushSubscribe)))
 	mux.Handle("DELETE /api/push/subscription", s.auth(http.HandlerFunc(s.handlePushUnsubscribe)))
@@ -138,6 +165,55 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.Apply(ev, s.now())
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleStatusline recebe o JSON do status line do Claude Code e guarda só os
+// percentuais do plano. Nem o corpo nem o transcript_path vão para log ou
+// resposta.
+func (s *Server) handleStatusline(w http.ResponseWriter, r *http.Request) {
+	if !remoteIsLoopback(r.RemoteAddr) {
+		http.Error(w, "proibido", http.StatusForbidden)
+		return
+	}
+	if s.usage == nil {
+		// Uso do plano desligado: o script nunca vê erro.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	rd, err := ratelimit.Parse(r.Body, ratelimit.MaxBytes)
+	if err != nil {
+		s.statuslineErrors.Add(1)
+		status := http.StatusBadRequest
+		if errors.Is(err, ratelimit.ErrTooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	acc := ""
+	if s.accounts != nil {
+		if rd.TranscriptPath == "" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		acc = s.accounts.Resolve(rd.TranscriptPath)
+		if acc == account.Outra {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	s.usage.Apply(acc, rd)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleUso(w http.ResponseWriter, r *http.Request) {
+	entries := []ratelimit.Entry{}
+	if s.usage != nil {
+		if snap := s.usage.Snapshot(); snap != nil {
+			entries = snap
+		}
+	}
+	writeJSON(w, entries)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {

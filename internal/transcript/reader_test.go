@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -264,5 +265,114 @@ func TestTitleUsaSoCustomTitle(t *testing.T) {
 	}
 	if got := f.Title(); got != "toni-voz" {
 		t.Errorf("Title = %q, queria toni-voz (último custom-title; ai-title ignorado)", got)
+	}
+}
+
+func TestSumSinceRespeitaTimestampEDedupe(t *testing.T) {
+	// dedup.jsonl: msg_a em 10:00:01 e de novo em 10:00:02 (o último registro
+	// vale), msg_b em 10:00:03 e msg_c (fast) em 10:00:04.
+	opus := Tokens{Input: 10, Cache5m: 100, Cache1h: 200, CacheRead: 1000, Output: 50}
+	haiku := Tokens{Input: 1, Cache5m: 40, CacheRead: 2, Output: 3}
+	fast := Tokens{Input: 7, Output: 9}
+	base := time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+
+	f := New(filepath.Join("testdata", "dedup.jsonl"))
+	refresh(t, f)
+
+	// semTS: uma mensagem com timestamp e outra sem timestamp válido.
+	semTSPath := filepath.Join(t.TempDir(), "sem-ts.jsonl")
+	appendFile(t, semTSPath, assistant("m1", "claude-opus-5-5", 3, 4)+"\n"+
+		`{"type":"assistant","timestamp":"ontem","message":{"id":"m2","model":"claude-opus-5-5","usage":{"input_tokens":5,"output_tokens":6}}}`+"\n"+
+		`{"type":"assistant","message":{"id":"m3","model":"claude-opus-5-5","usage":{"input_tokens":7,"output_tokens":8}}}`+"\n")
+	semTS := New(semTSPath)
+	refresh(t, semTS)
+
+	casos := []struct {
+		nome  string
+		f     *File
+		desde time.Time
+		want  map[ModelKey]Tokens
+	}{
+		{"t zero soma tudo", f, time.Time{}, map[ModelKey]Tokens{
+			{Model: "claude-opus-5-5"}: opus, {Model: "claude-haiku-4-5"}: haiku, {Model: "claude-opus-5-5", Fast: true}: fast,
+		}},
+		{"antes de tudo", f, base, map[ModelKey]Tokens{
+			{Model: "claude-opus-5-5"}: opus, {Model: "claude-haiku-4-5"}: haiku, {Model: "claude-opus-5-5", Fast: true}: fast,
+		}},
+		{"repetida usa o timestamp da última linha", f, base.Add(1500 * time.Millisecond), map[ModelKey]Tokens{
+			{Model: "claude-opus-5-5"}: opus, {Model: "claude-haiku-4-5"}: haiku, {Model: "claude-opus-5-5", Fast: true}: fast,
+		}},
+		{"limite inclusivo", f, base.Add(2 * time.Second), map[ModelKey]Tokens{
+			{Model: "claude-opus-5-5"}: opus, {Model: "claude-haiku-4-5"}: haiku, {Model: "claude-opus-5-5", Fast: true}: fast,
+		}},
+		{"corta a repetida inteira", f, base.Add(2500 * time.Millisecond), map[ModelKey]Tokens{
+			{Model: "claude-haiku-4-5"}: haiku, {Model: "claude-opus-5-5", Fast: true}: fast,
+		}},
+		{"só a última", f, base.Add(4 * time.Second), map[ModelKey]Tokens{
+			{Model: "claude-opus-5-5", Fast: true}: fast,
+		}},
+		{"depois de tudo", f, base.Add(time.Minute), map[ModelKey]Tokens{}},
+		{"sem timestamp entra com t zero", semTS, time.Time{}, map[ModelKey]Tokens{
+			{Model: "claude-opus-5-5"}: {Input: 15, Output: 18},
+		}},
+		{"sem timestamp fica fora com t definido", semTS, base.Add(-24 * time.Hour), map[ModelKey]Tokens{
+			{Model: "claude-opus-5-5"}: {Input: 3, Output: 4},
+		}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			got := c.f.SumSince(c.desde)
+			if len(got) != len(c.want) {
+				t.Fatalf("SumSince tem %d chaves, queria %d: %+v", len(got), len(c.want), got)
+			}
+			for k, w := range c.want {
+				if got[k] != w {
+					t.Errorf("SumSince[%+v] = %+v, queria %+v", k, got[k], w)
+				}
+			}
+		})
+	}
+
+	// Totals e ByModel não mudam.
+	if got, want := f.Totals(), opus.Add(haiku).Add(fast); got != want {
+		t.Errorf("Totals = %+v, queria %+v", got, want)
+	}
+	if got := len(f.ByModel()); got != 3 {
+		t.Errorf("ByModel tem %d chaves, queria 3", got)
+	}
+}
+
+func TestCallsSinceDevolveIDEDeixaSemIDVazio(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "t.jsonl")
+	linhas := `{"type":"assistant","timestamp":"2026-10-18T10:00:01Z","message":{"id":"msg_a","model":"claude-sonnet-4-5","usage":{"input_tokens":1,"output_tokens":2}}}
+{"type":"assistant","timestamp":"2026-10-18T10:00:02Z","message":{"id":"msg_a","model":"claude-sonnet-4-5","usage":{"input_tokens":1,"output_tokens":3}}}
+{"type":"assistant","timestamp":"2026-10-18T10:00:03Z","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":5,"output_tokens":5}}}
+`
+	if err := os.WriteFile(path, []byte(linhas), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := New(path)
+	if err := f.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	casos := []struct {
+		nome  string
+		desde time.Time
+		quer  map[string]int64 // id → output
+	}{
+		{"todas", time.Time{}, map[string]int64{"msg_a": 3, "": 5}},
+		{"repetida fica com o timestamp da última linha", time.Date(2026, 10, 18, 10, 0, 1, 500e6, time.UTC), map[string]int64{"msg_a": 3, "": 5}},
+		{"só a sem id", time.Date(2026, 10, 18, 10, 0, 2, 500e6, time.UTC), map[string]int64{"": 5}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			got := map[string]int64{}
+			for _, call := range f.CallsSince(c.desde) {
+				got[call.ID] = call.Tokens.Output
+			}
+			if !reflect.DeepEqual(got, c.quer) {
+				t.Errorf("CallsSince = %v, quer %v", got, c.quer)
+			}
+		})
 	}
 }

@@ -1,7 +1,8 @@
-// Package hook expõe o script de hook do claude-fleet para o instalador.
+// Package hook expõe os scripts do claude-fleet para o instalador.
 //
-// O arquivo fleet-hook.sh é a única fonte do script: o binário o embute e o
-// subcomando install-hooks grava esse conteúdo no diretório de destino.
+// Os arquivos fleet-hook.sh e fleet-statusline.sh são a única fonte de cada
+// script: o binário os embute e o subcomando install-hooks grava esse
+// conteúdo no diretório de destino.
 package hook
 
 import _ "embed"
@@ -10,3 +11,8 @@ import _ "embed"
 //
 //go:embed fleet-hook.sh
 var Script string
+
+// StatusLine é o conteúdo de fleet-statusline.sh, embutido no binário.
+//
+//go:embed fleet-statusline.sh
+var StatusLine string

@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	hookScriptName = "fleet-hook.sh"
-	hookTimeout    = 5 // segundos; o script já desiste em 1 s (AD-006)
-	diffContext    = 3
+	hookScriptName       = "fleet-hook.sh"
+	statusLineScriptName = "fleet-statusline.sh"
+	hookTimeout          = 5 // segundos; o script já desiste em 1 s (AD-006)
+	diffContext          = 3
 )
 
 // fleetEvents são os eventos que o Store consome, na ordem em que entram
@@ -116,28 +117,37 @@ func configDir(getenv func(string) string) (string, error) {
 	return filepath.Join(home, ".claude"), nil
 }
 
-// installHooks grava o script e registra o hook nos eventos do settings.
+// installHooks grava os scripts, registra o hook nos eventos do settings e
+// o statusLine do uso do plano.
 func installHooks(o hookOpts) error {
 	dir, err := filepath.Abs(o.dir)
 	if err != nil {
 		return err
 	}
 	script := filepath.Join(dir, hookScriptName)
+	statusScript := filepath.Join(dir, statusLineScriptName)
 
 	s, err := readSettings(o.settings)
 	if err != nil {
 		return err
 	}
-	updated, changed, err := applyInstall(s.data, script)
+	updated, res, err := applyInstall(s.data, script, statusScript)
 	if err != nil {
 		return fmt.Errorf("%s: %w", s.path, err)
 	}
+	if res.statusLine == statusLineForeign {
+		fmt.Fprintf(o.out, "%s já tem um statusLine (%s); o uso do plano fica sem fonte. Veja features/uso-plano.\n", s.path, res.foreign)
+	}
 
-	if !changed {
-		if err := syncScript(o.out, script); err != nil {
+	if !res.changed() {
+		if err := syncScripts(o.out, script, statusScript); err != nil {
 			return err
 		}
-		fmt.Fprintf(o.out, "%s já tem o hook do claude-fleet em todos os eventos; nada a fazer.\n", s.path)
+		what := "o hook do claude-fleet em todos os eventos e o statusLine do claude-fleet"
+		if res.statusLine == statusLineForeign {
+			what = "o hook do claude-fleet em todos os eventos"
+		}
+		fmt.Fprintf(o.out, "%s já tem %s; nada a fazer.\n", s.path, what)
 		return nil
 	}
 
@@ -145,28 +155,41 @@ func installHooks(o hookOpts) error {
 		fmt.Fprintln(o.out, "Cancelado; nada foi gravado.")
 		return nil
 	}
-	if err := syncScript(o.out, script); err != nil {
+	if err := syncScripts(o.out, script, statusScript); err != nil {
 		return err
 	}
 	if err := commitSettings(o, s, updated); err != nil {
 		return err
 	}
-	fmt.Fprintf(o.out, "Hook registrado em %d eventos (comando %s).\n", len(fleetEvents), script)
+	if res.hooks {
+		fmt.Fprintf(o.out, "Hook registrado em %d eventos (comando %s).\n", len(fleetEvents), script)
+	}
+	if res.statusLine == statusLineAdded || res.statusLine == statusLineReplaced {
+		fmt.Fprintf(o.out, "statusLine do claude-fleet registrado (comando %s); ele não imprime nada, e o Claude Code esconde as dicas do rodapé enquanto houver um statusLine.\n", statusScript)
+	}
 	return nil
 }
 
-// uninstallHooks remove do settings só os grupos do claude-fleet.
+// syncScripts grava o script do hook e o do status line.
+func syncScripts(out io.Writer, hookPath, statusPath string) error {
+	if err := syncScript(out, hookPath, hook.Script, "do hook"); err != nil {
+		return err
+	}
+	return syncScript(out, statusPath, hook.StatusLine, "do status line")
+}
+
+// uninstallHooks remove do settings só os grupos e o statusLine do claude-fleet.
 func uninstallHooks(o hookOpts) error {
 	s, err := readSettings(o.settings)
 	if err != nil {
 		return err
 	}
-	updated, removed, err := applyUninstall(s.data)
+	updated, res, err := applyUninstall(s.data)
 	if err != nil {
 		return fmt.Errorf("%s: %w", s.path, err)
 	}
-	if len(removed) == 0 {
-		fmt.Fprintf(o.out, "%s não tem hooks do claude-fleet; nada a fazer.\n", s.path)
+	if !res.hooks && !res.statusLine {
+		fmt.Fprintf(o.out, "%s não tem hooks nem statusLine do claude-fleet; nada a fazer.\n", s.path)
 		return nil
 	}
 	if !confirm(o, s, updated) {
@@ -176,8 +199,13 @@ func uninstallHooks(o hookOpts) error {
 	if err := commitSettings(o, s, updated); err != nil {
 		return err
 	}
-	fmt.Fprintf(o.out, "Hook do claude-fleet removido de %s.\n", s.path)
-	for _, c := range removed {
+	if res.hooks {
+		fmt.Fprintf(o.out, "Hook do claude-fleet removido de %s.\n", s.path)
+	}
+	if res.statusLine {
+		fmt.Fprintf(o.out, "statusLine do claude-fleet removido de %s.\n", s.path)
+	}
+	for _, c := range res.removed {
 		fmt.Fprintf(o.out, "O script %s não foi apagado; remova-o à mão se não for mais usar.\n", c)
 	}
 	return nil
@@ -210,10 +238,11 @@ func readSettings(path string) (settingsFile, error) {
 	return settingsFile{path: path, data: data, perm: st.Mode().Perm(), exists: true}, nil
 }
 
-// syncScript grava o script embutido com modo 0755, só se conteúdo ou modo mudaram.
-func syncScript(out io.Writer, path string) error {
+// syncScript grava content com modo 0755, só se conteúdo ou modo mudaram.
+// label completa as mensagens ("do hook", "do status line").
+func syncScript(out io.Writer, path, content, label string) error {
 	cur, err := os.ReadFile(path)
-	if err == nil && string(cur) == hook.Script {
+	if err == nil && string(cur) == content {
 		if st, err := os.Stat(path); err == nil && st.Mode().Perm() == 0o755 {
 			return nil
 		}
@@ -221,10 +250,10 @@ func syncScript(out io.Writer, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	if err := writeAtomic(path, []byte(hook.Script), 0o755); err != nil {
-		return fmt.Errorf("gravar o script do hook: %w", err)
+	if err := writeAtomic(path, []byte(content), 0o755); err != nil {
+		return fmt.Errorf("gravar o script %s: %w", label, err)
 	}
-	fmt.Fprintf(out, "Script do hook gravado em %s.\n", path)
+	fmt.Fprintf(out, "Script %s gravado em %s.\n", label, path)
 	return nil
 }
 
@@ -437,17 +466,100 @@ func sameJSON(a, b []byte) bool {
 	return json.Unmarshal(a, &x) == nil && json.Unmarshal(b, &y) == nil && reflect.DeepEqual(x, y)
 }
 
-// applyInstall devolve o settings com o hook em todos os fleetEvents.
-// changed é false quando nada precisou mudar; aí out é o próprio data.
-func applyInstall(data []byte, command string) (out []byte, changed bool, err error) {
+// statusLineAction diz o que o instalador fez com o statusLine.
+type statusLineAction int
+
+const (
+	statusLineKept     statusLineAction = iota // já era o do claude-fleet
+	statusLineAdded                            // não havia statusLine
+	statusLineReplaced                         // era um statusLine antigo do claude-fleet
+	statusLineForeign                          // alheio: não tocado
+)
+
+// installResult resume o que applyInstall mudou.
+type installResult struct {
+	hooks      bool // algum evento ganhou ou trocou a entrada do claude-fleet
+	statusLine statusLineAction
+	foreign    string // comando (ou JSON) do statusLine alheio
+}
+
+func (r installResult) changed() bool {
+	return r.hooks || r.statusLine == statusLineAdded || r.statusLine == statusLineReplaced
+}
+
+// statusLineValue é o statusLine que o instalador grava: sem padding e sem
+// refreshInterval.
+type statusLineValue struct {
+	Type    string `json:"type"`
+	Command string `json:"command"`
+}
+
+// statusLineCommand devolve o command de um statusLine que é objeto com
+// command string; ok é false para qualquer outra forma.
+func statusLineCommand(raw json.RawMessage) (cmd string, ok bool) {
+	var v map[string]json.RawMessage
+	if json.Unmarshal(raw, &v) != nil || v == nil {
+		return "", false
+	}
+	if json.Unmarshal(v["command"], &cmd) != nil {
+		return "", false
+	}
+	return cmd, true
+}
+
+// isFleetStatusLine diz se o statusLine é do claude-fleet: objeto com command
+// terminando em /fleet-statusline.sh.
+func isFleetStatusLine(raw json.RawMessage) bool {
+	cmd, ok := statusLineCommand(raw)
+	return ok && strings.HasSuffix(cmd, "/"+statusLineScriptName)
+}
+
+// applyStatusLine registra o statusLine do claude-fleet no objeto de topo,
+// sem tocar num statusLine alheio.
+func applyStatusLine(top []member, command string) ([]member, installResult, error) {
+	want, err := marshalIndent(statusLineValue{Type: "command", Command: command}, "  ")
+	if err != nil {
+		return nil, installResult{}, err
+	}
+	for i, m := range top {
+		if m.key != "statusLine" {
+			continue
+		}
+		switch {
+		case !isFleetStatusLine(m.raw):
+			foreign, ok := statusLineCommand(m.raw)
+			if !ok {
+				var b bytes.Buffer
+				if json.Compact(&b, m.raw) == nil {
+					foreign = b.String()
+				} else {
+					foreign = string(m.raw)
+				}
+			}
+			return top, installResult{statusLine: statusLineForeign, foreign: foreign}, nil
+		case sameJSON(m.raw, want):
+			return top, installResult{statusLine: statusLineKept}, nil
+		default:
+			top[i].raw = want
+			return top, installResult{statusLine: statusLineReplaced}, nil
+		}
+	}
+	return append(top, member{"statusLine", want}), installResult{statusLine: statusLineAdded}, nil
+}
+
+// applyInstall devolve o settings com o hook em todos os fleetEvents e o
+// statusLine do claude-fleet (salvo um statusLine alheio). Quando nada
+// precisou mudar, out é o próprio data.
+func applyInstall(data []byte, command, statusCommand string) (out []byte, res installResult, err error) {
 	top, idx, events, err := hooksSection(data)
 	if err != nil {
-		return nil, false, err
+		return nil, installResult{}, err
 	}
 	want, err := marshalIndent(fleetGroup{Hooks: []fleetHook{{Type: "command", Command: command, Timeout: hookTimeout}}}, "      ")
 	if err != nil {
-		return nil, false, err
+		return nil, installResult{}, err
 	}
+	changed := false
 
 	pos := make(map[string]int, len(events))
 	for i, m := range events {
@@ -462,7 +574,7 @@ func applyInstall(data []byte, command string) (out []byte, changed bool, err er
 		}
 		var groups []json.RawMessage
 		if err := json.Unmarshal(events[i].raw, &groups); err != nil {
-			return nil, false, fmt.Errorf(`"hooks.%s" não é uma lista de grupos`, ev)
+			return nil, installResult{}, fmt.Errorf(`"hooks.%s" não é uma lista de grupos`, ev)
 		}
 		var mine []int
 		for j, g := range groups {
@@ -494,25 +606,40 @@ func applyInstall(data []byte, command string) (out []byte, changed bool, err er
 		events[i].raw = renderArray(next, "    ")
 		changed = true
 	}
-	if !changed {
-		return data, false, nil
+	if changed {
+		hooksRaw := renderObject(events, "  ")
+		if idx >= 0 {
+			top[idx].raw = hooksRaw
+		} else {
+			top = append(top, member{"hooks", hooksRaw})
+		}
 	}
-	hooksRaw := renderObject(events, "  ")
-	if idx >= 0 {
-		top[idx].raw = hooksRaw
-	} else {
-		top = append(top, member{"hooks", hooksRaw})
+	top, res, err = applyStatusLine(top, statusCommand)
+	if err != nil {
+		return nil, installResult{}, err
 	}
-	return append(renderObject(top, ""), '\n'), true, nil
+	res.hooks = changed
+	if !res.changed() {
+		return data, res, nil
+	}
+	return append(renderObject(top, ""), '\n'), res, nil
 }
 
-// applyUninstall remove os grupos do claude-fleet de qualquer evento.
-// removed lista os comandos removidos, sem repetição.
-func applyUninstall(data []byte) (out []byte, removed []string, err error) {
+// uninstallResult resume o que applyUninstall removeu.
+type uninstallResult struct {
+	hooks      bool     // algum grupo do claude-fleet saiu de hooks
+	statusLine bool     // o statusLine do claude-fleet saiu
+	removed    []string // comandos removidos, sem repetição
+}
+
+// applyUninstall remove os grupos do claude-fleet de qualquer evento e o
+// statusLine, se for do claude-fleet. Quando nada sai, out é o próprio data.
+func applyUninstall(data []byte) (out []byte, res uninstallResult, err error) {
 	top, idx, events, err := hooksSection(data)
 	if err != nil {
-		return nil, nil, err
+		return nil, uninstallResult{}, err
 	}
+	var removed []string
 	seen := map[string]bool{}
 	kept := events[:0:0]
 	for _, m := range events {
@@ -543,11 +670,26 @@ func applyUninstall(data []byte) (out []byte, removed []string, err error) {
 			kept = append(kept, member{m.key, renderArray(next, "    ")})
 		}
 	}
-	if len(removed) == 0 {
-		return data, nil, nil
+	res.hooks = len(removed) > 0
+	if res.hooks {
+		top[idx].raw = renderObject(kept, "  ")
 	}
-	top[idx].raw = renderObject(kept, "  ")
-	return append(renderObject(top, ""), '\n'), removed, nil
+	for i, m := range top {
+		if m.key == "statusLine" && isFleetStatusLine(m.raw) {
+			cmd, _ := statusLineCommand(m.raw)
+			if !seen[cmd] {
+				removed = append(removed, cmd)
+			}
+			top = append(top[:i:i], top[i+1:]...)
+			res.statusLine = true
+			break
+		}
+	}
+	res.removed = removed
+	if !res.hooks && !res.statusLine {
+		return data, res, nil
+	}
+	return append(renderObject(top, ""), '\n'), res, nil
 }
 
 // renderObject monta um objeto com as chaves uma por linha; ind é a

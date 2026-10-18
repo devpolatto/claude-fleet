@@ -1,0 +1,28 @@
+{
+  "hook_event_name": "Status",
+  "session_id": "00000000-0000-4000-8000-000000000003",
+  "transcript_path": "/home/usuario/.claude/projects/-home-usuario-projeto/ghi.jsonl",
+  "cwd": "/home/usuario/projeto",
+  "model": {
+    "id": "claude-opus-4-1",
+    "display_name": "Opus"
+  },
+  "workspace": {
+    "current_dir": "/home/usuario/projeto",
+    "project_dir": "/home/usuario/projeto"
+  },
+  "version": "2.1.0",
+  "cost": {
+    "total_cost_usd": 1.07,
+    "total_duration_ms": 640000,
+    "total_api_duration_ms": 98000,
+    "total_lines_added": 42,
+    "total_lines_removed": 7
+  },
+  "rate_limits": {
+    "seven_day": {
+      "used_percentage": 64.5,
+      "resets_at": 1792603200
+    }
+  }
+}

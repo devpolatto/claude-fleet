@@ -1,6 +1,6 @@
 # State
 
-**Last Updated:** 2026-10-17
+**Last Updated:** 2026-10-18
 **Current Work:** fleet-mvp concluído (T1–T18; M1 entregue em 2026-10-15). Painel v2 no ar como serviço systemd na tailnet. Próximo: M2
 
 ---
@@ -103,6 +103,20 @@ _Nenhum._
 **Solution:** Usar a linha `system/turn_duration` do transcript como fim de turno quando ela é posterior ao último evento.
 **Prevents:** Concluir sobre o comportamento interativo a partir de testes em `-p`.
 
+### L-003: Sessão retomada repete mensagens de outro transcript
+
+**Context:** Revisão do `uso-plano` (2026-10-18), soma de tokens das janelas de 5 h e 7 dias.
+**Problem:** A L-001 deduplica dentro de um arquivo, mas uma sessão retomada grava num JSONL novo mensagens com o mesmo `message.id` de outro (36 por conta numa semana, ~0,5% dos tokens).
+**Solution:** Quem soma vários transcripts deduplica por `message.id` no conjunto (`transcript.File.CallsSince`); mensagem sem id não é deduplicada.
+**Prevents:** Tokens e custo inflados em somas por conta ou por período (vale também para o futuro histórico em SQLite).
+
+### L-004: Qualquer `statusLine` esconde as dicas do rodapé do Claude Code
+
+**Context:** Doc oficial do status line, conferida no design do `uso-plano` (2026-10-18).
+**Problem:** Com um `statusLine` configurado, o Claude Code deixa de mostrar `esc to interrupt`, `? for shortcuts` e afins, mesmo que o script não imprima nada.
+**Solution:** O `install-hooks` avisa na mensagem final; o README documenta; contas não declaradas no serviço não recebem o `statusLine`.
+**Prevents:** Surpresa de quem instala o Fleet e perde as dicas sem saber por quê.
+
 ---
 
 ## Resolved Blockers
@@ -130,7 +144,7 @@ _Nenhum._
 - [x] Alerta no navegador/vibração quando um agente fica aguardando permissão — avaliar sobreposição com o hook `telegram-notify` existente — Captured during: fleet-mvp/spec — feito: som em `features/alerta-sonoro` e push em `features/notificacao-push` (2026-10-16); o `telegram-notify` fica (aprova à distância)
 - [ ] Histórico em SQLite e custo por dia/projeto — Captured during: fleet-mvp/spec
 - [ ] Detectar sessão morta sem `SessionEnd` (PID ou inatividade do transcript) — Captured during: fleet-mvp/design
-- [ ] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16), design pendente
+- [x] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16) — feito, UAT em `features/uso-plano/uat.md` (2026-10-18)
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec — especificada em `features/pwa` (2026-10-16)
 - [x] Custo e tokens por modelo e acerto de cache no pop-up — Captured during: issue #3 (2026-10-16) — feito em `features/custo-por-modelo` (2026-10-17)
 - [x] Várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta): ver as sessões de todas e o uso de cada plano — Captured during: conversa de 2026-10-18 — spec, design e tasks aprovados em `features/multi-conta` (2026-10-18, AD-009); feito, UAT em `features/multi-conta/uat.md` (2026-10-18)

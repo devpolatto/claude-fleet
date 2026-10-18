@@ -11,10 +11,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/account"
+	"github.com/devpolatto/claude-fleet/internal/ratelimit"
 	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
@@ -303,5 +306,87 @@ func TestBootstrapPorConta(t *testing.T) {
 	}
 	if n := len(st.Snapshot()); n != 2 {
 		t.Errorf("%d sessões, queria 2", n)
+	}
+}
+
+func TestLoadUsageContasEPersistencia(t *testing.T) {
+	five := &ratelimit.Window{UsedPercentage: 37, ResetsAt: 1792171200}
+	tests := []struct {
+		name     string
+		accounts []string
+		stateDir func(t *testing.T) string
+		apply    string
+		want     []string
+		persist  bool
+	}{
+		{"sem -account vira a conta implícita", nil, func(t *testing.T) string { return t.TempDir() }, "", []string{""}, true},
+		{"uma entrada por conta declarada", []string{"pessoal=/c/p", "trabalho=/c/t"}, func(t *testing.T) string { return t.TempDir() }, "trabalho", []string{"pessoal", "trabalho"}, true},
+		{"state-dir que ainda não existe é criado", nil, func(t *testing.T) string { return filepath.Join(t.TempDir(), "novo") }, "", []string{""}, true},
+		{"sem state-dir fica só em memória", nil, func(*testing.T) string { return "" }, "", []string{""}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config{StateDir: tt.stateDir(t)}
+			if tt.accounts != nil {
+				l, err := account.Parse(tt.accounts, "/home/x")
+				if err != nil {
+					t.Fatal(err)
+				}
+				cfg.Accounts = l
+			}
+			u := loadUsage(cfg)
+			var got []string
+			for _, e := range u.Snapshot() {
+				got = append(got, e.Account)
+			}
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Fatalf("contas = %q, quer %q", got, tt.want)
+			}
+			u.Apply(tt.apply, ratelimit.Reading{FiveHour: five})
+			if !tt.persist {
+				return
+			}
+			again := loadUsage(cfg)
+			for _, e := range again.Snapshot() {
+				if e.Account == tt.apply && (e.FiveHour == nil || *e.FiveHour != *five) {
+					t.Fatalf("depois de recarregar, %q = %+v", e.Account, e.FiveHour)
+				}
+			}
+			info, err := os.Stat(filepath.Join(cfg.StateDir, usageFile))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != 0o600 {
+				t.Fatalf("permissão = %o, quer 600", info.Mode().Perm())
+			}
+		})
+	}
+}
+
+func TestProjectDirsPorConta(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []string
+		projects string
+		want     map[string]string
+	}{
+		{"sem -account usa o -projects na conta implícita", nil, "/p/projects", map[string]string{"": "/p/projects"}},
+		{"com -account só as contas declaradas", []string{"pessoal=/c/p", "trabalho=/c/t"}, "",
+			map[string]string{"pessoal": "/c/p/projects", "trabalho": "/c/t/projects"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config{Projects: tt.projects}
+			if tt.accounts != nil {
+				l, err := account.Parse(tt.accounts, "/home/x")
+				if err != nil {
+					t.Fatal(err)
+				}
+				cfg.Accounts = l
+			}
+			if got := projectDirs(cfg); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("projectDirs = %v, queria %v", got, tt.want)
+			}
+		})
 	}
 }

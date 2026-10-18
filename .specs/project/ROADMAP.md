@@ -34,7 +34,8 @@
 **Instalação como PWA** (ícone na tela inicial do celular e no GNOME; exige HTTPS via certificado do Tailscale) - DONE: manifesto, ícones, HTTPS e service worker. Spec em `features/pwa`
 **Ocultar sessão da grade** (botão no pop-up; por nome, salvo no navegador; volta a aparecer quando aguarda permissão) - DONE. Spec em `features/ocultar-sessao`
 
-**Várias contas do Claude na mesma máquina** (`CLAUDE_CONFIG_DIR` separado por assinatura): hook em cada conta, conta no pop-up, filtro por conta e uso do plano por conta - DONE (2026-10-18; AD-009, UAT em `features/multi-conta/uat.md`; o uso do plano por conta entra com o `uso-plano`). Spec em `features/multi-conta`
+**Várias contas do Claude na mesma máquina** (`CLAUDE_CONFIG_DIR` separado por assinatura): hook em cada conta, conta no pop-up, filtro por conta e uso do plano por conta - DONE (2026-10-18; AD-009, UAT em `features/multi-conta/uat.md`; o uso do plano por conta entrou com o `uso-plano`). Spec em `features/multi-conta`
+**Uso do plano numa segunda tela** (janela de 5 h e semana, como o `/usage`, por conta, trocada com um dedo; tokens e custo das janelas) - DONE (2026-10-18; AD-007, UAT em `features/uso-plano/uat.md`). Spec em `features/uso-plano`
 
 ---
 

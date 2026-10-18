@@ -1,6 +1,6 @@
 # uso-plano Specification
 
-> Status: **spec aprovada** em 2026-10-16 (fonte pelo status line, AD-007; troca de tela com um dedo). Próximo passo: design.
+> Status: **spec aprovada** em 2026-10-16 (fonte pelo status line, AD-007; troca de tela com um dedo). Feito e validado em 2026-10-18 (UAT em `uat.md`).
 > Emendada em 2026-10-18 pelo `multi-conta` (CONTA-07, AD-009): o uso é guardado e mostrado **por conta** do Claude Code.
 
 ## Problem Statement
@@ -9,10 +9,10 @@ O painel mostra tokens e custo estimado por sessão, mas não o que mais importa
 
 ## Goals
 
-- [ ] Do painel aberto, chegar ao percentual usado da janela de 5 h e do semanal em 1 gesto, com os mesmos números do `/usage` (diferença ≤ 1 ponto percentual quando o dado é recente).
-- [ ] Ver quando cada janela reinicia (hora local e contagem regressiva).
-- [ ] Nenhuma credencial lida pelo servidor e nenhum endpoint não documentado (AD-007).
-- [ ] O binário segue sem dependências externas e o hook segue dentro das regras da AD-006.
+- [x] Do painel aberto, chegar ao percentual usado da janela de 5 h e do semanal em 1 gesto, com os mesmos números do `/usage` (diferença ≤ 1 ponto percentual quando o dado é recente).
+- [x] Ver quando cada janela reinicia (hora local e contagem regressiva).
+- [x] Nenhuma credencial lida pelo servidor e nenhum endpoint não documentado (AD-007).
+- [x] O binário segue sem dependências externas e o hook segue dentro das regras da AD-006.
 
 ## Out of Scope
 
@@ -115,12 +115,12 @@ O Claude Code entrega ao comando de **status line** um JSON que inclui `rate_lim
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| USO-01 | P1: Script de status line repassa ao loopback, regras do hook | Specify | Pending |
-| USO-02 | P1: Lista branca só com `rate_limits` | Specify | Pending |
-| USO-03 | P1: `/statusline` só do loopback | Specify | Pending |
-| USO-04 | P1: Valor novo por SSE e persistido no disco | Specify | Pending |
-| USO-05 | P1: `install-hooks`/`uninstall-hooks` cuidam do `statusLine` | Specify | Pending |
-| USO-06 | P1: Segunda tela por arrasto horizontal, pontinhos e setas | Specify | Pending |
-| USO-07 | P1: Medidores com percentual, reset, contagem e "atualizado há" | Specify | Pending |
-| USO-08 | P1: Tokens de cor, `prefers-reduced-motion`, vertical e horizontal | Specify | Pending |
-| USO-09 | P2: Tokens e custo das janelas pelos transcripts | Specify | Pending |
+| USO-01 | P1: Script de status line repassa ao loopback, regras do hook | Verified | Verified |
+| USO-02 | P1: Lista branca só com `rate_limits` | Verified | Verified |
+| USO-03 | P1: `/statusline` só do loopback | Verified | Verified |
+| USO-04 | P1: Valor novo por SSE e persistido no disco | Verified | Verified |
+| USO-05 | P1: `install-hooks`/`uninstall-hooks` cuidam do `statusLine` | Verified | Verified |
+| USO-06 | P1: Segunda tela por arrasto horizontal, pontinhos e setas | Verified | Verified |
+| USO-07 | P1: Medidores com percentual, reset, contagem e "atualizado há" | Verified | Verified |
+| USO-08 | P1: Tokens de cor, `prefers-reduced-motion`, vertical e horizontal | Verified | Verified |
+| USO-09 | P2: Tokens e custo das janelas pelos transcripts | Verified | Verified |

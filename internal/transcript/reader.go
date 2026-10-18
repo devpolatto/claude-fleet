@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -57,10 +58,12 @@ type ModelKey struct {
 	Fast  bool
 }
 
-// call é a contribuição de uma mensagem (um message.id) aos totais.
+// call é a contribuição de uma mensagem (um message.id) aos totais. ts é o
+// timestamp da última linha lida com esse id; zero se ela não trazia um válido.
 type call struct {
 	key    ModelKey
 	tokens Tokens
+	ts     time.Time
 }
 
 // File acompanha um transcript JSONL. O valor zero não é útil; use New.
@@ -186,8 +189,10 @@ func (f *File) processLocked(raw []byte) {
 		f.parseErrors++
 		return
 	}
+	var ts time.Time
 	if l.Timestamp != "" {
-		if ts, err := time.Parse(time.RFC3339Nano, l.Timestamp); err == nil {
+		if t, err := time.Parse(time.RFC3339Nano, l.Timestamp); err == nil {
+			ts = t
 			if f.first.IsZero() || ts.Before(f.first) {
 				f.first = ts
 			}
@@ -218,7 +223,7 @@ func (f *File) processLocked(raw []byte) {
 	} else {
 		tok.Cache5m = u.CacheCreationInputTokens
 	}
-	c := call{key: ModelKey{Model: l.Message.Model, Fast: u.Speed == "fast"}, tokens: tok}
+	c := call{key: ModelKey{Model: l.Message.Model, Fast: u.Speed == "fast"}, tokens: tok, ts: ts}
 
 	id := l.Message.ID
 	if id == "" {
@@ -256,6 +261,54 @@ func (f *File) ByModel() map[ModelKey]Tokens {
 		m[k] = v
 	}
 	return m
+}
+
+// SumSince soma, por modelo e velocidade, as mensagens deduplicadas cujo
+// timestamp é igual ou posterior a t. Uma mensagem repetida em várias linhas
+// conta uma vez, com o timestamp da última linha (L-001). Mensagem sem
+// timestamp válido não tem como ser posta na janela: só entra quando t é zero,
+// caso em que todas as mensagens entram (como em ByModel).
+func (f *File) SumSince(t time.Time) map[ModelKey]Tokens {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	m := make(map[ModelKey]Tokens)
+	for _, c := range f.calls {
+		if !t.IsZero() && (c.ts.IsZero() || c.ts.Before(t)) {
+			continue
+		}
+		m[c.key] = m[c.key].Add(c.tokens)
+	}
+	return m
+}
+
+// Call é uma mensagem deduplicada, para quem precisa deduplicar entre
+// arquivos (ver CallsSince).
+type Call struct {
+	ID     string // message.id; "" quando a linha não trazia um
+	Key    ModelKey
+	Tokens Tokens
+	TS     time.Time
+}
+
+// CallsSince devolve as mensagens deduplicadas com timestamp igual ou
+// posterior a t, com o mesmo critério de SumSince. Uma sessão retomada pode
+// repetir mensagens de outro arquivo com o mesmo message.id; quem soma
+// vários arquivos usa o ID para contá-las uma vez. Mensagem sem id vem com
+// ID vazio e não deve ser deduplicada.
+func (f *File) CallsSince(t time.Time) []Call {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]Call, 0, len(f.calls))
+	for id, c := range f.calls {
+		if !t.IsZero() && (c.ts.IsZero() || c.ts.Before(t)) {
+			continue
+		}
+		if strings.HasPrefix(id, "\x00anon-") {
+			id = ""
+		}
+		out = append(out, Call{ID: id, Key: c.key, Tokens: c.tokens, TS: c.ts})
+	}
+	return out
 }
 
 // Messages devolve quantas mensagens distintas (por message.id) foram contadas.

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/ratelimit"
 	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
@@ -27,6 +28,24 @@ type Source interface {
 	Snapshot() []store.SessionView
 }
 
+// UsageSource é o que o Hub precisa do uso do plano (ratelimit.Tracker): um
+// canal de sinais de mudança, com o mesmo contrato do Source, e o último uso
+// de cada conta.
+type UsageSource interface {
+	Subscribe() <-chan struct{}
+	Snapshot() []ratelimit.Entry
+}
+
+// HubOption ajusta um Hub em NewHub.
+type HubOption func(*Hub)
+
+// WithUsage faz o Hub mandar também o evento "uso": ao conectar, logo depois
+// do snapshot, e a cada mudança coalescida de u. Mudança de uso não reenvia o
+// snapshot, e mudança de sessão não reenvia o uso.
+func WithUsage(u UsageSource) HubOption {
+	return func(h *Hub) { h.usage = u }
+}
+
 // Hub atende GET /stream com Server-Sent Events. Uma única goroutine (Run)
 // assina a Source, agrupa as mudanças numa janela de Coalesce e envia o
 // snapshot a todos os clientes. Cada cliente tem um canal com buffer 1 e o
@@ -38,66 +57,107 @@ type Hub struct {
 	// Heartbeat é o intervalo do comentário ": ping" que mantém a conexão viva.
 	Heartbeat time.Duration
 
-	src  Source
-	done chan struct{} // fechado quando Run termina
+	src   Source
+	usage UsageSource   // nil: sem evento "uso"
+	done  chan struct{} // fechado quando Run termina
 
 	mu      sync.Mutex
-	clients map[chan []byte]struct{}
+	clients map[*sseClient]struct{}
+}
+
+// sseClient é uma conexão ao /stream. Cada tipo de evento tem o seu canal com
+// buffer 1, para um "uso" nunca tomar o lugar de um "snapshot" ainda não lido
+// (nem o contrário).
+type sseClient struct {
+	snapshot chan []byte
+	uso      chan []byte
 }
 
 // NewHub cria um Hub com os intervalos padrão. Os campos Coalesce e
 // Heartbeat podem ser ajustados antes de Run e de servir requisições.
-func NewHub(src Source) *Hub {
-	return &Hub{
+func NewHub(src Source, opts ...HubOption) *Hub {
+	h := &Hub{
 		Coalesce:  DefaultCoalesce,
 		Heartbeat: DefaultHeartbeat,
 		src:       src,
 		done:      make(chan struct{}),
-		clients:   make(map[chan []byte]struct{}),
+		clients:   make(map[*sseClient]struct{}),
+	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
+}
+
+// pendingSend é um envio agendado na janela de Coalesce. O canal C fica nil
+// enquanto não há envio pendente, o que desliga o case no select.
+type pendingSend struct {
+	timer *time.Timer
+	C     <-chan time.Time
+}
+
+// schedule agenda o envio, se ainda não houver um pendente: o que já está
+// agendado levará o estado mais novo.
+func (p *pendingSend) schedule(d time.Duration) {
+	if p.C != nil {
+		return
+	}
+	if p.timer == nil {
+		p.timer = time.NewTimer(d)
+	} else {
+		p.timer.Reset(d)
+	}
+	p.C = p.timer.C
+}
+
+func (p *pendingSend) fired() { p.C = nil }
+
+func (p *pendingSend) stop() {
+	if p.timer != nil {
+		p.timer.Stop()
 	}
 }
 
-// Run assina a Source e distribui snapshots até ctx ser cancelado. Ao sair,
+// Run assina a Source (e o UsageSource, se houver) e distribui snapshots e
+// uso, cada um com a sua janela de Coalesce, até ctx ser cancelado. Ao sair,
 // encerra todas as conexões abertas e passa a recusar novas com 503. Deve
 // ser chamado uma única vez.
 func (h *Hub) Run(ctx context.Context) {
 	defer close(h.done)
 
 	changes := h.src.Subscribe()
-	var (
-		timer   *time.Timer
-		timerC  <-chan time.Time // nil enquanto não há envio pendente
-		pending bool
-	)
-	defer func() {
-		if timer != nil {
-			timer.Stop()
-		}
-	}()
+	var usageChanges <-chan struct{} // nil sem WithUsage: o case nunca dispara
+	if h.usage != nil {
+		usageChanges = h.usage.Subscribe()
+	}
+	var snap, uso pendingSend
+	defer snap.stop()
+	defer uso.stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-changes:
-			if pending {
-				continue // já há envio agendado; ele levará o estado mais novo
-			}
-			pending = true
-			if timer == nil {
-				timer = time.NewTimer(h.Coalesce)
-			} else {
-				timer.Reset(h.Coalesce)
-			}
-			timerC = timer.C
-		case <-timerC:
-			pending, timerC = false, nil
+			snap.schedule(h.Coalesce)
+		case <-usageChanges:
+			uso.schedule(h.Coalesce)
+		case <-snap.C:
+			snap.fired()
 			msg, err := h.snapshotEvent()
 			if err != nil {
 				log.Printf("sse: falha ao serializar snapshot: %v", err)
 				continue
 			}
-			h.broadcast(msg)
+			h.broadcast(msg, func(c *sseClient) chan []byte { return c.snapshot })
+		case <-uso.C:
+			uso.fired()
+			msg, err := h.usoEvent()
+			if err != nil {
+				log.Printf("sse: falha ao serializar uso: %v", err)
+				continue
+			}
+			h.broadcast(msg, func(c *sseClient) chan []byte { return c.uso })
 		}
 	}
 }
@@ -109,8 +169,8 @@ func (h *Hub) Clients() int {
 	return len(h.clients)
 }
 
-// ServeHTTP atende GET /stream: envia o snapshot ao conectar, um novo a cada
-// mudança coalescida e um heartbeat periódico, até o cliente desconectar ou
+// ServeHTTP atende GET /stream: envia o snapshot (e, com WithUsage, o uso)
+// ao conectar, um novo a cada mudança coalescida e um heartbeat periódico, até o cliente desconectar ou
 // o Hub parar.
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -132,13 +192,13 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Registra antes de ler o snapshot inicial: uma mudança que chegue entre
 	// as duas coisas gera um envio extra, nunca um envio perdido.
-	ch := make(chan []byte, 1)
+	cl := &sseClient{snapshot: make(chan []byte, 1), uso: make(chan []byte, 1)}
 	h.mu.Lock()
-	h.clients[ch] = struct{}{}
+	h.clients[cl] = struct{}{}
 	h.mu.Unlock()
 	defer func() {
 		h.mu.Lock()
-		delete(h.clients, ch)
+		delete(h.clients, cl)
 		h.mu.Unlock()
 	}()
 
@@ -156,6 +216,16 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(msg); err != nil {
 		return
 	}
+	if h.usage != nil {
+		msg, err := h.usoEvent()
+		if err != nil {
+			log.Printf("sse: falha ao serializar uso: %v", err)
+			return
+		}
+		if _, err := w.Write(msg); err != nil {
+			return
+		}
+	}
 	flusher.Flush()
 
 	ping := time.NewTicker(h.Heartbeat)
@@ -167,7 +237,11 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-h.done:
 			return
-		case msg := <-ch:
+		case msg := <-cl.snapshot:
+			if _, err := w.Write(msg); err != nil {
+				return
+			}
+		case msg := <-cl.uso:
 			if _, err := w.Write(msg); err != nil {
 				return
 			}
@@ -180,19 +254,21 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// broadcast entrega msg a todos os clientes sem bloquear. Se o buffer de um
-// cliente está cheio, o snapshot antigo é descartado e trocado pelo novo.
-func (h *Hub) broadcast(msg []byte) {
+// broadcast entrega msg a todos os clientes, no canal que pick escolhe, sem
+// bloquear. Se o buffer está cheio, a mensagem antiga daquele tipo é
+// descartada e trocada pela nova.
+func (h *Hub) broadcast(msg []byte, pick func(*sseClient) chan []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for ch := range h.clients {
+	for cl := range h.clients {
+		ch := pick(cl)
 		select {
 		case ch <- msg:
 			continue
 		default:
 		}
 		select {
-		case <-ch: // descarta o snapshot que o cliente ainda não leu
+		case <-ch: // descarta a mensagem que o cliente ainda não leu
 		default:
 		}
 		select {
@@ -214,4 +290,18 @@ func (h *Hub) snapshotEvent() ([]byte, error) {
 		return nil, err
 	}
 	return fmt.Appendf(nil, "event: snapshot\ndata: %s\n\n", data), nil
+}
+
+// usoEvent monta o evento SSE "uso" com o último uso de cada conta em JSON.
+// Lista vazia vira "[]", nunca "null".
+func (h *Hub) usoEvent() ([]byte, error) {
+	entries := h.usage.Snapshot()
+	if entries == nil {
+		entries = []ratelimit.Entry{}
+	}
+	data, err := json.Marshal(entries)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Appendf(nil, "event: uso\ndata: %s\n\n", data), nil
 }

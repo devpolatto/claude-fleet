@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Teste de integração do hook (gate da T12): `bash hook/test.sh`.
+# Teste de integração dos scripts (gate da T12): `bash hook/test.sh`.
 #
 # Sobe o servidor real numa porta livre e verifica o hook em seis casos:
 #   1. servidor ligado: o evento chega e a sessão fica "ativo";
@@ -10,11 +10,23 @@
 #   6. duas contas (CLAUDE_CONFIG_DIR): install-hooks em cada uma, servidor
 #      com -account e a conta certa em cada sessão, mais "outra" para um
 #      diretório não declarado.
-# Nos casos 1 a 5: exit 0 e stdout/stderr vazios.
+# E o fleet-statusline.sh em mais quatro:
+#   7. servidor desligado: termina em ≤ 1,1 s;
+#   8. servidor que aceita e nunca responde: termina em ≤ 1,1 s;
+#   9. porta inválida em CLAUDE_FLEET_PORT;
+#  10. stdin vazio.
+# E o uso do plano de ponta a ponta:
+#  11. duas contas: install-hooks em cada uma registra o statusLine, o script
+#      instalado (lido do settings.json) leva o JSON do status line de cada
+#      conta ao servidor, /api/uso mostra o percentual certo por conta, um
+#      transcript fora das contas não aparece, e o uso-plano.json tem modo
+#      600 e nenhum caminho, session_id nem cwd.
+# Nos casos 1 a 5 e 7 a 11: exit 0 e stdout/stderr vazios.
 set -u
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 hook="$repo/hook/fleet-hook.sh"
+statusline="$repo/hook/fleet-statusline.sh"
 limit_ms=1100
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/fleet-hook-test.XXXXXX")
@@ -78,6 +90,11 @@ check_fast() {
 		fail "$1" "levou ${elapsed} ms (limite ${limit_ms} ms)"
 		return 1
 	fi
+}
+
+# payload_sl: JSON no formato do status line, com o uso do plano.
+payload_sl() {
+	printf '{"session_id":"%s","transcript_path":"%s/x.jsonl","model":{"id":"claude-opus-4-1"},"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":1760000000},"seven_day":{"used_percentage":7,"resets_at":1760500000}}}' "$1" "$tmp"
 }
 
 payload() {
@@ -255,6 +272,141 @@ if [ -n "$installed" ]; then
 	wait "$server_pid" 2>/dev/null
 	server_pid=""
 fi
+
+# Casos 7 a 10: fleet-statusline.sh, com o mesmo roteiro dos casos 2 a 5. A
+# porta do caso 1 segue sem ninguém escutando (o servidor do caso 6 usa outra).
+# O caso "servidor ligado" do statusline é o 11, com duas contas.
+case7="7 statusline: servidor desligado"
+run_hook "$port" "$(payload_sl "$sid")" "$statusline"
+check_quiet "$case7" && check_fast "$case7" && pass "$case7 (${elapsed} ms)"
+
+case8="8 statusline: servidor mudo"
+if [ -z "$hole_port" ]; then
+	echo "AVISO caso 8 pulado: não foi possível subir o listener mudo"
+else
+	run_hook "$hole_port" "$(payload_sl "$sid")" "$statusline"
+	check_quiet "$case8" && check_fast "$case8" && pass "$case8 (${elapsed} ms)"
+fi
+
+case9="9 statusline: porta inválida"
+run_hook "abc" "$(payload_sl "$sid")" "$statusline"
+check_quiet "$case9" && check_fast "$case9" && pass "$case9 (${elapsed} ms)"
+
+case10="10 statusline: stdin vazio"
+run_hook "${hole_port:-$port}" "" "$statusline"
+check_quiet "$case10" && check_fast "$case10" && pass "$case10 (${elapsed} ms)"
+
+# Caso 11: uso do plano de duas contas pelo status line instalado. HOME e as
+# contas ficam no temporário, como no caso 6.
+case11="11 uso do plano de duas contas"
+home11="$tmp/home11"
+state11="$tmp/state11"
+mkdir -p "$home11"
+ok11=1
+
+# payload_sl11 <session_id> <transcript_path> <5h> <7d>: status line com cwd.
+payload_sl11() {
+	printf '{"session_id":"%s","transcript_path":"%s","cwd":"%s","model":{"id":"claude-opus-4-1"},"rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":1760000000},"seven_day":{"used_percentage":%s,"resets_at":1760500000}}}' "$1" "$2" "$tmp/proj11" "$3" "$4"
+}
+
+# statusline_cmd <settings.json>: o statusLine.command registrado.
+statusline_cmd() {
+	python3 -c 'import json, sys
+s = json.load(open(sys.argv[1]))
+print((s.get("statusLine") or {}).get("command", ""))' "$1" 2>/dev/null
+}
+
+for c in pessoal trabalho; do
+	dir="$home11/.claude-$c"
+	if ! HOME="$home11" CLAUDE_CONFIG_DIR="$dir" "$tmp/claude-fleet" install-hooks -yes >"$tmp/install11-$c.log" 2>&1; then
+		fail "$case11" "install-hooks na conta $c falhou: $(cat "$tmp/install11-$c.log")"
+		ok11=""
+		continue
+	fi
+	cmd=$(statusline_cmd "$dir/settings.json")
+	if [ "$cmd" != "$dir/claude-fleet/fleet-statusline.sh" ]; then
+		fail "$case11" "statusLine.command da conta $c é \"$cmd\", esperado $dir/claude-fleet/fleet-statusline.sh"
+		ok11=""
+	elif [ ! -x "$cmd" ]; then
+		fail "$case11" "script do statusLine da conta $c não é executável: $cmd"
+		ok11=""
+	fi
+done
+
+if [ -n "$ok11" ]; then
+	port11=$("$tmp/helper-bin" freeport)
+	"$tmp/claude-fleet" -addr "127.0.0.1:$port11" -state-dir "$state11" \
+		-account "pessoal=$home11/.claude-pessoal" -account "trabalho=$home11/.claude-trabalho" \
+		>"$tmp/server11.log" 2>&1 &
+	server_pid=$!
+	if wait_ready "$port11" "$server_pid" "$tmp/server11.log"; then
+		# conta  5h  7d: percentuais distintos por conta; "fora" usa 99/98, e
+		# o Python abaixo garante que eles não caíram em conta nenhuma.
+		for spec in "pessoal 42 7" "trabalho 63.5 21" "fora 99 98"; do
+			set -- $spec
+			c=$1
+			sid11="sl-test-$c-$$"
+			if [ "$c" = fora ]; then
+				tp="$tmp/fora/projects/-tmp-proj11/$sid11.jsonl"
+				script=$(statusline_cmd "$home11/.claude-pessoal/settings.json")
+			else
+				tp="$home11/.claude-$c/projects/-tmp-proj11/$sid11.jsonl"
+				script=$(statusline_cmd "$home11/.claude-$c/settings.json")
+			fi
+			run_hook "$port11" "$(payload_sl11 "$sid11" "$tp" "$2" "$3")" "$script"
+			check_quiet "$case11 ($c)" || ok11=""
+		done
+
+		body=$(curl -q -s --noproxy '*' "http://127.0.0.1:$port11/api/uso")
+		if ! problem=$(printf '%s' "$body" | python3 -c '
+import json, sys
+want = {"pessoal": (42, 7), "trabalho": (63.5, 21)}
+got = {e.get("account"): e for e in json.load(sys.stdin)}
+for name, (h5, d7) in want.items():
+    e = got.get(name)
+    if e is None:
+        sys.exit("conta %s ausente" % name)
+    pair = ((e.get("five_hour") or {}).get("used_percentage"),
+            (e.get("seven_day") or {}).get("used_percentage"))
+    if pair != (h5, d7):
+        sys.exit("conta %s com %s, esperado %s" % (name, pair, (h5, d7)))
+for name, e in got.items():
+    if name not in want and (e.get("five_hour") or e.get("seven_day")):
+        sys.exit("conta %r recebeu o envio de fora das contas" % name)
+' 2>&1); then
+			fail "$case11" "/api/uso: $problem; resposta: $body"
+			ok11=""
+		elif printf '%s' "$body" | grep -q 'transcript_path\|session_id\|"cwd"\|sl-test-'; then
+			fail "$case11" "/api/uso com dado da sessão: $body"
+			ok11=""
+		fi
+
+		f11="$state11/uso-plano.json"
+		if [ ! -f "$f11" ]; then
+			fail "$case11" "$f11 não existe"
+			ok11=""
+		else
+			mode=$(stat -c %a "$f11" 2>/dev/null || stat -f %Lp "$f11")
+			if [ "$mode" != 600 ]; then
+				fail "$case11" "uso-plano.json com modo $mode (esperado 600)"
+				ok11=""
+			fi
+			for bad in transcript_path session_id '"cwd"' "$home11" "$tmp/fora" "$tmp/proj11" sl-test-; do
+				if grep -qF -- "$bad" "$f11"; then
+					fail "$case11" "uso-plano.json contém $bad"
+					ok11=""
+				fi
+			done
+		fi
+	else
+		failures=$((failures + 1))
+		ok11=""
+	fi
+	kill "$server_pid" 2>/dev/null
+	wait "$server_pid" 2>/dev/null
+	server_pid=""
+fi
+[ -n "$ok11" ] && pass "$case11 (pessoal 42/7, trabalho 63.5/21, fora descartado)"
 
 if [ "$failures" -ne 0 ]; then
 	echo "$failures caso(s) falharam"

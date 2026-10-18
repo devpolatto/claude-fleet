@@ -42,6 +42,15 @@
     --conta-4-texto: #8ee6f0;
     --conta-outra: var(--surface-2);
     --conta-outra-texto: var(--desconhecido);
+    /* Troca entre a tela de sessões e a de uso do plano. */
+    --tela-transicao: .25s;
+    /* Medidores do uso do plano: trilho, e o preenchimento muda de tom em 80% e 95%.
+       --uso-critico mede 6,4:1 sobre --surface (AA para texto). */
+    --uso-trilho: var(--border);
+    --uso-ok: var(--ativo);
+    --uso-alerta: var(--aguardando);
+    --uso-critico: #f87171;
+    --uso-barra-h: 10px;
   }
 
   * { box-sizing: border-box; }
@@ -49,6 +58,10 @@
   html, body { margin: 0; }
 
   body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
     background: var(--bg);
     color: var(--text);
     font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -207,8 +220,166 @@
   .filtro-conta.filtrando { background: var(--conta-bg); box-shadow: none; color: var(--conta-fg); }
   .filtro-conta.filtrando select { color: var(--conta-fg); }
 
+  /* ---------- Duas telas: sessões e uso do plano ----------
+     As duas ocupam a mesma célula da grade e deslizam no eixo X. A tela de
+     fora fica invisível e com altura zero só depois do deslize, para não
+     esticar a rolagem da outra. touch-action: pan-y deixa a rolagem vertical
+     com o navegador; o arrasto horizontal fica com o JS. */
+  #telas {
+    flex: 1 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  .tela {
+    grid-area: 1 / 1;
+    min-width: 0;
+    transition: transform var(--tela-transicao) ease, visibility 0s;
+  }
+  #tela-uso { transform: translateX(100%); }
+  #telas[data-tela="uso"] #tela-sessoes { transform: translateX(-100%); }
+  #telas[data-tela="uso"] #tela-uso { transform: none; }
+  #telas:not([data-tela="uso"]) #tela-uso,
+  #telas[data-tela="uso"] #tela-sessoes {
+    visibility: hidden;
+    max-height: 0;
+    overflow: hidden;
+    transition: transform var(--tela-transicao) ease, visibility 0s var(--tela-transicao), max-height 0s var(--tela-transicao);
+  }
+  #telas.sem-transicao #tela-sessoes, #telas.sem-transicao #tela-uso { transition: none; }
+
+  #tela-uso h2 { font-size: 17px; margin: 0; font-weight: 700; }
+
+  /* ---------- Tela de uso: um bloco por conta, dois medidores cada ---------- */
+  #uso-contas {
+    width: 100%;
+    max-width: 1100px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 14px;
+  }
+  #uso-contas.uma { max-width: 720px; }
+  .uso-conta {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .uso-cab {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    min-width: 0;
+  }
+  .uso-cab h3 { margin: 0; font-size: 14px; font-weight: 600; min-width: 0; }
+  .uso-cab .conta {
+    display: inline-block;
+    max-width: 100%;
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: var(--conta-bg);
+    color: var(--conta-fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+  .uso-atualizado { margin-left: auto; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .uso-atualizado.velho { color: var(--muted); }
+  .uso-sem-dado { margin: 0; color: var(--muted); }
+  .uso-medidores {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+    gap: 16px 20px;
+  }
+  .medidor { --uso-cor: var(--uso-ok); min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .medidor.alerta { --uso-cor: var(--uso-alerta); }
+  .medidor.critico { --uso-cor: var(--uso-critico); }
+  .med-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .med-nome { color: var(--muted); font-size: 13px; }
+  .med-pct {
+    font-size: 30px;
+    line-height: 1;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--uso-cor);
+  }
+  .med-barra {
+    height: var(--uso-barra-h);
+    border-radius: calc(var(--uso-barra-h) / 2);
+    background: var(--uso-trilho);
+    overflow: hidden;
+  }
+  .med-cheio {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: var(--uso-cor);
+  }
+  .med-reset { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .medidor.reiniciada .med-barra { opacity: .45; }
+  .medidor.reiniciada .med-estado { font-size: 13px; color: var(--muted); text-align: right; }
+
+  /* Tokens e custo das janelas, somados dos transcripts (P2). Cache junta
+     escrita e leitura numa coluna para caber em 360 px; o detalhe vai no title. */
+  .uso-janelas { border-top: 1px solid var(--border); padding-top: 10px; min-width: 0; overflow-x: auto; }
+  .uso-janelas table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .uso-janelas th, .uso-janelas td { padding: 3px 0 3px 10px; text-align: right; white-space: nowrap; }
+  .uso-janelas th:first-child { padding-left: 0; text-align: left; }
+  .uso-janelas thead th { color: var(--muted); font-size: 11px; font-weight: 600; }
+  .uso-janelas tbody th { color: var(--muted); font-weight: 400; }
+  .uso-janelas td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .uso-janelas td.zero { color: var(--faint); }
+  .uso-janelas td.custo { color: var(--text); font-weight: 600; }
+  .uso-janelas .legenda { margin-top: 4px; }
+
+  /* ---------- Pontinhos: qual tela está aberta ---------- */
+  #pontos {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    align-self: center;
+    display: flex;
+    gap: 2px;
+    margin: 0 0 max(8px, env(safe-area-inset-bottom));
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  #pontos button {
+    width: 32px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  #pontos button::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--faint);
+    transition: width var(--tela-transicao) ease, background-color var(--tela-transicao);
+  }
+  #pontos button:hover::before { background: var(--muted); }
+  #pontos button[aria-current="true"]::before { width: 20px; background: var(--text); }
+  #pontos button:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+
   /* ---------- Grade centralizada ---------- */
-  main {
+  .tela {
     padding: 20px 16px 28px;
     display: flex;
     flex-direction: column;
@@ -689,7 +860,7 @@
   @media (min-width: 600px) {
     :root { --tile-w: 200px; }
     #grade { gap: 14px; }
-    main { padding-top: 32px; }
+    .tela { padding-top: 32px; }
     header {
       padding: 20px 32px;
       grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
@@ -727,7 +898,11 @@
      baixas no desktop. */
   @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
     header:not(.reconectando) { display: none; }
-    main { padding-top: 12px; padding-bottom: 12px; gap: 12px; }
+    .tela { padding-top: 12px; padding-bottom: 12px; gap: 12px; }
+    #pontos { margin-bottom: 4px; }
+    #tela-uso h2 { display: none; }
+    .uso-conta { padding: 12px 14px; gap: 10px; }
+    .med-pct { font-size: 24px; }
   }
 
   /* Sem animação para quem pediu menos movimento: o anel fica fixo. */
@@ -736,6 +911,7 @@
     .tile { transition: none; }
     .tile:active { transform: none; }
     header { transition: none; }
+    :root { --tela-transicao: 0s; }
   }
 </style>
 </head>
@@ -760,11 +936,21 @@
   <button type="button" id="som" aria-pressed="false" aria-label="Som dos alertas" hidden></button>
   <p id="conexao" role="status">conectando…</p>
 </header>
-<main>
-  <div id="grade" aria-live="polite"></div>
-  <p id="vazio" hidden>Nenhuma sessão no momento.</p>
-  <p class="nota">Custos estimados pelo preço de lista da API.</p>
-</main>
+<div id="telas">
+  <section id="tela-sessoes" class="tela" aria-label="Sessões">
+    <div id="grade" aria-live="polite"></div>
+    <p id="vazio" hidden>Nenhuma sessão no momento.</p>
+    <p class="nota">Custos estimados pelo preço de lista da API.</p>
+  </section>
+  <section id="tela-uso" class="tela" aria-labelledby="uso-titulo" inert>
+    <h2 id="uso-titulo">Uso do plano</h2>
+    <div id="uso-contas" class="uma"></div>
+  </section>
+</div>
+<nav id="pontos" aria-label="Telas">
+  <button type="button" data-tela="sessoes" aria-label="Sessões" aria-current="true"></button>
+  <button type="button" data-tela="uso" aria-label="Uso do plano" aria-current="false"></button>
+</nav>
 <dialog id="detalhe" aria-labelledby="det-titulo">
   <div class="det">
     <div class="alca" aria-hidden="true"></div>
@@ -1723,6 +1909,314 @@ dlg.addEventListener('close', () => {
   if (alvo) alvo.focus({ preventScroll: true });
 });
 
+// ---------- Uso do plano ----------
+// Um bloco por conta, com os medidores da janela de 5 h e da semana. Os dados
+// vêm de GET /api/uso no carregamento e do evento "uso" do SSE. Tudo vai por
+// textContent: nada do servidor entra como HTML.
+
+const usoContas = document.getElementById('uso-contas');
+const USO_ALERTA = 80;
+const USO_CRITICO = 95;
+const USO_VELHO_MS = 60 * 60 * 1000; // dado com mais de 1 h fica em --muted
+const JANELAS = [['five_hour', 'Sessão (5 h)'], ['seven_day', 'Semana']];
+const horaMin = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const diaSemana = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' });
+const diaMes = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
+
+let usoDados = null;   // null: ainda nada; senão, a última lista recebida
+let usoViaSSE = false; // o SSE ganha do fetch inicial, se chegar antes
+
+function receberUso(lista, doSSE) {
+  if (!doSSE && usoViaSSE) return;
+  if (doSSE) usoViaSSE = true;
+  usoDados = Array.isArray(lista) ? lista : [];
+  renderUso();
+}
+
+// "2 h 14 min", "3 d 4 h", "12 min", "menos de 1 min".
+function duracao(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'menos de 1 min';
+  const d = Math.floor(min / 1440), h = Math.floor(min % 1440 / 60), m = min % 60;
+  if (d > 0) return d + ' d' + (h ? ' ' + h + ' h' : '');
+  if (h > 0) return h + ' h' + (m ? ' ' + m + ' min' : '');
+  return m + ' min';
+}
+
+function atualizadoHa(ms) {
+  const min = Math.floor(Math.max(0, ms) / 60000);
+  if (min < 1) return 'atualizado agora';
+  if (min < 60) return 'atualizado há ' + min + ' min';
+  const h = Math.floor(min / 60);
+  if (h < 24) return 'atualizado há ' + h + ' h';
+  return 'atualizado há ' + Math.floor(h / 24) + ' d';
+}
+
+// "reinicia às 14:30 · em 2 h 14 min"; em outro dia, "reinicia sáb. às 14:30";
+// a uma semana ou mais, também o dia do mês, para não confundir com hoje.
+function textoReset(quando, agora) {
+  const hoje = new Date(agora);
+  let dia = '';
+  if (quando.toDateString() !== hoje.toDateString()) {
+    dia = diaSemana.format(quando) + ' ';
+    if (quando - agora >= 6 * 86400000) dia += diaMes.format(quando) + ' ';
+  }
+  return 'reinicia ' + dia + 'às ' + horaMin.format(quando) + ' · em ' + duracao(quando - agora);
+}
+
+function medidor(rotulo, janela, agora) {
+  const m = el('div', 'medidor');
+  const topo = el('div', 'med-topo');
+  const barra = el('div', 'med-barra');
+  const cheio = el('div', 'med-cheio');
+  barra.append(cheio);
+  barra.setAttribute('role', 'meter');
+  barra.setAttribute('aria-label', rotulo);
+  barra.setAttribute('aria-valuemin', '0');
+  barra.setAttribute('aria-valuemax', '100');
+  topo.append(el('span', 'med-nome', rotulo));
+  m.append(topo, barra);
+
+  const pctBruto = janela ? Number(janela.used_percentage) : NaN;
+  const reset = janela ? Number(janela.resets_at) * 1000 : NaN;
+  // Janela ausente depois de já ter dado, ou reset no passado: o percentual
+  // antigo não vale mais.
+  if (!Number.isFinite(pctBruto) || !Number.isFinite(reset) || reset <= agora) {
+    m.classList.add('reiniciada');
+    const txt = 'reiniciada, aguardando dado novo';
+    topo.append(el('span', 'med-estado', txt));
+    barra.setAttribute('aria-valuenow', '0');
+    barra.setAttribute('aria-valuetext', txt);
+    return m;
+  }
+  const pctVal = Math.max(0, pctBruto);
+  const redondo = Math.round(pctVal);
+  if (pctVal >= USO_CRITICO) m.classList.add('critico');
+  else if (pctVal >= USO_ALERTA) m.classList.add('alerta');
+  topo.append(el('span', 'med-pct', redondo + '%'));
+  cheio.style.width = Math.min(100, pctVal) + '%';
+  barra.setAttribute('aria-valuenow', String(Math.min(100, pctVal)));
+  const reinicia = textoReset(new Date(reset), agora);
+  barra.setAttribute('aria-valuetext', redondo + '% usado, ' + reinicia);
+  m.append(el('div', 'med-reset', reinicia));
+  return m;
+}
+
+// Linhas das janelas: rótulo curto, chave em u.windows.
+const JANELAS_TOKENS = [['five_hour', '5 h', 'janela de 5 h'], ['seven_day', 'Semana', 'janela semanal']];
+
+// janelasUso: tabela "entrada · cache · saída · custo" por janela, com os
+// totais que o servidor soma dos transcripts. Sem windows, nada.
+function janelasUso(w) {
+  if (!w || typeof w !== 'object') return null;
+  const tabela = el('table');
+  const thead = el('thead');
+  const hr = el('tr');
+  const cab = [['Tokens', null], ['entrada', 'input'], ['cache', 'cache write 5 min + cache write 1 h + cache read'], ['saída', 'output'], ['custo', ROTULO_ESTIMATIVA]];
+  for (const [txt, longo] of cab) {
+    const th = el('th', null, txt);
+    th.scope = 'col';
+    if (longo) th.title = longo;
+    hr.append(th);
+  }
+  thead.append(hr);
+  const tbody = el('tbody');
+  let linhas = 0;
+  for (const [chave, rotulo, longo] of JANELAS_TOKENS) {
+    const j = w[chave];
+    if (!j || typeof j !== 'object') continue;
+    const t = (j.tokens && typeof j.tokens === 'object') ? j.tokens : {};
+    const n = (k) => { const v = Number(t[k]); return Number.isFinite(v) && v > 0 ? v : 0; };
+    const cache = n('Cache5m') + n('Cache1h') + n('CacheRead');
+    const tr = el('tr');
+    const th = el('th', null, rotulo);
+    th.scope = 'row';
+    th.title = longo;
+    tr.append(th);
+    const celulas = [
+      [n('Input'), 'input: ' + milhar.format(n('Input'))],
+      [cache, 'cache write 5 min: ' + milhar.format(n('Cache5m')) + ' · cache write 1 h: ' + milhar.format(n('Cache1h')) + ' · cache read: ' + milhar.format(n('CacheRead'))],
+      [n('Output'), 'output: ' + milhar.format(n('Output'))],
+    ];
+    for (const [v, tit] of celulas) {
+      const td = el('td', v === 0 ? 'zero' : null, compacto(v));
+      td.title = tit;
+      tr.append(td);
+    }
+    const custo = Number(j.cost_usd);
+    const uso = { Tokens: t, CostUSD: Number.isFinite(custo) ? custo : 0, CostKnown: j.cost_known === true };
+    const tc = el('td', 'custo', formatarUso(uso));
+    tc.title = ROTULO_ESTIMATIVA;
+    tr.append(tc);
+    tbody.append(tr);
+    linhas++;
+  }
+  if (!linhas) return null;
+  tabela.append(thead, tbody);
+  const box = el('div', 'uso-janelas');
+  box.append(tabela, el('p', 'legenda', 'Somado dos transcripts · custo: ' + ROTULO_ESTIMATIVA));
+  return box;
+}
+
+function blocoUso(u, comNome, agora) {
+  const b = el('section', 'uso-conta');
+  const cab = el('div', 'uso-cab');
+  const titulo = el('h3');
+  if (comNome) {
+    const nome = typeof u.account === 'string' && u.account ? u.account : 'padrão';
+    titulo.append(chipConta(nome));
+    b.setAttribute('aria-label', 'Conta ' + nome);
+  }
+  const recebido = Date.parse(u.received_at);
+  if (!Number.isFinite(recebido)) {
+    if (comNome) { cab.append(titulo); b.append(cab); }
+    b.append(el('p', 'uso-sem-dado', 'sem dado do plano ainda — abra uma sessão do Claude Code'));
+    const jan = janelasUso(u.windows);
+    if (jan) b.append(jan);
+    return b;
+  }
+  const at = el('span', 'uso-atualizado', atualizadoHa(agora - recebido));
+  if (agora - recebido > USO_VELHO_MS) at.classList.add('velho');
+  at.title = dataHora.format(new Date(recebido));
+  if (comNome) cab.append(titulo);
+  cab.append(at);
+  b.append(cab);
+  const meds = el('div', 'uso-medidores');
+  for (const [chave, rotulo] of JANELAS) meds.append(medidor(rotulo, u[chave], agora));
+  b.append(meds);
+  const jan = janelasUso(u.windows);
+  if (jan) b.append(jan);
+  return b;
+}
+
+function renderUso() {
+  if (usoDados === null) return;
+  const agora = Date.now();
+  // Sem nenhuma conta na lista, a conta implícita ainda não recebeu nada.
+  const lista = usoDados.length ? usoDados.filter((u) => u && typeof u === 'object') : [{ account: '' }];
+  const comNome = lista.length > 1;
+  usoContas.classList.toggle('uma', !comNome);
+  usoContas.replaceChildren(...lista.map((u) => blocoUso(u, comNome, agora)));
+}
+
+// Contagens andam a cada 30 s, só com a tela de uso à vista.
+setInterval(() => {
+  if (telaAtual === 'uso' && !document.hidden) renderUso();
+}, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && telaAtual === 'uso') renderUso();
+});
+
+(async () => {
+  try {
+    const r = await fetch('/api/uso', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    receberUso(await r.json(), false);
+  } catch (_) { /* sem rede: o SSE traz o uso ao conectar */ }
+})();
+
+// ---------- Duas telas: sessões e uso do plano ----------
+// Troca por arrasto horizontal de um dedo, pelos pontinhos e pelas setas.
+// A tela escondida fica inert (sem Tab nem leitor de tela). A última tela
+// aberta fica no localStorage deste aparelho.
+
+const telas = document.getElementById('telas');
+const pontos = document.getElementById('pontos');
+const TELA_CHAVE = 'fleet.tela';
+const TELAS = ['sessoes', 'uso'];
+const SECAO = { sessoes: document.getElementById('tela-sessoes'), uso: document.getElementById('tela-uso') };
+// Arrasto: anda pelo menos 60 px e é claramente horizontal (|dx| > 2·|dy|).
+const ARRASTO_MIN = 60;
+
+let telaAtual = 'sessoes';
+
+function lerTela() {
+  try {
+    const v = localStorage.getItem(TELA_CHAVE);
+    return TELAS.includes(v) ? v : 'sessoes';
+  } catch (_) { return 'sessoes'; }
+}
+
+function gravarTela(t) {
+  try { localStorage.setItem(TELA_CHAVE, t); } catch (_) { /* só nesta página */ }
+}
+
+function mostrarTela(t, gravar) {
+  if (!TELAS.includes(t)) return;
+  telaAtual = t;
+  telas.dataset.tela = t;
+  for (const nome of TELAS) SECAO[nome].inert = nome !== t;
+  for (const b of pontos.querySelectorAll('button')) {
+    b.setAttribute('aria-current', b.dataset.tela === t ? 'true' : 'false');
+  }
+  if (t === 'uso') renderUso(); // contagens em dia ao entrar
+  // O foco não pode ficar preso na tela que acabou de virar inert.
+  const foco = document.activeElement;
+  if (foco && foco !== document.body && SECAO[t === 'uso' ? 'sessoes' : 'uso'].contains(foco)) {
+    pontos.querySelector('button[aria-current="true"]').focus({ preventScroll: true });
+  }
+  if (gravar) gravarTela(t);
+}
+
+function trocarTela(passo) {
+  const i = TELAS.indexOf(telaAtual) + passo;
+  if (i >= 0 && i < TELAS.length && TELAS[i] !== telaAtual) mostrarTela(TELAS[i], true);
+}
+
+// Abre direto na tela lembrada, sem deslizar no carregamento.
+telas.classList.add('sem-transicao');
+mostrarTela(lerTela(), false);
+requestAnimationFrame(() => requestAnimationFrame(() => telas.classList.remove('sem-transicao')));
+
+pontos.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tela]');
+  if (b) mostrarTela(b.dataset.tela, true);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || dlg.open) return;
+  const alvo = e.target;
+  if (alvo && alvo.closest && alvo.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+  e.preventDefault();
+  trocarTela(e.key === 'ArrowRight' ? 1 : -1);
+});
+
+// Só toque e caneta: no desktop o mouse seleciona texto, e lá há setas e
+// pontinhos. Um arrasto vertical vira rolagem do navegador e chega aqui como
+// pointercancel, então não troca de tela.
+let arrasto = null;
+let engolirClique = false;
+
+telas.addEventListener('pointerdown', (e) => {
+  engolirClique = false;
+  arrasto = null;
+  if (e.pointerType === 'mouse' || !e.isPrimary || dlg.open) return;
+  if (e.target.closest('select')) return;
+  arrasto = { id: e.pointerId, x: e.clientX, y: e.clientY };
+});
+
+telas.addEventListener('pointerup', (e) => {
+  if (!arrasto || e.pointerId !== arrasto.id) return;
+  const dx = e.clientX - arrasto.x;
+  const dy = e.clientY - arrasto.y;
+  arrasto = null;
+  if (dlg.open || Math.abs(dx) < ARRASTO_MIN || Math.abs(dx) <= 2 * Math.abs(dy)) return;
+  // O dedo que trocou de tela não abre o tile em que soltou.
+  engolirClique = true;
+  setTimeout(() => { engolirClique = false; }, 400);
+  trocarTela(dx < 0 ? 1 : -1);
+});
+
+telas.addEventListener('pointercancel', () => { arrasto = null; });
+
+telas.addEventListener('click', (e) => {
+  if (!engolirClique) return;
+  engolirClique = false;
+  e.preventDefault();
+  e.stopPropagation();
+}, true);
+
 // ---------- Alerta sonoro ----------
 // Toca quando uma sessão ou subagente entra em aguardando e repete a cada
 // 30 s enquanto algo seguir assim. O som é gerado com Web Audio; o
@@ -1876,6 +2370,15 @@ es.addEventListener('snapshot', (e) => {
   sessoes = Array.isArray(sessoes) ? sessoes : [];
   render(sessoes);
   avaliarSom(sessoes);
+});
+es.addEventListener('uso', (e) => {
+  let lista;
+  try {
+    lista = JSON.parse(e.data);
+  } catch (_) {
+    return; // uso corrompido: mantém os medidores anteriores
+  }
+  receberUso(lista, true);
 });
 es.addEventListener('error', () => {
   // CONNECTING: o navegador vai tentar de novo sozinho.
