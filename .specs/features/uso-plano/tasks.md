@@ -1,7 +1,7 @@
 # uso-plano Tasks
 
 **Design**: `.specs/features/uso-plano/design.md`
-**Status**: Draft (2026-10-18)
+**Status**: In Progress (Phase 1 feita em 2026-10-18)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -79,9 +79,11 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] `Write` grava com a permissão pedida, não deixa `.tmp-*` no diretório nem em caso de erro, e troca o arquivo existente
-- [ ] `push` sem `writeFileAtomic`; os testes de `push` seguem passando sem mudança de comportamento
-- [ ] Gate passa, com `TestWriteNaoDeixaTemporario` e `TestWriteUsaPermissao` novos
+- [x] `Write` grava com a permissão pedida, não deixa `.tmp-*` no diretório nem em caso de erro, e troca o arquivo existente
+- [x] `push` sem `writeFileAtomic`; os testes de `push` seguem passando sem mudança de comportamento
+- [x] Gate passa, com `TestWriteNaoDeixaTemporario` e `TestWriteUsaPermissao` novos
+
+**Feito** (25036e9). Sem desvio; `push` usa `atomicfile.Write(..., 0o600)`.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `refactor(push): escrita atômica no pacote atomicfile`
@@ -98,10 +100,12 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Script com `curl -q -s -m 1 --noproxy '*'`, porta só com dígitos, sem `curl` sai 0, `[ -t 0 ]` sai 0, nunca imprime nada, sempre `exit 0`
-- [ ] `hook.StatusLine` não vazio e igual ao arquivo (teste em `hook/embed_test.go`)
-- [ ] `bash hook/test.sh`: o script novo termina em ≤ 1,1 s com o servidor fora e com o servidor que não responde; stdout e stderr vazios; exit 0
-- [ ] Gate passa
+- [x] Script com `curl -q -s -m 1 --noproxy '*'`, porta só com dígitos, sem `curl` sai 0, `[ -t 0 ]` sai 0, nunca imprime nada, sempre `exit 0`
+- [x] `hook.StatusLine` não vazio e igual ao arquivo (teste em `hook/embed_test.go`)
+- [x] `bash hook/test.sh`: o script novo termina em ≤ 1,1 s com o servidor fora e com o servidor que não responde; stdout e stderr vazios; exit 0
+- [x] Gate passa
+
+**Feito** (0119806). Casos 7–10 no `hook/test.sh`; o caso com o servidor ligado fica para a T9.
 
 **Tests**: integration · **Gate**: full
 **Commit**: `feat(hook): script de status line que repassa o uso do plano`
@@ -118,10 +122,12 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Fixture real do JSON do status line, anonimizada (sem `cwd`, caminhos pessoais, nome de máquina, `session_id` real), mais uma sem `rate_limits` e uma só com `seven_day`
-- [ ] `Reading` não tem nenhum campo além das duas janelas e do `TranscriptPath`; o `TranscriptPath` não tem tag JSON
-- [ ] `used_percentage` decimal (`23.5`) é aceito
-- [ ] Gate passa, com `TestParseGuardaSoRateLimits`, `TestParseDescartaJanelaInvalida`, `TestParseRecusaCorpoGrande`
+- [x] Fixture real do JSON do status line, anonimizada (sem `cwd`, caminhos pessoais, nome de máquina, `session_id` real), mais uma sem `rate_limits` e uma só com `seven_day`
+- [x] `Reading` não tem nenhum campo além das duas janelas e do `TranscriptPath`; o `TranscriptPath` não tem tag JSON
+- [x] `used_percentage` decimal (`23.5`) é aceito
+- [x] Gate passa, com `TestParseGuardaSoRateLimits`, `TestParseDescartaJanelaInvalida`, `TestParseRecusaCorpoGrande`
+
+**Feito** (c445083). Desvios: parâmetro `maxBytes` (`max` é builtin); `ErrInvalidJSON` exportado, como no `ingest`; `resets_at` lido como número e truncado, para um valor decimal não derrubar o corpo; campo da lista branca com tipo errado recusa o corpo (400), como no `ingest`.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(ratelimit): lista branca do JSON do status line`
@@ -260,12 +266,14 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Arrasto para a esquerda vai para a tela de uso e para a direita volta; rolagem vertical da grade continua; arrasto diagonal curto não troca
-- [ ] Não troca com o pop-up aberto nem em toque que começa no `<select>` de conta
-- [ ] Pontinhos com `aria-current` e toque funcionando; setas no desktop
-- [ ] Recarregar abre na última tela; sem `localStorage`, abre na grade
-- [ ] Conferido no navegador em 1280×800, 390×844 e 844×390 (no celular deitado o cabeçalho some, os pontinhos não), com e sem movimento reduzido, sem erro no console
-- [ ] `go test ./internal/web/` passa (a página segue embutida)
+- [x] Arrasto para a esquerda vai para a tela de uso e para a direita volta; rolagem vertical da grade continua; arrasto diagonal curto não troca
+- [x] Não troca com o pop-up aberto nem em toque que começa no `<select>` de conta
+- [x] Pontinhos com `aria-current` e toque funcionando; setas no desktop
+- [x] Recarregar abre na última tela; sem `localStorage`, abre na grade
+- [x] Conferido no navegador em 1280×800, 390×844 e 844×390 (no celular deitado o cabeçalho some, os pontinhos não), com e sem movimento reduzido, sem erro no console
+- [x] `go test ./internal/web/` passa (a página segue embutida)
+
+**Feito** (b3ebc11) pelo `ui-figma`, conferido com Chromium headless e toque real em 1280×800, 390×844 e 844×390. Desvios: arrasto só com toque e caneta (no desktop, setas e pontinhos); a troca acontece no fim do gesto, sem a tela acompanhar o dedo; o foco vai para o pontinho atual quando a tela dele fica `inert`; token `--tela-transicao`, zerado com movimento reduzido.
 
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): segunda tela trocada com um dedo`
@@ -325,9 +333,11 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Mensagem repetida em várias linhas conta uma vez, com o timestamp da última linha
-- [ ] `Totals` e `ByModel` sem mudança de comportamento (testes atuais passam)
-- [ ] Gate passa, com `TestSumSinceRespeitaTimestampEDedupe`
+- [x] Mensagem repetida em várias linhas conta uma vez, com o timestamp da última linha
+- [x] `Totals` e `ByModel` sem mudança de comportamento (testes atuais passam)
+- [x] Gate passa, com `TestSumSinceRespeitaTimestampEDedupe`
+
+**Feito** (31c2f2b). Mensagem sem timestamp válido só entra quando `t` é zero.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(transcript): soma de tokens a partir de um instante`
