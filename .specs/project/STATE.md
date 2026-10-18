@@ -1,6 +1,6 @@
 # State
 
-**Last Updated:** 2026-10-16
+**Last Updated:** 2026-10-17
 **Current Work:** fleet-mvp concluído (T1–T18; M1 entregue em 2026-10-15). Painel v2 no ar como serviço systemd na tailnet. Próximo: M2
 
 ---
@@ -58,6 +58,16 @@
 **Trade-off:** O dado só se atualiza com alguma sessão interativa respondendo; ocupa o `statusLine`.
 **Alternative:** Ler o token em `~/.claude/.credentials.json` e consultar `GET /api/oauth/usage` (o que o `/usage` faz): endpoint não documentado e credencial no servidor.
 **Impact:** Novo script embutido, rota `/statusline`, `install-hooks` passa a cuidar do `statusLine`; segunda tela no frontend.
+
+---
+
+### AD-008: Segurança no CI com CodeQL e govulncheck (2026-10-17)
+
+**Decision:** Workflow `security.yml` com CodeQL (`security-extended`; Go, JavaScript do frontend e os workflows) e `govulncheck`, em todo PR, na `main` e semanalmente. Dependabot só para as GitHub Actions.
+**Reason:** Sem dependências, o risco de terceiros é a própria stdlib: na adoção o `govulncheck` achou 11 CVEs alcançáveis no Go 1.27.1 (`net/http`, `crypto/tls`, `html/template`), corrigidos no 1.27.2. O CodeQL faz análise de fluxo com poucos falsos positivos e publica na aba Security.
+**Trade-off:** O `govulncheck` reprova o PR quando sai CVE novo da stdlib, mesmo sem relação com a mudança; a correção é subir o `go` do `go.mod`.
+**Alternative:** Trivy (forte em imagem, IaC e dependências, que o projeto não tem; secrets ficam com o secret scanning do GitHub) e gosec (18 achados na adoção, todos falsos positivos ou `G104` em `Close` de caminho de erro).
+**Impact:** `go.mod` vai para `go 1.27.2`; `.github/workflows/security.yml` e `.github/dependabot.yml` novos.
 
 ---
 
