@@ -29,7 +29,7 @@ flowchart LR
   IN -- "transcript_path" --> ST
   ST -- "Resolve(path)" --> AC
   BS -- "<dir>/projects" --> ST
-  ST --> HUB --> PAGE["Tile: chip da conta"]
+  ST --> HUB --> PAGE["Pop-up: chip da conta<br/>Cabeçalho: filtro"]
 ```
 
 O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava uma cópia em cada diretório de configuração. Assim cada conta fica independente, e desinstalar de uma não quebra a outra.
@@ -72,9 +72,9 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
   - `type Account struct { Name, Dir string }`: `Dir` absoluto e limpo.
   - `type List struct { … }`: contas ordenadas por `Dir` mais longo primeiro, mais o callback de conta desconhecida.
   - `Parse(specs []string, home string) (List, error)`: valida `nome=dir`, expande `~/` com `home`, exige caminho absoluto depois disso e recusa nome fora de `^[a-z0-9-]{1,20}$`, nome repetido, diretório repetido e o nome reservado `outra`.
-  - `Implicit(dir string) List`: a conta única sem nome (`-projects` legado ou `~/.claude`). `Resolve` devolve `""` para ela, e a interface fica como hoje.
-  - `(List) Resolve(transcriptPath string) string`: faz `filepath.Clean` e devolve a primeira conta cujo `<Dir>/projects/` é prefixo, ou `""` se for a implícita. Fora de todas, devolve `"outra"` e chama `OnUnknown(configDir)` uma vez por diretório.
-  - `(List) ProjectsDirs() []string`: `<Dir>/projects` de cada conta, para o Bootstrap.
+  - ~~`Implicit(dir string) List`~~: removida na implementação (T4). Sem `-account`, o Store roda sem contas, `Resolve` numa `List` nil devolve `""` e a interface fica como hoje.
+  - `(List) Resolve(transcriptPath string) string`: faz `filepath.Clean` e devolve a primeira conta cujo `<Dir>/projects/` é prefixo, ou `""` se a `List` for nil (sem `-account`). Fora de todas, devolve `"outra"` e chama `OnUnknown(configDir)` uma vez por diretório.
+  - ~~`(List) ProjectsDirs() []string`~~: na implementação (T1) virou `(*List) All() []Account` + `(Account) ProjectsDir() string`, para o log levar o nome da conta junto.
   - `(*List) OnUnknown(func(configDir string))`: `main` liga ao `log`. O `configDir` é deduzido como o pai do segmento `projects`, nunca o caminho inteiro.
 - **Dependencies**: só stdlib (`path/filepath`, `strings`, `sync`).
 - **Reuses**: nada; é uma folha, como `pricing`.
@@ -99,8 +99,8 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
 - **Interfaces**:
   - `config.Accounts []string` preenchido por `fs.Func("account", "conta do Claude Code: nome=diretório de configuração (repetível)", …)`.
   - `-projects` junto com `-account`: erro `"use só -account (o -projects vira <dir>/projects de cada conta)"`, saída 2.
-  - Sem `-account`: `account.Implicit(filepath.Dir(cfg.Projects))`. Com `-account`: `account.Parse(cfg.Accounts, HOME)`.
-  - Laço `for _, d := range accounts.ProjectsDirs() { st.Bootstrap(d, …) }`, com log do total por conta.
+  - Sem `-account`: Store sem `WithAccounts` e Bootstrap só em `cfg.Projects`, como hoje. Com `-account`: `account.Parse(accounts, HOME)`.
+  - Laço `for _, a := range accounts.All() { st.Bootstrap(a.ProjectsDir(), …) }`, com log do total por conta.
 - **Reuses**: `parseConfig`, `bootstrapMaxAge`.
 
 ### `cmd/claude-fleet` (`install-hooks` / `uninstall-hooks`)
@@ -117,11 +117,11 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
 
 - **Purpose**: Mostrar a conta e filtrar por ela.
 - **Interfaces / mudanças**:
-  - **Chip da conta no tile**: um `span.conta` na linha do id (`index.html:862`), só se `s.Account` não for vazio. Mostra o texto do nome em vez de um ponto colorido, para não depender só de cor (CONTA-06). O fundo vem de `--conta-N`, e `N = hash(nome) % 4 + 1` dá a mesma cor em qualquer aparelho, sem configuração.
+  - **Chip da conta** (`chipConta`): mostra o texto do nome em vez de um ponto colorido, para não depender só de cor (CONTA-06). O fundo vem de `--conta-N`, e `N = hash(nome) % 4 + 1` dá a mesma cor em qualquer aparelho, sem configuração. Fica **só no pop-up**: a primeira versão também o punha em cada tile, e o ajuste de 2026-10-18 o tirou de lá (o filtro do cabeçalho já diz que conta está em vista). O tile cita a conta só no `aria-label`.
   - **Pop-up**: a conta entra no subtítulo (`detSub`, `index.html:1377`) antes do projeto.
   - **Ocultar sessão**: a chave vira `<conta>|nome:…` ou `<conta>|<cwd>` quando há conta. Sem conta, a chave fica igual, então nada que já está oculto reaparece.
   - **Filtro (P2)**: um `<select>` no cabeçalho, que só aparece quando os tiles têm mais de uma conta distinta. Fica salvo em `localStorage` (`fleet.conta`, com try/catch). Só esconde tiles; som e push seguem o estado real.
-  - Celular: o chip encolhe com `text-overflow: ellipsis` e cabe nos 160 px do `--tile-w`; o seletor cabe no cabeçalho na vertical e na horizontal.
+  - Celular: o tile fica como antes da feature; o seletor cabe no cabeçalho na vertical (no celular deitado o cabeçalho já ficava escondido; ver T8).
 - **Figma**: chip, subtítulo e seletor entram no arquivo "claude-fleet — painel v2" pelo agente `ui-figma`, no mesmo PR.
 
 ---
@@ -131,14 +131,14 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
 ```go
 // internal/account
 type Account struct {
-	Name string // [a-z0-9-]{1,20}; "" só na conta implícita
+	Name string // [a-z0-9-]{1,20}
 	Dir  string // diretório de configuração, absoluto e limpo
 }
 
 // internal/store (campos novos)
 type Session struct {
 	// …
-	Account string // nome da conta; "" quando há só a conta implícita
+	Account string // nome da conta; "" sem -account
 }
 type SessionView struct {
 	// …
@@ -155,7 +155,7 @@ Para o `uso-plano` (CONTA-07), `<state>/uso-plano.json` vira:
   "trabalho": { … } }
 ```
 
-com a chave `""` para a conta implícita. Um arquivo antigo, de valor único, é lido como `{"": valor}`.
+com a chave `""` para quem roda sem `-account`. Um arquivo antigo, de valor único, é lido como `{"": valor}`.
 
 ---
 
@@ -166,7 +166,7 @@ com a chave `""` para a conta implícita. Um arquivo antigo, de valor único, é
 | `-account` malformado, nome inválido, nome ou dir repetido | `parseConfig` devolve erro, saída 2 | Serviço não sobe; `journalctl` mostra a mensagem |
 | `-account` e `-projects` juntos | Erro, saída 2 | Idem |
 | `<dir>/projects` inexistente | `Bootstrap` já ignora diretório ilegível | Nenhum; a conta aparece quando houver sessão |
-| Transcript fora de qualquer conta | `Resolve` → `"outra"`, log único com o diretório de configuração | Tile com chip "outra" |
+| Transcript fora de qualquer conta | `Resolve` → `"outra"`, log único com o diretório de configuração | Pop-up com chip "outra"; opção "outra" no filtro |
 | Evento sem `transcript_path` | Conta não muda | Nenhum |
 | `CLAUDE_CONFIG_DIR` relativo ou com `~` literal | `install-hooks` recusa, saída 2 | Mensagem aponta o `~` não expandido |
 | `localStorage` indisponível | try/catch; filtro volta a "todas" | Filtro não lembrado |
@@ -178,7 +178,7 @@ com a chave `""` para a conta implícita. Um arquivo antigo, de valor único, é
 | Decision | Choice | Rationale |
 | --- | --- | --- |
 | Onde resolver a conta | No Store, ao receber `TranscriptPath` | Um ponto só para evento e Bootstrap; o `ingest` não muda (AD-003) |
-| Conta implícita | Nome `""`, sem chip | Quem tem uma conta só não vê nada novo (meta da spec) |
+| Sem `-account` | Store sem contas, `Account` vazio, sem chip | Quem tem uma conta só não vê nada novo (meta da spec); ver o desvio no T4 |
 | Cor do chip | `hash(nome) % 4` sobre `--conta-1…4` | Estável entre aparelhos e recargas, sem nova flag de cor |
 | `~` em `-account` | Expandido pelo servidor com `HOME` | O `sh -c` da unit systemd não expande `~` depois de `=` |
 | Links simbólicos | `filepath.Clean`, sem `EvalSymlinks` | Evita um `stat` por evento; caso raro, documentado na spec |

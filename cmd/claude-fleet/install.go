@@ -72,9 +72,9 @@ func parseHooksFlags(name string, args []string, getenv func(string) string, err
 	fs := flag.NewFlagSet("claude-fleet "+name, flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	var o hookOpts
-	fs.StringVar(&o.settings, "settings", "", "settings do Claude Code (padrão: ~/.claude/settings.json)")
+	fs.StringVar(&o.settings, "settings", "", "settings do Claude Code (padrão: $CLAUDE_CONFIG_DIR/settings.json ou ~/.claude/settings.json)")
 	if name == "install-hooks" {
-		fs.StringVar(&o.dir, "dir", "", "diretório onde o script do hook é gravado (padrão: ~/.claude/claude-fleet)")
+		fs.StringVar(&o.dir, "dir", "", "diretório onde o script do hook é gravado (padrão: $CLAUDE_CONFIG_DIR/claude-fleet ou ~/.claude/claude-fleet)")
 	}
 	fs.BoolVar(&o.yes, "yes", false, "aplica sem pedir confirmação")
 	if err := fs.Parse(args); err != nil {
@@ -84,18 +84,36 @@ func parseHooksFlags(name string, args []string, getenv func(string) string, err
 		return hookOpts{}, fmt.Errorf("argumento inesperado: %q", fs.Arg(0))
 	}
 	if o.settings == "" || (name == "install-hooks" && o.dir == "") {
-		home := getenv("HOME")
-		if home == "" {
-			return hookOpts{}, errors.New("HOME não definido; informe -settings e -dir")
+		base, err := configDir(getenv)
+		if err != nil {
+			return hookOpts{}, err
 		}
 		if o.settings == "" {
-			o.settings = filepath.Join(home, ".claude", "settings.json")
+			o.settings = filepath.Join(base, "settings.json")
 		}
 		if name == "install-hooks" && o.dir == "" {
-			o.dir = filepath.Join(home, ".claude", "claude-fleet")
+			o.dir = filepath.Join(base, "claude-fleet")
 		}
 	}
 	return o, nil
+}
+
+// configDir é o diretório de configuração da conta do Claude Code:
+// $CLAUDE_CONFIG_DIR quando definido, senão ~/.claude.
+func configDir(getenv func(string) string) (string, error) {
+	if dir := getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		// Um ~ que o shell não expandiu (por exemplo, entre aspas) viraria
+		// um diretório relativo chamado "~" no diretório atual.
+		if !filepath.IsAbs(dir) {
+			return "", fmt.Errorf("CLAUDE_CONFIG_DIR precisa ser absoluto, veio %q (o shell não expandiu o ~?)", dir)
+		}
+		return filepath.Clean(dir), nil
+	}
+	home := getenv("HOME")
+	if home == "" {
+		return "", errors.New("HOME não definido; informe -settings e -dir")
+	}
+	return filepath.Join(home, ".claude"), nil
 }
 
 // installHooks grava o script e registra o hook nos eventos do settings.

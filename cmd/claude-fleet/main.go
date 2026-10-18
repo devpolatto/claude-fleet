@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/account"
 	"github.com/devpolatto/claude-fleet/internal/push"
 	"github.com/devpolatto/claude-fleet/internal/store"
 	"github.com/devpolatto/claude-fleet/internal/web"
@@ -31,6 +32,9 @@ type config struct {
 	Addr     string
 	Token    string
 	Projects string
+	// Accounts são as contas do Claude Code de -account (AD-009); nil sem a
+	// flag, e aí vale Projects.
+	Accounts *account.List
 	// TLSCert e TLSKey ligam HTTPS no endereço da tailnet; o loopback do
 	// hook continua em HTTP.
 	TLSCert, TLSKey string
@@ -67,10 +71,19 @@ func main() {
 
 // run liga Store, Refresher, Prune, Hub e servidor HTTP até ctx ser cancelado.
 func run(ctx context.Context, cfg config) error {
-	st := store.New()
-	if n := st.Bootstrap(cfg.Projects, time.Now(), bootstrapMaxAge); n > 0 {
-		log.Printf("claude-fleet: %d sessão(ões) recente(s) descoberta(s) no boot", n)
+	var opts []store.Option
+	if cfg.Accounts != nil {
+		cfg.Accounts.OnUnknown(func(dir string) {
+			if dir == "" {
+				log.Printf("claude-fleet: sessão com transcript fora de <dir>/projects; ela aparece como %q", account.Outra)
+				return
+			}
+			log.Printf("claude-fleet: sessão de conta não declarada em %q; ela aparece como %q (declare com -account nome=<diretório>)", dir, account.Outra)
+		})
+		opts = append(opts, store.WithAccounts(cfg.Accounts))
 	}
+	st := store.New(opts...)
+	bootstrap(st, cfg, time.Now())
 
 	listeners, err := listen(cfg.Addr)
 	if err != nil {
@@ -111,6 +124,21 @@ func run(ctx context.Context, cfg config) error {
 	serveErr := serve(ctx, handler, tlsCfg, listeners)
 	wg.Wait()
 	return serveErr
+}
+
+// bootstrap descobre as sessões já abertas: em Projects ou, com -account, no
+// projects/ de cada conta.
+func bootstrap(st *store.Store, cfg config, now time.Time) {
+	if cfg.Accounts == nil {
+		if n := st.Bootstrap(cfg.Projects, now, bootstrapMaxAge); n > 0 {
+			log.Printf("claude-fleet: %d sessão(ões) recente(s) descoberta(s) no boot", n)
+		}
+		return
+	}
+	for _, a := range cfg.Accounts.All() {
+		n := st.Bootstrap(a.ProjectsDir(), now, bootstrapMaxAge)
+		log.Printf("claude-fleet: conta %s (%s): %d sessão(ões) recente(s) descoberta(s) no boot", a.Name, a.Dir, n)
+	}
 }
 
 // serve atende cada listener com um http.Server próprio até ctx ser
@@ -202,9 +230,14 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 	fs.SetOutput(out)
 
 	cfg := config{}
+	var accounts []string
 	fs.StringVar(&cfg.Addr, "addr", defaultAddr, "endereço de escuta (host:porta)")
 	fs.StringVar(&cfg.Token, "token", getenv("CLAUDE_FLEET_TOKEN"), "token de acesso; obrigatório fora do loopback (padrão: $CLAUDE_FLEET_TOKEN)")
-	fs.StringVar(&cfg.Projects, "projects", "", "diretório dos transcripts (padrão: ~/.claude/projects)")
+	fs.StringVar(&cfg.Projects, "projects", "", "diretório dos transcripts (padrão: ~/.claude/projects); não combina com -account")
+	fs.Func("account", "conta do Claude Code como nome=diretório de configuração (o CLAUDE_CONFIG_DIR dela); repetível", func(v string) error {
+		accounts = append(accounts, v)
+		return nil
+	})
 	fs.StringVar(&cfg.TLSCert, "tls-cert", "", "certificado TLS (PEM); liga HTTPS no endereço da tailnet, junto com -tls-key")
 	fs.StringVar(&cfg.TLSKey, "tls-key", "", "chave do certificado TLS (PEM)")
 	fs.StringVar(&cfg.StateDir, "state-dir", "", "diretório da chave VAPID e das inscrições de push (padrão: ~/.config/claude-fleet)")
@@ -215,7 +248,16 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 		return config{}, fmt.Errorf("argumento inesperado: %q", fs.Arg(0))
 	}
 
-	if cfg.Projects == "" {
+	if len(accounts) > 0 {
+		if cfg.Projects != "" {
+			return config{}, errors.New("use só -account (o -projects vira <dir>/projects de cada conta)")
+		}
+		l, err := account.Parse(accounts, getenv("HOME"))
+		if err != nil {
+			return config{}, fmt.Errorf("-account: %w", err)
+		}
+		cfg.Accounts = l
+	} else if cfg.Projects == "" {
 		home := getenv("HOME")
 		if home == "" {
 			return config{}, errors.New("HOME não definido; informe -projects")

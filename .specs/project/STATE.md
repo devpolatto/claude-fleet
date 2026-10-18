@@ -133,7 +133,7 @@ _Nenhum._
 - [ ] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16), design pendente
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec — especificada em `features/pwa` (2026-10-16)
 - [x] Custo e tokens por modelo e acerto de cache no pop-up — Captured during: issue #3 (2026-10-16) — feito em `features/custo-por-modelo` (2026-10-17)
-- [ ] Várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta): ver as sessões de todas e o uso de cada plano — Captured during: conversa de 2026-10-18 — spec aprovada em `features/multi-conta` (2026-10-18, AD-009), design aprovado, tasks aguardando aprovação
+- [x] Várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta): ver as sessões de todas e o uso de cada plano — Captured during: conversa de 2026-10-18 — spec, design e tasks aprovados em `features/multi-conta` (2026-10-18, AD-009); feito, UAT em `features/multi-conta/uat.md` (2026-10-18)
 
 ---
 

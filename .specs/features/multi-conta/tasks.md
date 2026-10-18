@@ -1,7 +1,7 @@
 # multi-conta Tasks
 
 **Design**: `.specs/features/multi-conta/design.md`
-**Status**: Draft (aguardando aprovação)
+**Status**: Done (2026-10-18)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -65,11 +65,13 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] `Parse` recusa: sem `=`, nome vazio, nome fora de `^[a-z0-9-]{1,20}$`, `outra`, nome repetido, diretório repetido (depois de `Clean`) e caminho relativo; expande `~/` com `home`
-- [ ] `Resolve` devolve a conta de prefixo mais longo, `""` na implícita e `"outra"` fora de todas; aplica `filepath.Clean` (um caminho com `..` que sai da conta não casa)
-- [ ] `<dir>/projectsX/…` não casa com `<dir>/projects` (prefixo por segmento, não por string)
-- [ ] `OnUnknown` é chamado uma vez por diretório de configuração, com o pai do segmento `projects` (nunca o caminho do transcript); seguro sob `-race` com chamadas concorrentes
-- [ ] Gate passa: `go test -race -count=1 ./internal/account/` com ≥ 6 funções de teste (`TestParseRecusaNomeInvalido`, `TestParseExpandeTil`, `TestParseRecusaRepetido`, `TestResolvePrefixoMaisLongoVence`, `TestResolveForaDasContasViraOutraELogaUmaVez`, `TestResolveLimpaPontoPonto`)
+- [x] `Parse` recusa: sem `=`, nome vazio, nome fora de `^[a-z0-9-]{1,20}$`, `outra`, nome repetido, diretório repetido (depois de `Clean`) e caminho relativo; expande `~/` com `home`
+- [x] `Resolve` devolve a conta de prefixo mais longo, `""` na implícita e `"outra"` fora de todas; aplica `filepath.Clean` (um caminho com `..` que sai da conta não casa)
+- [x] `<dir>/projectsX/…` não casa com `<dir>/projects` (prefixo por segmento, não por string)
+- [x] `OnUnknown` é chamado uma vez por diretório de configuração, com o pai do segmento `projects` (nunca o caminho do transcript); seguro sob `-race` com chamadas concorrentes
+- [x] Gate passa: `go test -race -count=1 ./internal/account/` com ≥ 6 funções de teste (`TestParseRecusaNomeInvalido`, `TestParseExpandeTil`, `TestParseRecusaRepetido`, `TestResolvePrefixoMaisLongoVence`, `TestResolveForaDasContasViraOutraELogaUmaVez`, `TestResolveLimpaPontoPonto`)
+
+**Feito** (47fec57). Desvio do design: `Parse`/`Implicit` devolvem `*List` (há mutex dentro) e, no lugar de `ProjectsDirs()`, há `All()` + `Account.ProjectsDir()`, para o `main` logar o nome junto com o diretório. `List` nil resolve tudo para `""`.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(account): contas do Claude Code por diretório de configuração`
@@ -86,11 +88,13 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] `New()` sem opção segue igual: todos os testes atuais do `store` passam sem alteração
-- [ ] Evento com `transcript_path` dentro de uma conta grava `Account`; evento sem caminho mantém a conta; mudar de conta (resume em outro diretório) atualiza e notifica
-- [ ] `Bootstrap` marca a conta pelo diretório varrido
-- [ ] `Snapshot()` e `Get()` trazem `Account`; nenhum campo com o diretório
-- [ ] Gate passa: `go test -race -count=1 ./internal/store/` com os 4 testes novos (`TestApplyGravaContaPeloTranscript`, `TestApplySemTranscriptMantemConta`, `TestBootstrapMarcaContaPorDiretorio`, `TestSemContasNaoMudaNada`)
+- [x] `New()` sem opção segue igual: todos os testes atuais do `store` passam sem alteração
+- [x] Evento com `transcript_path` dentro de uma conta grava `Account`; evento sem caminho mantém a conta; mudar de conta (resume em outro diretório) atualiza e notifica
+- [x] `Bootstrap` marca a conta pelo diretório varrido
+- [x] `Snapshot()` e `Get()` trazem `Account`; nenhum campo com o diretório
+- [x] Gate passa: `go test -race -count=1 ./internal/store/` com os 4 testes novos (`TestApplyGravaContaPeloTranscript`, `TestApplySemTranscriptMantemConta`, `TestBootstrapMarcaContaPorDiretorio`, `TestSemContasNaoMudaNada`)
+
+**Feito** (43da8ba). Resolver a conta acontece sob o lock do Store; o aviso de conta desconhecida (um `log.Printf`) roda ali dentro, uma vez por diretório.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(store): conta da sessão pelo transcript_path`
@@ -107,12 +111,14 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Com `CLAUDE_CONFIG_DIR=<tmp>`: grava em `<tmp>/settings.json` e `<tmp>/claude-fleet/`; o `HOME` fake fica intocado
-- [ ] `-settings`/`-dir` explícitos vencem a variável
-- [ ] `CLAUDE_CONFIG_DIR=~/x` e `CLAUDE_CONFIG_DIR=x` saem com 2 e mensagem que cita o `~`
-- [ ] `CLAUDE_CONFIG_DIR=$HOME/.claude` dá o mesmo resultado de sem a variável (sem hook duplicado)
-- [ ] `uninstall-hooks` usa a mesma regra
-- [ ] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com os testes novos (`TestInstallHooksUsaClaudeConfigDir`, `TestInstallHooksRecusaConfigDirRelativo`)
+- [x] Com `CLAUDE_CONFIG_DIR=<tmp>`: grava em `<tmp>/settings.json` e `<tmp>/claude-fleet/`; o `HOME` fake fica intocado
+- [x] `-settings`/`-dir` explícitos vencem a variável
+- [x] `CLAUDE_CONFIG_DIR=~/x` e `CLAUDE_CONFIG_DIR=x` saem com 2 e mensagem que cita o `~`
+- [x] `CLAUDE_CONFIG_DIR=$HOME/.claude` dá o mesmo resultado de sem a variável (sem hook duplicado)
+- [x] `uninstall-hooks` usa a mesma regra
+- [x] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com os testes novos (`TestInstallHooksUsaClaudeConfigDir`, `TestInstallHooksRecusaConfigDirRelativo`)
+
+**Feito** (56749a2). Desvio: a linha `Conta: <dir>` não foi acrescentada; o `Mudanças em <settings>` que já sai antes do diff diz qual arquivo muda (critério 4 da spec), e o teste confere isso.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): install-hooks na conta do CLAUDE_CONFIG_DIR`
@@ -129,11 +135,13 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Sem `-account`: comportamento e saída de hoje (testes atuais de `parseConfig` passam)
-- [ ] `-account a=… -projects …` sai com 2 e a mensagem do design
-- [ ] `-account` inválido sai com 2 com a mensagem do `account.Parse`
-- [ ] Log na partida lista as contas e quantas sessões o Bootstrap achou em cada uma
-- [ ] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com `TestParseConfigAccountComProjectsFalha` e um caso de `-account` válido
+- [x] Sem `-account`: comportamento e saída de hoje (testes atuais de `parseConfig` passam)
+- [x] `-account a=… -projects …` sai com 2 e a mensagem do design
+- [x] `-account` inválido sai com 2 com a mensagem do `account.Parse`
+- [x] Log na partida lista as contas e quantas sessões o Bootstrap achou em cada uma
+- [x] Gate passa: `go test -race -count=1 ./cmd/claude-fleet/` com `TestParseConfigAccountComProjectsFalha` e um caso de `-account` válido
+
+**Feito** (1e8c7d7, b6816a3). Desvio do design: **sem conta implícita**. Sem `-account`, o Store roda sem `WithAccounts` e nenhuma sessão tem conta, exatamente como hoje; `account.Implicit` saiu. Motivo: o `-projects` aceita qualquer caminho, e derivar dele `<dir>/projects` marcaria como "outra" sessões que hoje aparecem normalmente. Com isso, "outra" só existe quando há `-account`. Conferido também com o binário real: eventos de duas contas e de um diretório não declarado dão `p`, `t` e `outra`, sem caminho na API, e o aviso no log sai uma vez por diretório.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(cli): flag -account e descoberta de sessões por conta`
@@ -150,9 +158,11 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Cenário novo passa e os cenários antigos continuam passando
-- [ ] O `HOME` real não é tocado (tudo em `mktemp -d`)
-- [ ] Gate full passa
+- [x] Cenário novo passa e os cenários antigos continuam passando
+- [x] O `HOME` real não é tocado (tudo em `mktemp -d`)
+- [x] Gate full passa
+
+**Feito** (a3a6bcc). O caso 6 também confere que a API não expõe o diretório da conta e que o `install-hooks` com `CLAUDE_CONFIG_DIR` não cria `~/.claude` no `HOME` temporário.
 
 **Tests**: integration · **Gate**: full
 **Commit**: `test(hook): sessões de duas contas pelo hook instalado`
@@ -170,15 +180,19 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Com uma conta só (sem `Account`), a página fica pixel a pixel como hoje
-- [ ] Com duas contas, cada tile mostra o nome da conta, legível em 160 px e com contraste AA nos dois tons
-- [ ] Sessão já oculta antes da feature continua oculta; ocultar uma sessão de uma conta não oculta a mesma pasta na outra
-- [ ] Sem fonte, CDN nem dependência externa; respeita `prefers-reduced-motion`
-- [ ] Conferido no navegador: desktop e celular, vertical e horizontal
+- [x] Com uma conta só (sem `Account`), a página fica pixel a pixel como hoje
+- [x] Com duas contas, cada tile mostra o nome da conta, legível em 160 px e com contraste AA nos dois tons
+- [x] Sessão já oculta antes da feature continua oculta; ocultar uma sessão de uma conta não oculta a mesma pasta na outra
+- [x] Sem fonte, CDN nem dependência externa; respeita `prefers-reduced-motion`
+- [x] Conferido no navegador: desktop e celular, vertical e horizontal
+
+**Feito** pelo `ui-figma`. Desvio: no tile de 160 px (abaixo de 600 px) não cabem chip, id e custo; com chip, o id sai do tile e continua no pop-up. Hash djb2 aditivo (na variante XOR, "pessoal" e "trabalho" caíam na mesma cor). Tokens: `--conta-1…4` (azul, violeta, rosa, ciano; contraste 7,96–8,67:1) e `--conta-outra` (6,74:1); sem verde e amarelo, para não confundir com ativo e aguardando. Conferido com Playwright headless em 1280×800, 390×844 e 844×390, com e sem `-account`, sem erro no console; sem `-account` a página e a chave de ocultação ficam como antes.
 
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): conta da sessão no tile e no pop-up`
 
+
+**Ajuste (2026-10-18), pedido do usuário:** o chip sai do tile e fica só no pop-up, porque o filtro do cabeçalho já diz que conta está em vista. Com isso o id volta ao tile no celular, e o desvio dos 160 px deixa de existir. Feito pelo `ui-figma` no código e no Figma; o filtro (T8) sobe para P1.
 ---
 
 ### T7: Figma do chip e do pop-up
@@ -191,9 +205,11 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Tokens `--conta-1…4` como variáveis no Figma
-- [ ] Telas de celular (vertical) e desktop atualizadas, com nomes fictícios ("pessoal", "trabalho")
-- [ ] Screenshot do Figma comparado com o do navegador
+- [x] Tokens `--conta-1…4` como variáveis no Figma
+- [x] Telas de celular (vertical) e desktop atualizadas, com nomes fictícios ("pessoal", "trabalho")
+- [x] Screenshot do Figma comparado com o do navegador
+
+**Feito** pelo `ui-figma`. O arquivo não tinha variáveis: foi criada a coleção `claude-fleet · :root` (13 tokens base + 5 pares de conta). Componente `conta (chip)` (nó 22:36) com variantes c-1…c-4 e outra; telas novas: celular com duas contas (22:38), desktop (22:209), pop-up com conta (22:372). O texto novo do Ocultar só existe no aria-label/title; registrado em nota (22:536). Diferença conhecida: fontes (Inter/DM Mono no Figma, fonte do sistema no navegador), anterior a esta feature.
 
 **Tests**: none (artefato de design) · **Gate**: comparação visual
 **Commit**: nenhum no repositório (link no PR)
@@ -211,10 +227,12 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Filtro escondido com uma conta; aparece com duas
-- [ ] Recarregar mantém a escolha; `localStorage` bloqueado volta a "todas" sem erro no console
-- [ ] Sessão de conta filtrada que vai para "aguardando" ainda toca o som
-- [ ] Cabeçalho cabe no celular, na vertical e na horizontal; Figma atualizado
+- [x] Filtro escondido com uma conta; aparece com duas
+- [x] Recarregar mantém a escolha; `localStorage` bloqueado volta a "todas" sem erro no console
+- [x] Sessão de conta filtrada que vai para "aguardando" ainda toca o som
+- [x] Cabeçalho cabe no celular, na vertical e na horizontal; Figma atualizado
+
+**Feito** pelo `ui-figma`, com o Figma junto (componente `filtro-conta`, nó 23:27). Decisões: "sessões" e "ocultas" seguem o filtro; "aguardando" conta todas as contas, com title "inclui N de outra conta, fora do filtro"; sessão aguardando de conta filtrada **não** fura o filtro (alerta segue por chip, som e push). Diferença: no celular deitado (`pointer: coarse`) o cabeçalho inteiro já ficava escondido, então o filtro não aparece ali, mas continua valendo. Som conferido pela chamada de `tocar()` com uma sessão de conta filtrada indo para aguardando (sem ouvir o áudio).
 
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): filtro da grade por conta`
@@ -230,8 +248,10 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Exemplo usa nomes fictícios e `%h` em vez de caminho pessoal
-- [ ] `systemd-analyze --user verify deploy/claude-fleet.service` sem erro novo
+- [x] Exemplo usa nomes fictícios e `%h` em vez de caminho pessoal
+- [x] `systemd-analyze --user verify deploy/claude-fleet.service` sem erro novo
+
+**Feito** (bfe4241). Desvio: em vez de só um comentário, a unit repassa `$CLAUDE_FLEET_ARGS` do `env` ao servidor, e as contas entram ali sem editar o `ExecStart`. `systemd-analyze --user verify` sem erro novo.
 
 **Tests**: none (documentação) · **Gate**: `systemd-analyze` + leitura
 **Commit**: `docs: várias contas do Claude Code no README e na unit`
@@ -247,8 +267,10 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Critérios do `uso-plano` citam `account.List.Resolve` e o formato do design do multi-conta
-- [ ] Nenhuma contradição entre as duas specs
+- [x] Critérios do `uso-plano` citam `account.List.Resolve` e o formato do design do multi-conta
+- [x] Nenhuma contradição entre as duas specs
+
+**Feito** (7fa0ead).
 
 **Tests**: none (spec) · **Gate**: leitura
 **Commit**: `docs(specs): uso-plano guarda o plano por conta`
@@ -264,9 +286,11 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] UAT: sessões das duas contas com chip certo, inclusive uma aberta antes do serviço subir; filtro funcionando no celular
-- [ ] `reviewer` sem achado aberto
-- [ ] Gate full passa
+- [x] UAT: sessões das duas contas com a conta certa (no pop-up, depois do ajuste), inclusive uma aberta antes do serviço subir; filtro funcionando no celular
+- [x] `reviewer` sem achado aberto
+- [x] Gate full passa
+
+**Feito** em `uat.md`. CONTA-07 fica para a implementação do `uso-plano`.
 
 **Tests**: UAT · **Gate**: full
 **Commit**: `docs(specs): UAT do multi-conta`

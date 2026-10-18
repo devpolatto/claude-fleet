@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/account"
 	"github.com/devpolatto/claude-fleet/internal/ingest"
 )
 
@@ -80,11 +81,25 @@ type Store struct {
 	mu       sync.RWMutex
 	sessions map[string]*Session
 	subs     []chan struct{}
+	accounts *account.List // nil: nenhuma sessão recebe conta (sem -account)
+}
+
+// Option configura o Store em New.
+type Option func(*Store)
+
+// WithAccounts faz cada sessão receber o nome da conta do Claude Code que
+// contém o seu transcript (AD-009).
+func WithAccounts(l *account.List) Option {
+	return func(s *Store) { s.accounts = l }
 }
 
 // New cria um Store vazio.
-func New() *Store {
-	return &Store{sessions: make(map[string]*Session)}
+func New(opts ...Option) *Store {
+	s := &Store{sessions: make(map[string]*Session)}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 // Subscribe devolve um canal que recebe um sinal a cada mudança de estado.
@@ -154,6 +169,7 @@ func (s *Store) Apply(ev ingest.Event, now time.Time) (changed bool) {
 	}
 	if ev.TranscriptPath != "" {
 		m.setString(&sess.TranscriptPath, ev.TranscriptPath)
+		m.setString(&sess.Account, s.accounts.Resolve(ev.TranscriptPath))
 	}
 
 	if ev.AgentID != "" {
@@ -303,6 +319,7 @@ func (s *Store) Snapshot() []SessionView {
 			ShortID:     shortID(sess.ID),
 			Project:     sess.Project,
 			Name:        sess.Name,
+			Account:     sess.Account,
 			Cwd:         sess.Cwd,
 			Status:      sess.Status,
 			StartedAt:   sess.StartedAt,
