@@ -71,6 +71,16 @@
 
 ---
 
+### AD-009: Conta do Claude derivada do diretório do transcript (2026-10-18)
+
+**Decision:** Com várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta), a conta de uma sessão é o diretório de configuração que contém o `transcript_path`, comparado com as contas declaradas no servidor (`-account nome=dir`). Só o nome da conta é gravado e exposto.
+**Reason:** Não muda o hook nem a lista branca do `ingest` (AD-003, AD-006) e vale também para as sessões achadas pelo Bootstrap.
+**Trade-off:** As contas precisam ser declaradas no serviço; diretório não declarado aparece como "outra".
+**Alternative:** Hook mandar `$CLAUDE_CONFIG_DIR` (campo novo vindo do cliente, não cobre o Bootstrap); descobrir sozinho os `~/.claude*` (pega backups e diretórios abandonados).
+**Impact:** Pacote `internal/account`, flag `-account`, `Session.Account`, `install-hooks` respeita `CLAUDE_CONFIG_DIR`, `uso-plano` por conta. Spec em `features/multi-conta`.
+
+---
+
 ## Active Blockers
 
 _Nenhum._
@@ -123,7 +133,7 @@ _Nenhum._
 - [ ] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16), design pendente
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec — especificada em `features/pwa` (2026-10-16)
 - [x] Custo e tokens por modelo e acerto de cache no pop-up — Captured during: issue #3 (2026-10-16) — feito em `features/custo-por-modelo` (2026-10-17)
-- [ ] Várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta): ver as sessões de todas e o uso de cada plano — Captured during: conversa de 2026-10-18 — especificada em `features/multi-conta` (2026-10-18, rascunho); AD-009 entra aqui quando a spec for aprovada
+- [ ] Várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta): ver as sessões de todas e o uso de cada plano — Captured during: conversa de 2026-10-18 — spec aprovada em `features/multi-conta` (2026-10-18, AD-009), design aguardando aprovação
 
 ---
 

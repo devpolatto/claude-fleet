@@ -1,6 +1,6 @@
 # multi-conta Specification
 
-> Status: **rascunho** em 2026-10-18, aguardando aprovação (inclui a AD-009 proposta). Próximo passo: design.
+> Status: **spec aprovada** em 2026-10-18 (AD-009 registrada no `STATE.md`). Design em `design.md`, aguardando aprovação.
 
 ## Problem Statement
 
@@ -27,7 +27,7 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 ---
 
-## Como identificar a conta: AD-009 (proposta)
+## Como identificar a conta: AD-009 (aprovada em 2026-10-18)
 
 **Decision:** A conta de uma sessão é o **diretório de configuração** de onde vem o transcript. Todo evento do hook traz `transcript_path`, que já é aceito pelo `ingest` e tem a forma `<config>/projects/<projeto>/<session_id>.jsonl`. O servidor compara esse caminho com as contas configuradas (`-account nome=dir`, repetível) e grava na sessão só o **nome** da conta. Sem `-account`, existe uma conta implícita, `~/.claude`, e a interface não mostra conta nenhuma.
 **Reason:** Não muda o hook nem a lista branca do `ingest`, não lê o ambiente da sessão e funciona também para as sessões achadas pelo Bootstrap, que não têm evento.
@@ -115,14 +115,14 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| CONTA-01 | P1: `install-hooks`/`uninstall-hooks` respeitam `CLAUDE_CONFIG_DIR` | Specify | Pending |
-| CONTA-02 | P1: Flag `-account nome=dir`, validação e convivência com `-projects` | Specify | Pending |
-| CONTA-03 | P1: Conta derivada do `transcript_path`, herdada pelos subagentes | Specify | Pending |
-| CONTA-04 | P1: Bootstrap em todas as contas | Specify | Pending |
-| CONTA-05 | P1: API expõe só o nome da conta | Specify | Pending |
-| CONTA-06 | P1: Conta no tile e no pop-up quando há mais de uma (Figma junto) | Specify | Pending |
-| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Specify | Pending |
-| CONTA-08 | P2: Filtro da grade por conta, salvo no aparelho | Specify | Pending |
+| CONTA-01 | P1: `install-hooks`/`uninstall-hooks` respeitam `CLAUDE_CONFIG_DIR` | Design | In Design |
+| CONTA-02 | P1: Flag `-account nome=dir`, validação e convivência com `-projects` | Design | In Design |
+| CONTA-03 | P1: Conta derivada do `transcript_path`, herdada pelos subagentes | Design | In Design |
+| CONTA-04 | P1: Bootstrap em todas as contas | Design | In Design |
+| CONTA-05 | P1: API expõe só o nome da conta | Design | In Design |
+| CONTA-06 | P1: Conta no tile e no pop-up quando há mais de uma (Figma junto) | Design | In Design |
+| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Design | In Design |
+| CONTA-08 | P2: Filtro da grade por conta, salvo no aparelho | Design | In Design |
 
 **Coverage:** 8 total, 0 mapped to tasks.
 
