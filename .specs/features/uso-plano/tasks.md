@@ -257,8 +257,10 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Caso novo passa, junto com os anteriores
-- [ ] Gate passa
+- [x] Caso novo passa, junto com os anteriores
+- [x] Gate passa
+
+**Feito** (2ac120f). Caso 11: duas contas, envio pelo script lido do `settings.json`, valor certo por conta em `/api/uso`, transcript de fora descartado, `uso-plano.json` em 600 sem caminho, `session_id` nem `cwd`. Usa python3 e grep (o `test.sh` não usa jq).
 
 **Tests**: integration · **Gate**: full
 **Commit**: `test(hook): uso do plano de duas contas pelo status line instalado`
@@ -301,13 +303,15 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Com o valor injetado por `curl`: percentual igual ao enviado (arredondado), hora do reset local e contagem regressiva corretas
-- [ ] Uma conta: sem nome; duas contas: chip com o nome em cada bloco; conta declarada sem dado mostra o texto de "sem dado"
-- [ ] `resets_at` no passado mostra "reiniciada, aguardando dado novo"; cores mudam em 80% e 95%; o percentual sempre aparece em texto
-- [ ] `--uso-critico` com contraste ≥ 4,5:1 sobre `--surface`
-- [ ] Valor novo por `curl` aparece na página aberta em ≤ 2 s
-- [ ] Conferido em 1280×800, 390×844 e 844×390, com uma e duas contas, sem erro no console
-- [ ] `go test ./internal/web/` passa
+- [x] Com o valor injetado por `curl`: percentual igual ao enviado (arredondado), hora do reset local e contagem regressiva corretas
+- [x] Uma conta: sem nome; duas contas: chip com o nome em cada bloco; conta declarada sem dado mostra o texto de "sem dado"
+- [x] `resets_at` no passado mostra "reiniciada, aguardando dado novo"; cores mudam em 80% e 95%; o percentual sempre aparece em texto
+- [x] `--uso-critico` com contraste ≥ 4,5:1 sobre `--surface`
+- [x] Valor novo por `curl` aparece na página aberta em ≤ 2 s
+- [x] Conferido em 1280×800, 390×844 e 844×390, com uma e duas contas, sem erro no console
+- [x] `go test ./internal/web/` passa
+
+**Feito** (dd0fead) pelo `ui-figma`, conferido com Playwright em 1280×800, 390×844 e 844×390, com uma e duas contas (uma sem dado); valor novo por `curl` aparece em ~270 ms. `--uso-critico` = `#f87171` (6,42:1 sobre `--surface`). Desvios: barra sem animação (o bloco é redesenhado inteiro); no estado "reiniciada" o texto toma o lugar do percentual e a linha do reset some; com uma conta o bloco só tem o "atualizado há"; token extra `--uso-barra-h`; tooltip do "atualizado há" com data e hora completas.
 
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): medidores do uso do plano por conta`
