@@ -393,9 +393,11 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Números iguais aos de `/api/uso`; sem as janelas no JSON, a linha não aparece
-- [ ] Conferido em 1280×800, 390×844 e 844×390, sem erro no console; Figma atualizado
-- [ ] `go test ./internal/web/` passa
+- [x] Números iguais aos de `/api/uso`; sem as janelas no JSON, a linha não aparece
+- [x] Conferido em 1280×800, 390×844 e 844×390, sem erro no console; Figma atualizado
+- [x] `go test ./internal/web/` passa
+
+**Feito** (698c51e) pelo `ui-figma`, no código e no Figma (componentes `janela-linha` 34:195 e `uso-janelas` 34:201; propriedade `janelas` em `uso-conta` 29:92). Decisões: escrita e leitura de cache numa coluna só (detalhe no title), para caber em 390 px; rótulos "5 h" e "Semana"; a tabela aparece também em conta sem dado do plano; custo parcial "≥ US$ X", sem preço "n/d". Conferido com Playwright nas três larguras, com uma e duas contas, números iguais a `/api/uso`.
 
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): tokens e custo das janelas do plano`
