@@ -1,6 +1,7 @@
 package account
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -184,5 +185,26 @@ func TestResolveLimpaPontoPonto(t *testing.T) {
 				t.Errorf("Resolve(%q) = %q, queria %q", tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveLimitaAvisos(t *testing.T) {
+	l, err := Parse([]string{"padrao=/home/u/.claude"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	l.OnUnknown(func(string) { n++ })
+	for i := range maxAvisos * 3 {
+		p := fmt.Sprintf("/x/%d/projects/p/s.jsonl", i)
+		if got := l.Resolve(p); got != Outra {
+			t.Fatalf("Resolve(%q) = %q, queria %q", p, got, Outra)
+		}
+	}
+	if n != maxAvisos {
+		t.Errorf("%d avisos, queria %d", n, maxAvisos)
+	}
+	if len(l.seen) != maxAvisos {
+		t.Errorf("seen com %d diretórios, queria %d", len(l.seen), maxAvisos)
 	}
 }

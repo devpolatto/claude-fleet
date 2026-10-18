@@ -23,6 +23,10 @@ const Outra = "outra"
 // arquivo de estado).
 const maxNome = 20
 
+// maxAvisos limita os diretórios desconhecidos lembrados por OnUnknown: o
+// transcript_path vem do hook, e o mapa não pode crescer sem fim.
+const maxAvisos = 32
+
 // Account é uma conta do Claude Code: um nome e o diretório de configuração.
 type Account struct {
 	Name string // [a-z0-9-]{1,20}
@@ -91,8 +95,9 @@ func (l *List) All() []Account {
 	return append([]Account(nil), l.declared...)
 }
 
-// OnUnknown registra quem é avisado, uma vez por diretório de configuração,
-// quando um transcript não pertence a nenhuma conta. O argumento é o
+// OnUnknown registra quem é avisado, uma vez por diretório de configuração
+// (até maxAvisos diretórios), quando um transcript não pertence a nenhuma
+// conta. O argumento é o
 // diretório de configuração deduzido (vazio se o caminho não tiver a forma
 // <dir>/projects/<projeto>/<arquivo>), nunca o caminho do transcript.
 func (l *List) OnUnknown(f func(configDir string)) {
@@ -120,8 +125,10 @@ func (l *List) Resolve(transcriptPath string) string {
 	cfg := configDir(p)
 	l.mu.Lock()
 	f := l.onUnknown
-	first := !l.seen[cfg]
-	l.seen[cfg] = true
+	first := !l.seen[cfg] && len(l.seen) < maxAvisos
+	if first {
+		l.seen[cfg] = true
+	}
 	l.mu.Unlock()
 	if first && f != nil {
 		f(cfg)

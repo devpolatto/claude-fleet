@@ -78,7 +78,7 @@ func run(ctx context.Context, cfg config) error {
 				log.Printf("claude-fleet: sessão com transcript fora de <dir>/projects; ela aparece como %q", account.Outra)
 				return
 			}
-			log.Printf("claude-fleet: sessão de conta não declarada em %s; ela aparece como %q (declare com -account nome=%s)", dir, account.Outra, dir)
+			log.Printf("claude-fleet: sessão de conta não declarada em %q; ela aparece como %q (declare com -account nome=<diretório>)", dir, account.Outra)
 		})
 		opts = append(opts, store.WithAccounts(cfg.Accounts))
 	}
