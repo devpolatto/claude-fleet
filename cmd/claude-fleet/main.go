@@ -22,6 +22,7 @@ import (
 
 	"github.com/devpolatto/claude-fleet/internal/account"
 	"github.com/devpolatto/claude-fleet/internal/push"
+	"github.com/devpolatto/claude-fleet/internal/ratelimit"
 	"github.com/devpolatto/claude-fleet/internal/store"
 	"github.com/devpolatto/claude-fleet/internal/web"
 )
@@ -38,7 +39,7 @@ type config struct {
 	// TLSCert e TLSKey ligam HTTPS no endereço da tailnet; o loopback do
 	// hook continua em HTTP.
 	TLSCert, TLSKey string
-	// StateDir guarda a chave VAPID e as inscrições de push.
+	// StateDir guarda a chave VAPID, as inscrições de push e o uso do plano.
 	StateDir string
 }
 
@@ -102,8 +103,10 @@ func run(ctx context.Context, cfg config) error {
 		tlsCfg = &tls.Config{GetCertificate: certs.GetCertificate, MinVersion: tls.VersionTLS12}
 	}
 
-	hub := web.NewHub(st)
+	usage := loadUsage(cfg)
+	hub := web.NewHub(st, web.WithUsage(usage))
 	server := web.NewServer(st, hub, cfg.Token)
+	server.SetUsage(usage, cfg.Accounts)
 
 	var wg sync.WaitGroup
 	// Sem o diretório de estado, só o push fica desligado; o painel sobe.
@@ -139,6 +142,36 @@ func bootstrap(st *store.Store, cfg config, now time.Time) {
 		n := st.Bootstrap(a.ProjectsDir(), now, bootstrapMaxAge)
 		log.Printf("claude-fleet: conta %s (%s): %d sessão(ões) recente(s) descoberta(s) no boot", a.Name, a.Dir, n)
 	}
+}
+
+// usageFile é o arquivo, dentro de StateDir, com o último uso do plano de
+// cada conta.
+const usageFile = "uso-plano.json"
+
+// loadUsage cria o Tracker do uso do plano, com uma entrada por conta
+// declarada (ou a conta implícita "", sem -account). Sem StateDir, ou com o
+// arquivo ilegível, o uso segue funcionando só em memória ou recomeça vazio.
+func loadUsage(cfg config) *ratelimit.Tracker {
+	names := []string{""}
+	if cfg.Accounts != nil {
+		names = names[:0]
+		for _, a := range cfg.Accounts.All() {
+			names = append(names, a.Name)
+		}
+	}
+	path := ""
+	if cfg.StateDir != "" {
+		if err := os.MkdirAll(cfg.StateDir, 0o700); err != nil {
+			log.Printf("claude-fleet: uso do plano só em memória: %v", err)
+		} else {
+			path = filepath.Join(cfg.StateDir, usageFile)
+		}
+	}
+	t, err := ratelimit.Load(path, names, time.Now)
+	if err != nil {
+		log.Printf("claude-fleet: uso do plano começa vazio: %v", err)
+	}
+	return t
 }
 
 // serve atende cada listener com um http.Server próprio até ctx ser
@@ -240,7 +273,7 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 	})
 	fs.StringVar(&cfg.TLSCert, "tls-cert", "", "certificado TLS (PEM); liga HTTPS no endereço da tailnet, junto com -tls-key")
 	fs.StringVar(&cfg.TLSKey, "tls-key", "", "chave do certificado TLS (PEM)")
-	fs.StringVar(&cfg.StateDir, "state-dir", "", "diretório da chave VAPID e das inscrições de push (padrão: ~/.config/claude-fleet)")
+	fs.StringVar(&cfg.StateDir, "state-dir", "", "diretório da chave VAPID, das inscrições de push e do uso do plano (padrão: ~/.config/claude-fleet)")
 	if err := fs.Parse(args); err != nil {
 		return config{}, err
 	}
