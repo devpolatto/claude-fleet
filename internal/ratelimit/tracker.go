@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -78,7 +79,8 @@ type Tracker struct {
 // continua tentando gravar em path, de modo que a próxima leitura válida
 // substitui um arquivo corrompido.
 //
-// O formato antigo (um objeto com five_hour, seven_day ou received_at no
+// Com names não vazio, contas do arquivo fora de names são ignoradas. O
+// formato antigo (um objeto com five_hour, seven_day ou received_at no
 // topo, sem conta) vira a conta "". Janelas inválidas no arquivo são
 // descartadas como ausentes.
 func Load(path string, names []string, now func() time.Time) (*Tracker, error) {
@@ -110,6 +112,12 @@ func Load(path string, names []string, now func() time.Time) (*Tracker, error) {
 		return t, fmt.Errorf("ratelimit: estado em %s ignorado: %w", path, err)
 	}
 	for name, fe := range saved {
+		// Com contas declaradas, uma conta que saiu das flags (ou a "" de um
+		// arquivo antigo, depois de passar a usar -account) não volta para a
+		// tela com um valor que nada mais atualiza.
+		if len(names) > 0 && !slices.Contains(names, name) {
+			continue
+		}
 		e := t.entry(name)
 		e.FiveHour = fe.FiveHour.valid()
 		e.SevenDay = fe.SevenDay.valid()

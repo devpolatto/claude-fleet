@@ -274,13 +274,25 @@ func TestLoadFormatoAntigoViraContaImplicita(t *testing.T) {
 			}},
 		},
 		{
-			nome:    "formato antigo com contas declaradas",
+			nome:    "formato antigo sem -account vira a conta implícita declarada",
+			arquivo: `{"seven_day":{"used_percentage":12,"resets_at":1792603200},"received_at":"2026-10-18T14:02:11-03:00"}`,
+			names:   []string{""},
+			quer:    []Entry{{Account: "", SevenDay: janela(12, 1792603200), ReceivedAt: quando}},
+		},
+		{
+			nome:    "formato antigo com contas declaradas é ignorado",
 			arquivo: `{"seven_day":{"used_percentage":12,"resets_at":1792603200},"received_at":"2026-10-18T14:02:11-03:00"}`,
 			names:   []string{"pessoal"},
-			quer: []Entry{
-				{Account: "", SevenDay: janela(12, 1792603200), ReceivedAt: quando},
-				{Account: "pessoal"},
-			},
+			quer:    []Entry{{Account: "pessoal"}},
+		},
+		{
+			nome: "conta que saiu das flags não volta",
+			arquivo: `{
+				"velha":   {"seven_day":{"used_percentage":90,"resets_at":1792603200},"received_at":"2026-10-18T14:02:11-03:00"},
+				"pessoal": {"seven_day":{"used_percentage":12,"resets_at":1792603200},"received_at":"2026-10-18T14:02:11-03:00"}
+			}`,
+			names: []string{"pessoal"},
+			quer:  []Entry{{Account: "pessoal", SevenDay: janela(12, 1792603200), ReceivedAt: quando}},
 		},
 		{
 			nome: "mapa por conta, janela inválida descartada",
