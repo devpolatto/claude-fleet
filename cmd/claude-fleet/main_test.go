@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -357,6 +358,34 @@ func TestLoadUsageContasEPersistencia(t *testing.T) {
 			}
 			if info.Mode().Perm() != 0o600 {
 				t.Fatalf("permissão = %o, quer 600", info.Mode().Perm())
+			}
+		})
+	}
+}
+
+func TestProjectDirsPorConta(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []string
+		projects string
+		want     map[string]string
+	}{
+		{"sem -account usa o -projects na conta implícita", nil, "/p/projects", map[string]string{"": "/p/projects"}},
+		{"com -account só as contas declaradas", []string{"pessoal=/c/p", "trabalho=/c/t"}, "",
+			map[string]string{"pessoal": "/c/p/projects", "trabalho": "/c/t/projects"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config{Projects: tt.projects}
+			if tt.accounts != nil {
+				l, err := account.Parse(tt.accounts, "/home/x")
+				if err != nil {
+					t.Fatal(err)
+				}
+				cfg.Accounts = l
+			}
+			if got := projectDirs(cfg); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("projectDirs = %v, queria %v", got, tt.want)
 			}
 		})
 	}

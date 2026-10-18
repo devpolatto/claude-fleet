@@ -28,6 +28,9 @@ type Entry struct {
 	FiveHour   *Window   `json:"five_hour,omitempty"`
 	SevenDay   *Window   `json:"seven_day,omitempty"`
 	ReceivedAt time.Time `json:"received_at,omitzero"` // zero: nunca chegou dado
+	// Windows são os tokens e o custo das janelas, somados dos transcripts
+	// (P2). Não vão para o arquivo: são recalculados ao subir.
+	Windows *WindowTotals `json:"windows,omitempty"`
 }
 
 // fileEntry é o valor de cada conta no arquivo. As janelas são lidas como
@@ -222,6 +225,44 @@ func (t *Tracker) Apply(account string, r Reading) (changed bool) {
 	return true
 }
 
+// SetWindows guarda os totais das janelas da conta account, criando a
+// entrada se ela não existir, e avisa os assinantes só quando o valor muda.
+// Não grava o arquivo: as janelas não fazem parte do uso-plano.json.
+func (t *Tracker) SetWindows(account string, w WindowTotals) (changed bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	e := t.entry(account)
+	if e.Windows != nil && *e.Windows == w {
+		return false
+	}
+	e.Windows = &w
+	t.notify()
+	return true
+}
+
+// planStarts devolve o início das janelas de 5 h e 7 dias segundo o dado do
+// plano da conta: resets_at menos a duração da janela, quando a janela existe
+// e o resets_at ainda está no futuro; zero quando não há esse dado.
+func (t *Tracker) planStarts(account string, now time.Time) (fiveHour, sevenDay time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	e, ok := t.entries[account]
+	if !ok {
+		return time.Time{}, time.Time{}
+	}
+	start := func(w *Window, d time.Duration) time.Time {
+		if w == nil {
+			return time.Time{}
+		}
+		reset := time.Unix(w.ResetsAt, 0)
+		if !reset.After(now) {
+			return time.Time{}
+		}
+		return reset.Add(-d)
+	}
+	return start(e.FiveHour, fiveHourSpan), start(e.SevenDay, sevenDaySpan)
+}
+
 // save grava o estado em t.path. Exige t.mu travado: as gravações saem na
 // ordem dos avisos, e são no máximo uma por minuto por conta em uso
 // contínuo, então segurar a trava durante a escrita não pesa.
@@ -262,6 +303,10 @@ func (t *Tracker) Snapshot() []Entry {
 		if e.SevenDay != nil {
 			w := *e.SevenDay
 			c.SevenDay = &w
+		}
+		if e.Windows != nil {
+			w := *e.Windows
+			c.Windows = &w
 		}
 		out = append(out, c)
 	}

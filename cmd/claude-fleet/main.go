@@ -119,8 +119,12 @@ func run(ctx context.Context, cfg config) error {
 	}
 	handler := server.Handler()
 
-	wg.Add(3)
+	wg.Add(4)
 	go func() { defer wg.Done(); hub.Run(ctx) }()
+	go func() {
+		defer wg.Done()
+		ratelimit.NewWindows(projectDirs(cfg), usage).Run(ctx, ratelimit.DefaultWindowsInterval)
+	}()
 	go func() { defer wg.Done(); store.NewRefresher(st).Run(ctx, store.DefaultRefreshInterval) }()
 	go func() { defer wg.Done(); pruneLoop(ctx, st) }()
 
@@ -142,6 +146,20 @@ func bootstrap(st *store.Store, cfg config, now time.Time) {
 		n := st.Bootstrap(a.ProjectsDir(), now, bootstrapMaxAge)
 		log.Printf("claude-fleet: conta %s (%s): %d sessão(ões) recente(s) descoberta(s) no boot", a.Name, a.Dir, n)
 	}
+}
+
+// projectDirs devolve o diretório projects de cada conta declarada ou, sem
+// -account, o Projects na conta implícita "". As janelas de tokens e custo
+// (P2) só são calculadas para essas contas.
+func projectDirs(cfg config) map[string]string {
+	if cfg.Accounts == nil {
+		return map[string]string{"": cfg.Projects}
+	}
+	dirs := make(map[string]string)
+	for _, a := range cfg.Accounts.All() {
+		dirs[a.Name] = a.ProjectsDir()
+	}
+	return dirs
 }
 
 // usageFile é o arquivo, dentro de StateDir, com o último uso do plano de
