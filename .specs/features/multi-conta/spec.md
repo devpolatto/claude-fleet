@@ -1,6 +1,6 @@
 # multi-conta Specification
 
-> Status: **spec aprovada** em 2026-10-18 (AD-009 registrada no `STATE.md`). Design e tasks aprovados em 2026-10-18; implementação concluída (T1–T10), UAT em andamento (T11).
+> Status: **spec aprovada** em 2026-10-18 (AD-009 registrada no `STATE.md`). Design e tasks aprovados em 2026-10-18; implementada e verificada no UAT (`uat.md`).
 
 ## Problem Statement
 
@@ -116,16 +116,16 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| CONTA-01 | P1: `install-hooks`/`uninstall-hooks` respeitam `CLAUDE_CONFIG_DIR` | Tasks | In Tasks |
-| CONTA-02 | P1: Flag `-account nome=dir`, validação e convivência com `-projects` | Tasks | In Tasks |
-| CONTA-03 | P1: Conta derivada do `transcript_path`, herdada pelos subagentes | Tasks | In Tasks |
-| CONTA-04 | P1: Bootstrap em todas as contas | Tasks | In Tasks |
-| CONTA-05 | P1: API expõe só o nome da conta | Tasks | In Tasks |
-| CONTA-06 | P1: Conta no pop-up e no rótulo acessível do tile; tile sem chip (Figma junto) | Tasks | In Tasks |
-| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Tasks | In Tasks |
-| CONTA-08 | P1: Filtro da grade por conta, salvo no aparelho (era P2) | Tasks | In Tasks |
+| CONTA-01 | P1: `install-hooks`/`uninstall-hooks` respeitam `CLAUDE_CONFIG_DIR` | Verified | Verified |
+| CONTA-02 | P1: Flag `-account nome=dir`, validação e convivência com `-projects` | Verified | Verified |
+| CONTA-03 | P1: Conta derivada do `transcript_path`, herdada pelos subagentes | Verified | Verified |
+| CONTA-04 | P1: Bootstrap em todas as contas | Verified | Verified |
+| CONTA-05 | P1: API expõe só o nome da conta | Verified | Verified |
+| CONTA-06 | P1: Conta no pop-up e no rótulo acessível do tile; tile sem chip (Figma junto) | Verified | Verified |
+| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Execute | Pending (`uso-plano`) |
+| CONTA-08 | P1: Filtro da grade por conta, salvo no aparelho (era P2) | Verified | Verified |
 
-**Coverage:** 8 total, 8 mapped to tasks (T1–T11).
+**Coverage:** 8 total, 8 mapped to tasks (T1–T11); 7 verified, CONTA-07 depende do `uso-plano`.
 
 ---
 

@@ -1,7 +1,7 @@
 # multi-conta Tasks
 
 **Design**: `.specs/features/multi-conta/design.md`
-**Status**: In Progress (aprovadas em 2026-10-18; fases 1 a 4 concluídas; falta o T11)
+**Status**: Done (2026-10-18)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -286,9 +286,11 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] UAT: sessões das duas contas com chip certo, inclusive uma aberta antes do serviço subir; filtro funcionando no celular
-- [ ] `reviewer` sem achado aberto
-- [ ] Gate full passa
+- [x] UAT: sessões das duas contas com a conta certa (no pop-up, depois do ajuste), inclusive uma aberta antes do serviço subir; filtro funcionando no celular
+- [x] `reviewer` sem achado aberto
+- [x] Gate full passa
+
+**Feito** em `uat.md`. CONTA-07 fica para a implementação do `uso-plano`.
 
 **Tests**: UAT · **Gate**: full
 **Commit**: `docs(specs): UAT do multi-conta`
