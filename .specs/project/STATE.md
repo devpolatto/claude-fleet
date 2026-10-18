@@ -130,7 +130,7 @@ _Nenhum._
 - [x] Alerta no navegador/vibração quando um agente fica aguardando permissão — avaliar sobreposição com o hook `telegram-notify` existente — Captured during: fleet-mvp/spec — feito: som em `features/alerta-sonoro` e push em `features/notificacao-push` (2026-10-16); o `telegram-notify` fica (aprova à distância)
 - [ ] Histórico em SQLite e custo por dia/projeto — Captured during: fleet-mvp/spec
 - [ ] Detectar sessão morta sem `SessionEnd` (PID ou inatividade do transcript) — Captured during: fleet-mvp/design
-- [ ] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16), design pendente
+- [ ] Uso do plano (janela de 5 h e semanal, como o `/usage`) numa segunda tela, trocada com um dedo — Captured during: conversa de 2026-10-16 — especificada em `features/uso-plano` (2026-10-16), design aprovado, tasks em rascunho (2026-10-18)
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec — especificada em `features/pwa` (2026-10-16)
 - [x] Custo e tokens por modelo e acerto de cache no pop-up — Captured during: issue #3 (2026-10-16) — feito em `features/custo-por-modelo` (2026-10-17)
 - [x] Várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta): ver as sessões de todas e o uso de cada plano — Captured during: conversa de 2026-10-18 — spec, design e tasks aprovados em `features/multi-conta` (2026-10-18, AD-009); feito, UAT em `features/multi-conta/uat.md` (2026-10-18)

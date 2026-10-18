@@ -1,6 +1,6 @@
 # uso-plano Specification
 
-> Status: **spec aprovada** em 2026-10-16 (fonte pelo status line, AD-007; troca de tela com um dedo). Próximo passo: design.
+> Status: **spec aprovada** em 2026-10-16 (fonte pelo status line, AD-007; troca de tela com um dedo). Design aprovado e tasks em rascunho (2026-10-18).
 > Emendada em 2026-10-18 pelo `multi-conta` (CONTA-07, AD-009): o uso é guardado e mostrado **por conta** do Claude Code.
 
 ## Problem Statement
