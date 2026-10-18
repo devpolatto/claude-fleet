@@ -9,8 +9,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
 func TestValidateBind(t *testing.T) {
@@ -218,5 +223,85 @@ func TestServeTLSComHTTP2ELoopbackHTTP(t *testing.T) {
 	}
 	if got := get(http.DefaultClient, "http://"+lp.Addr().String()); got != "HTTP/1.1" {
 		t.Errorf("loopback: proto = %q, queria HTTP/1.1", got)
+	}
+}
+
+func TestParseConfigAccountComProjectsFalha(t *testing.T) {
+	e := env(map[string]string{"HOME": "/home/x"})
+	_, err := parseConfig([]string{"-account", "p=~/.claude-p", "-projects", "/tmp/p"}, e, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "use só -account") {
+		t.Fatalf("erro = %v, queria a mensagem de -account com -projects", err)
+	}
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{"nome inválido", []string{"-account", "P=/c"}, "-account"},
+		{"sem igual", []string{"-account", "pessoal"}, "nome=diretório"},
+		{"nome repetido", []string{"-account", "p=/a", "-account", "p=/b"}, "repetida"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseConfig(tt.args, e, io.Discard)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("erro = %v, queria conter %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseConfigAccountValido(t *testing.T) {
+	cfg, err := parseConfig([]string{"-account", "pessoal=~/.claude-pessoal", "-account", "trabalho=/srv/c"},
+		env(map[string]string{"HOME": "/home/x"}), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Projects != "" {
+		t.Errorf("Projects = %q, queria vazio com -account", cfg.Projects)
+	}
+	all := cfg.Accounts.All()
+	if len(all) != 2 || all[0].Name != "pessoal" || all[0].Dir != "/home/x/.claude-pessoal" || all[1].Dir != "/srv/c" {
+		t.Errorf("Accounts = %+v", all)
+	}
+
+	cfg, err = parseConfig(nil, env(map[string]string{"HOME": "/home/x"}), io.Discard)
+	if err != nil || cfg.Accounts != nil || cfg.Projects != "/home/x/.claude/projects" {
+		t.Errorf("sem -account: Accounts=%v Projects=%q err=%v", cfg.Accounts, cfg.Projects, err)
+	}
+}
+
+func TestBootstrapPorConta(t *testing.T) {
+	home := t.TempDir()
+	linha := `{"type":"user","cwd":"/home/u/proj","timestamp":"2026-10-18T10:00:00.000Z"}` + "\n"
+	for _, c := range []string{"pessoal", "trabalho"} {
+		p := filepath.Join(home, ".claude-"+c, "projects", "-home-u-proj", "s-"+c+".jsonl")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(linha), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg, err := parseConfig([]string{"-account", "pessoal=~/.claude-pessoal", "-account", "trabalho=~/.claude-trabalho",
+		"-account", "vazia=~/.claude-vazia"}, env(map[string]string{"HOME": home}), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := store.New(store.WithAccounts(cfg.Accounts))
+	bootstrap(st, cfg, time.Now())
+
+	for _, c := range []string{"pessoal", "trabalho"} {
+		d, ok := st.Get("s-" + c)
+		if !ok {
+			t.Fatalf("sessão de %s não descoberta", c)
+		}
+		if d.Account != c {
+			t.Errorf("s-%s: Account = %q, queria %q", c, d.Account, c)
+		}
+	}
+	if n := len(st.Snapshot()); n != 2 {
+		t.Errorf("%d sessões, queria 2", n)
 	}
 }
