@@ -44,6 +44,13 @@
     --conta-outra-texto: var(--desconhecido);
     /* Troca entre a tela de sessões e a de uso do plano. */
     --tela-transicao: .25s;
+    /* Medidores do uso do plano: trilho, e o preenchimento muda de tom em 80% e 95%.
+       --uso-critico mede 6,4:1 sobre --surface (AA para texto). */
+    --uso-trilho: var(--border);
+    --uso-ok: var(--ativo);
+    --uso-alerta: var(--aguardando);
+    --uso-critico: #f87171;
+    --uso-barra-h: 10px;
   }
 
   * { box-sizing: border-box; }
@@ -244,7 +251,82 @@
   #telas.sem-transicao #tela-sessoes, #telas.sem-transicao #tela-uso { transition: none; }
 
   #tela-uso h2 { font-size: 17px; margin: 0; font-weight: 700; }
-  #tela-uso .provisorio { color: var(--muted); text-align: center; margin: 0; max-width: 36em; }
+
+  /* ---------- Tela de uso: um bloco por conta, dois medidores cada ---------- */
+  #uso-contas {
+    width: 100%;
+    max-width: 1100px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 14px;
+  }
+  #uso-contas.uma { max-width: 720px; }
+  .uso-conta {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .uso-cab {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    min-width: 0;
+  }
+  .uso-cab h3 { margin: 0; font-size: 14px; font-weight: 600; min-width: 0; }
+  .uso-cab .conta {
+    display: inline-block;
+    max-width: 100%;
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: var(--conta-bg);
+    color: var(--conta-fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+  .uso-atualizado { margin-left: auto; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .uso-atualizado.velho { color: var(--muted); }
+  .uso-sem-dado { margin: 0; color: var(--muted); }
+  .uso-medidores {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+    gap: 16px 20px;
+  }
+  .medidor { --uso-cor: var(--uso-ok); min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .medidor.alerta { --uso-cor: var(--uso-alerta); }
+  .medidor.critico { --uso-cor: var(--uso-critico); }
+  .med-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .med-nome { color: var(--muted); font-size: 13px; }
+  .med-pct {
+    font-size: 30px;
+    line-height: 1;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--uso-cor);
+  }
+  .med-barra {
+    height: var(--uso-barra-h);
+    border-radius: calc(var(--uso-barra-h) / 2);
+    background: var(--uso-trilho);
+    overflow: hidden;
+  }
+  .med-cheio {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: var(--uso-cor);
+  }
+  .med-reset { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .medidor.reiniciada .med-barra { opacity: .45; }
+  .medidor.reiniciada .med-estado { font-size: 13px; color: var(--muted); text-align: right; }
 
   /* ---------- Pontinhos: qual tela está aberta ---------- */
   #pontos {
@@ -805,6 +887,9 @@
     header:not(.reconectando) { display: none; }
     .tela { padding-top: 12px; padding-bottom: 12px; gap: 12px; }
     #pontos { margin-bottom: 4px; }
+    #tela-uso h2 { display: none; }
+    .uso-conta { padding: 12px 14px; gap: 10px; }
+    .med-pct { font-size: 24px; }
   }
 
   /* Sem animação para quem pediu menos movimento: o anel fica fixo. */
@@ -846,7 +931,7 @@
   </section>
   <section id="tela-uso" class="tela" aria-labelledby="uso-titulo" inert>
     <h2 id="uso-titulo">Uso do plano</h2>
-    <p class="provisorio">Os medidores da janela de 5 h e da semana aparecem aqui.</p>
+    <div id="uso-contas" class="uma"></div>
   </section>
 </div>
 <nav id="pontos" aria-label="Telas">
@@ -1811,6 +1896,152 @@ dlg.addEventListener('close', () => {
   if (alvo) alvo.focus({ preventScroll: true });
 });
 
+// ---------- Uso do plano ----------
+// Um bloco por conta, com os medidores da janela de 5 h e da semana. Os dados
+// vêm de GET /api/uso no carregamento e do evento "uso" do SSE. Tudo vai por
+// textContent: nada do servidor entra como HTML.
+
+const usoContas = document.getElementById('uso-contas');
+const USO_ALERTA = 80;
+const USO_CRITICO = 95;
+const USO_VELHO_MS = 60 * 60 * 1000; // dado com mais de 1 h fica em --muted
+const JANELAS = [['five_hour', 'Sessão (5 h)'], ['seven_day', 'Semana']];
+const horaMin = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const diaSemana = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' });
+const diaMes = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
+
+let usoDados = null;   // null: ainda nada; senão, a última lista recebida
+let usoViaSSE = false; // o SSE ganha do fetch inicial, se chegar antes
+
+function receberUso(lista, doSSE) {
+  if (!doSSE && usoViaSSE) return;
+  if (doSSE) usoViaSSE = true;
+  usoDados = Array.isArray(lista) ? lista : [];
+  renderUso();
+}
+
+// "2 h 14 min", "3 d 4 h", "12 min", "menos de 1 min".
+function duracao(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'menos de 1 min';
+  const d = Math.floor(min / 1440), h = Math.floor(min % 1440 / 60), m = min % 60;
+  if (d > 0) return d + ' d' + (h ? ' ' + h + ' h' : '');
+  if (h > 0) return h + ' h' + (m ? ' ' + m + ' min' : '');
+  return m + ' min';
+}
+
+function atualizadoHa(ms) {
+  const min = Math.floor(Math.max(0, ms) / 60000);
+  if (min < 1) return 'atualizado agora';
+  if (min < 60) return 'atualizado há ' + min + ' min';
+  const h = Math.floor(min / 60);
+  if (h < 24) return 'atualizado há ' + h + ' h';
+  return 'atualizado há ' + Math.floor(h / 24) + ' d';
+}
+
+// "reinicia às 14:30 · em 2 h 14 min"; em outro dia, "reinicia sáb. às 14:30";
+// a uma semana ou mais, também o dia do mês, para não confundir com hoje.
+function textoReset(quando, agora) {
+  const hoje = new Date(agora);
+  let dia = '';
+  if (quando.toDateString() !== hoje.toDateString()) {
+    dia = diaSemana.format(quando) + ' ';
+    if (quando - agora >= 6 * 86400000) dia += diaMes.format(quando) + ' ';
+  }
+  return 'reinicia ' + dia + 'às ' + horaMin.format(quando) + ' · em ' + duracao(quando - agora);
+}
+
+function medidor(rotulo, janela, agora) {
+  const m = el('div', 'medidor');
+  const topo = el('div', 'med-topo');
+  const barra = el('div', 'med-barra');
+  const cheio = el('div', 'med-cheio');
+  barra.append(cheio);
+  barra.setAttribute('role', 'meter');
+  barra.setAttribute('aria-label', rotulo);
+  barra.setAttribute('aria-valuemin', '0');
+  barra.setAttribute('aria-valuemax', '100');
+  topo.append(el('span', 'med-nome', rotulo));
+  m.append(topo, barra);
+
+  const pctBruto = janela ? Number(janela.used_percentage) : NaN;
+  const reset = janela ? Number(janela.resets_at) * 1000 : NaN;
+  // Janela ausente depois de já ter dado, ou reset no passado: o percentual
+  // antigo não vale mais.
+  if (!Number.isFinite(pctBruto) || !Number.isFinite(reset) || reset <= agora) {
+    m.classList.add('reiniciada');
+    const txt = 'reiniciada, aguardando dado novo';
+    topo.append(el('span', 'med-estado', txt));
+    barra.setAttribute('aria-valuenow', '0');
+    barra.setAttribute('aria-valuetext', txt);
+    return m;
+  }
+  const pctVal = Math.max(0, pctBruto);
+  const redondo = Math.round(pctVal);
+  if (pctVal >= USO_CRITICO) m.classList.add('critico');
+  else if (pctVal >= USO_ALERTA) m.classList.add('alerta');
+  topo.append(el('span', 'med-pct', redondo + '%'));
+  cheio.style.width = Math.min(100, pctVal) + '%';
+  barra.setAttribute('aria-valuenow', String(Math.min(100, pctVal)));
+  const reinicia = textoReset(new Date(reset), agora);
+  barra.setAttribute('aria-valuetext', redondo + '% usado, ' + reinicia);
+  m.append(el('div', 'med-reset', reinicia));
+  return m;
+}
+
+function blocoUso(u, comNome, agora) {
+  const b = el('section', 'uso-conta');
+  const cab = el('div', 'uso-cab');
+  const titulo = el('h3');
+  if (comNome) {
+    const nome = typeof u.account === 'string' && u.account ? u.account : 'padrão';
+    titulo.append(chipConta(nome));
+    b.setAttribute('aria-label', 'Conta ' + nome);
+  }
+  const recebido = Date.parse(u.received_at);
+  if (!Number.isFinite(recebido)) {
+    if (comNome) { cab.append(titulo); b.append(cab); }
+    b.append(el('p', 'uso-sem-dado', 'sem dado do plano ainda — abra uma sessão do Claude Code'));
+    return b;
+  }
+  const at = el('span', 'uso-atualizado', atualizadoHa(agora - recebido));
+  if (agora - recebido > USO_VELHO_MS) at.classList.add('velho');
+  at.title = dataHora.format(new Date(recebido));
+  if (comNome) cab.append(titulo);
+  cab.append(at);
+  b.append(cab);
+  const meds = el('div', 'uso-medidores');
+  for (const [chave, rotulo] of JANELAS) meds.append(medidor(rotulo, u[chave], agora));
+  b.append(meds);
+  return b;
+}
+
+function renderUso() {
+  if (usoDados === null) return;
+  const agora = Date.now();
+  // Sem nenhuma conta na lista, a conta implícita ainda não recebeu nada.
+  const lista = usoDados.length ? usoDados.filter((u) => u && typeof u === 'object') : [{ account: '' }];
+  const comNome = lista.length > 1;
+  usoContas.classList.toggle('uma', !comNome);
+  usoContas.replaceChildren(...lista.map((u) => blocoUso(u, comNome, agora)));
+}
+
+// Contagens andam a cada 30 s, só com a tela de uso à vista.
+setInterval(() => {
+  if (telaAtual === 'uso' && !document.hidden) renderUso();
+}, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && telaAtual === 'uso') renderUso();
+});
+
+(async () => {
+  try {
+    const r = await fetch('/api/uso', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    receberUso(await r.json(), false);
+  } catch (_) { /* sem rede: o SSE traz o uso ao conectar */ }
+})();
+
 // ---------- Duas telas: sessões e uso do plano ----------
 // Troca por arrasto horizontal de um dedo, pelos pontinhos e pelas setas.
 // A tela escondida fica inert (sem Tab nem leitor de tela). A última tela
@@ -1845,6 +2076,7 @@ function mostrarTela(t, gravar) {
   for (const b of pontos.querySelectorAll('button')) {
     b.setAttribute('aria-current', b.dataset.tela === t ? 'true' : 'false');
   }
+  if (t === 'uso') renderUso(); // contagens em dia ao entrar
   // O foco não pode ficar preso na tela que acabou de virar inert.
   const foco = document.activeElement;
   if (foco && foco !== document.body && SECAO[t === 'uso' ? 'sessoes' : 'uso'].contains(foco)) {
@@ -2065,6 +2297,15 @@ es.addEventListener('snapshot', (e) => {
   sessoes = Array.isArray(sessoes) ? sessoes : [];
   render(sessoes);
   avaliarSom(sessoes);
+});
+es.addEventListener('uso', (e) => {
+  let lista;
+  try {
+    lista = JSON.parse(e.data);
+  } catch (_) {
+    return; // uso corrompido: mantém os medidores anteriores
+  }
+  receberUso(lista, true);
 });
 es.addEventListener('error', () => {
   // CONNECTING: o navegador vai tentar de novo sozinho.
