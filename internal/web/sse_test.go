@@ -9,10 +9,12 @@ import (
 	"net/http/httptest"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/devpolatto/claude-fleet/internal/ingest"
+	"github.com/devpolatto/claude-fleet/internal/ratelimit"
 	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
@@ -119,9 +121,9 @@ func (c *client) nextSnapshot(t *testing.T, timeout time.Duration) []store.Sessi
 
 // startHub sobe um Hub sobre st com intervalos de teste e um servidor
 // httptest. Devolve o Hub, a URL e a função que para o laço do Hub.
-func startHub(t *testing.T, st *store.Store, coalesce, heartbeat time.Duration) (*Hub, string, context.CancelFunc) {
+func startHub(t *testing.T, st *store.Store, coalesce, heartbeat time.Duration, opts ...HubOption) (*Hub, string, context.CancelFunc) {
 	t.Helper()
-	h := NewHub(st)
+	h := NewHub(st, opts...)
 	h.Coalesce = coalesce
 	h.Heartbeat = heartbeat
 	ctx, cancel := context.WithCancel(context.Background())
@@ -334,4 +336,184 @@ func TestStreamMetodoNaoPermitido(t *testing.T) {
 			t.Errorf("%s: Allow = %q, quero GET", m, got)
 		}
 	}
+}
+
+// fakeUsage é um UsageSource controlado pelo teste, com o mesmo contrato do
+// ratelimit.Tracker: canal com buffer 1 e aviso que não bloqueia.
+type fakeUsage struct {
+	mu      sync.Mutex
+	entries []ratelimit.Entry
+	ch      chan struct{}
+}
+
+func newFakeUsage(entries []ratelimit.Entry) *fakeUsage {
+	return &fakeUsage{entries: entries, ch: make(chan struct{}, 1)}
+}
+
+func (f *fakeUsage) Subscribe() <-chan struct{} { return f.ch }
+
+func (f *fakeUsage) Snapshot() []ratelimit.Entry {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.entries
+}
+
+func (f *fakeUsage) set(entries []ratelimit.Entry) {
+	f.mu.Lock()
+	f.entries = entries
+	f.mu.Unlock()
+	select {
+	case f.ch <- struct{}{}:
+	default:
+	}
+}
+
+// nextEvent pula heartbeats e devolve o próximo evento nomeado.
+func (c *client) nextEvent(t *testing.T, timeout time.Duration) sseMsg {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		m := c.next(t, time.Until(deadline))
+		if m.event != "" {
+			return m
+		}
+	}
+}
+
+// semEvento falha se algum evento nomeado chegar dentro de d.
+func (c *client) semEvento(t *testing.T, d time.Duration) {
+	t.Helper()
+	timeout := time.After(d)
+	for {
+		select {
+		case m := <-c.msgs:
+			if m.event != "" {
+				t.Fatalf("evento inesperado %q: %s", m.event, m.data)
+			}
+		case <-timeout:
+			return
+		}
+	}
+}
+
+// decodeUso lê o data de um evento "uso" e confere que é uma lista.
+func decodeUso(t *testing.T, m sseMsg) []ratelimit.Entry {
+	t.Helper()
+	if m.event != "uso" {
+		t.Fatalf("evento = %q, quero uso", m.event)
+	}
+	var entries []ratelimit.Entry
+	if err := json.Unmarshal([]byte(m.data), &entries); err != nil {
+		t.Fatalf("uso com JSON inválido %q: %v", m.data, err)
+	}
+	if entries == nil {
+		t.Fatalf("uso deveria ser lista, veio %q", m.data)
+	}
+	return entries
+}
+
+func usoConta(conta string, pct float64) ratelimit.Entry {
+	return ratelimit.Entry{
+		Account:    conta,
+		FiveHour:   &ratelimit.Window{UsedPercentage: pct, ResetsAt: 1_800_000_000},
+		ReceivedAt: time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC),
+	}
+}
+
+func TestHubEnviaUsoAoConectar(t *testing.T) {
+	casos := []struct {
+		nome     string
+		entries  []ratelimit.Entry
+		wantData string // "" confere só as contas
+		contas   []string
+	}{
+		{nome: "nil vira lista vazia", entries: nil, wantData: "[]"},
+		{nome: "vazia vira lista vazia", entries: []ratelimit.Entry{}, wantData: "[]"},
+		{nome: "duas contas", entries: []ratelimit.Entry{usoConta("pessoal", 23.5), usoConta("trabalho", 80)}, contas: []string{"pessoal", "trabalho"}},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			st := store.New()
+			st.Apply(sessionStart("sessao-a"), time.Now())
+			_, url, _ := startHub(t, st, 20*time.Millisecond, time.Hour, WithUsage(newFakeUsage(tc.entries)))
+			c := connect(t, url)
+
+			// O snapshot vem primeiro, e o uso logo depois.
+			if m := c.nextEvent(t, time.Second); m.event != "snapshot" {
+				t.Fatalf("1º evento = %q, quero snapshot", m.event)
+			}
+			m := c.nextEvent(t, time.Second)
+			entries := decodeUso(t, m)
+			if tc.wantData != "" && m.data != tc.wantData {
+				t.Fatalf("data = %q, quero %q", m.data, tc.wantData)
+			}
+			if len(entries) != len(tc.contas) {
+				t.Fatalf("uso tem %d contas, quero %d", len(entries), len(tc.contas))
+			}
+			for i, conta := range tc.contas {
+				if entries[i].Account != conta || entries[i].FiveHour == nil {
+					t.Errorf("conta %d = %+v, quero %s com janela de 5 h", i, entries[i], conta)
+				}
+			}
+		})
+	}
+}
+
+func TestHubMudancaDeUsoNaoReenviaSnapshot(t *testing.T) {
+	const coalesce = 20 * time.Millisecond
+	st := store.New()
+	uso := newFakeUsage(nil)
+	_, url, _ := startHub(t, st, coalesce, time.Hour, WithUsage(uso))
+	c := connect(t, url)
+	c.nextSnapshot(t, time.Second)
+	decodeUso(t, c.nextEvent(t, time.Second))
+
+	// Mudança de uso: chega em Coalesce + folga, sem snapshot junto.
+	uso.set([]ratelimit.Entry{usoConta("pessoal", 42)})
+	entries := decodeUso(t, c.nextEvent(t, coalesce+500*time.Millisecond))
+	if len(entries) != 1 || entries[0].FiveHour.UsedPercentage != 42 {
+		t.Fatalf("uso = %+v, quero pessoal com 42%%", entries)
+	}
+	c.semEvento(t, 5*coalesce)
+
+	// Mudança de sessão: chega o snapshot, sem uso junto.
+	st.Apply(sessionStart("sessao-b"), time.Now())
+	if views := c.nextSnapshot(t, time.Second); len(views) != 1 {
+		t.Fatalf("snapshot tem %d sessões, quero 1", len(views))
+	}
+	c.semEvento(t, 5*coalesce)
+}
+
+func TestHubUsoNaoTomaOLugarDoSnapshotNoClienteLento(t *testing.T) {
+	st := store.New()
+	uso := newFakeUsage(nil)
+	h, url, _ := startHub(t, st, 5*time.Millisecond, time.Hour, WithUsage(uso))
+	c := connect(t, url)
+	c.nextSnapshot(t, time.Second)
+	decodeUso(t, c.nextEvent(t, time.Second))
+
+	// As duas mudanças chegam antes de o cliente ler qualquer uma: cada tipo
+	// tem o seu lugar, e nenhuma se perde.
+	h.broadcast([]byte("event: snapshot\ndata: []\n\n"), func(cl *sseClient) chan []byte { return cl.snapshot })
+	h.broadcast([]byte("event: uso\ndata: []\n\n"), func(cl *sseClient) chan []byte { return cl.uso })
+	vistos := map[string]bool{}
+	for range 2 {
+		vistos[c.nextEvent(t, time.Second).event] = true
+	}
+	if !vistos["snapshot"] || !vistos["uso"] {
+		t.Fatalf("eventos recebidos = %v, quero snapshot e uso", vistos)
+	}
+}
+
+func TestHubSemUsageNaoMandaUso(t *testing.T) {
+	const coalesce = 20 * time.Millisecond
+	st := store.New()
+	_, url, _ := startHub(t, st, coalesce, time.Hour)
+	c := connect(t, url)
+	c.nextSnapshot(t, time.Second)
+	c.semEvento(t, 5*coalesce)
+
+	st.Apply(sessionStart("sessao-a"), time.Now())
+	c.nextSnapshot(t, time.Second)
+	c.semEvento(t, 5*coalesce)
 }
