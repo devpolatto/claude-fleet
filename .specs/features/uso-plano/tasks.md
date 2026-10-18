@@ -328,11 +328,11 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Variáveis `--uso-*` na coleção `claude-fleet · :root`
-- [ ] Telas de celular (vertical e horizontal) e desktop com a tela de uso; componente dos pontinhos
-- [ ] Diferenças conhecidas entre Figma e código anotadas
+- [x] Variáveis `--uso-*` na coleção `claude-fleet · :root`
+- [x] Telas de celular (vertical e horizontal) e desktop com a tela de uso; componente dos pontinhos
+- [x] Diferenças conhecidas entre Figma e código anotadas
 
-**Bloqueado** (2026-10-18): a sessão não tinha o MCP do Figma; plugin ativado no perfil, falta autenticar (`/mcp`).
+**Feito** pelo `ui-figma` ([tela principal](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2?node-id=30-99)). Variáveis `uso-trilho`, `uso-ok`, `uso-alerta` (aliases), `uso-critico`, `uso-barra-h`, `tela-transicao` (28:11–28:16); componentes `pontos` (29:21), `medidor` (29:48), `uso-conta` (29:92); telas 30:37 (uma conta), 30:99 (duas), 30:165 (estados), 30:266 (celular deitado), 30:301 (desktop); pontinhos nas telas de sessões existentes; nota de diferenças 30:396 (fonte Inter, sem animação, percentual da barra por padding em px).
 
 **Tests**: none (artefato de design) · **Gate**: comparação visual
 **Commit**: nenhum no repositório (link no PR)
