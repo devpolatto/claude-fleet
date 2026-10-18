@@ -27,9 +27,10 @@ go vet ./...
 go test -race -count=1 ./...
 bash hook/test.sh             # sobe o servidor real e testa o hook
 go build -o ~/.local/bin/claude-fleet ./cmd/claude-fleet
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...   # CVEs da stdlib alcançáveis
 ```
 
-O CI (`.github/workflows/ci.yml`, job `test`) roda exatamente esses quatro checks.
+O CI (`.github/workflows/ci.yml`, job `test`) roda exatamente os quatro checks antes do build. O `security.yml` (AD-008) roda o `govulncheck` e o CodeQL em todo PR e toda semana; CVE novo da stdlib se corrige subindo o `go` do `go.mod`.
 
 ## Fluxo de trabalho
 

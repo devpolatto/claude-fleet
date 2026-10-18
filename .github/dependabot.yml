@@ -1,0 +1,10 @@
+# Só as actions: o go.mod não tem dependências (AD-001), e a versão do Go
+# sobe à mão quando o govulncheck acusa CVE da stdlib.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
