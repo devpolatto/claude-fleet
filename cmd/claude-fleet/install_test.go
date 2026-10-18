@@ -541,6 +541,13 @@ func TestInstallHooksUsaClaudeConfigDir(t *testing.T) {
 	if _, err := os.Stat(script); err != nil {
 		t.Errorf("script não gravado na conta: %v", err)
 	}
+	statusScript := filepath.Join(conta, "claude-fleet", statusLineScriptName)
+	if sl := statusLineOf(t, data); compact(t, sl) != wantStatusLine(filepath.Join(conta, "claude-fleet")) {
+		t.Errorf("statusLine da conta: %s", sl)
+	}
+	if _, err := os.Stat(statusScript); err != nil {
+		t.Errorf("script do status line não gravado na conta: %v", err)
+	}
 	if !strings.Contains(out.String(), filepath.Join(conta, "settings.json")) {
 		t.Errorf("saída não diz qual settings altera:\n%s", out.String())
 	}
@@ -552,7 +559,7 @@ func TestInstallHooksUsaClaudeConfigDir(t *testing.T) {
 		t.Fatalf("uninstall-hooks: código %d", code)
 	}
 	data, _ = os.ReadFile(filepath.Join(conta, "settings.json"))
-	if strings.Contains(string(data), hookScriptName) {
+	if strings.Contains(string(data), hookScriptName) || strings.Contains(string(data), statusLineScriptName) {
 		t.Errorf("uninstall-hooks não removeu da conta:\n%s", data)
 	}
 
@@ -604,5 +611,295 @@ func TestInstallHooksRecusaConfigDirRelativo(t *testing.T) {
 				t.Errorf("criou algo no diretório atual: %v", ents)
 			}
 		})
+	}
+}
+
+// statusLineOf devolve o statusLine cru do settings (nil se ausente).
+func statusLineOf(t *testing.T, data []byte) json.RawMessage {
+	t.Helper()
+	var s struct {
+		StatusLine json.RawMessage `json:"statusLine"`
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		t.Fatalf("settings inválido: %v\n%s", err, data)
+	}
+	return s.StatusLine
+}
+
+func wantStatusLine(dir string) string {
+	return `{"type":"command","command":"` + filepath.Join(dir, "fleet-statusline.sh") + `"}`
+}
+
+func TestInstallHooksRegistraStatusLine(t *testing.T) {
+	tests := []struct {
+		name          string
+		orig          string // "" = settings ausente
+		hooksAnterior bool   // settings de um install anterior ao statusLine
+	}{
+		{"settings ausente", "", false},
+		{"settings sem statusLine", `{"model": "x"}`, false},
+		{"settings com hooks do Fleet e sem statusLine", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var content []byte
+			if tt.orig != "" {
+				content = []byte(tt.orig)
+			}
+			settings, dir := setupSettings(t, content)
+			if tt.hooksAnterior {
+				// Simula um install anterior ao statusLine: hooks do Fleet, sem statusLine.
+				data, _, err := applyInstall(nil, filepath.Join(dir, "fleet-hook.sh"), filepath.Join(dir, "fleet-statusline.sh"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				top, err := parseObject(data)
+				if err != nil {
+					t.Fatal(err)
+				}
+				top = top[:len(top)-1] // tira o statusLine
+				content = append(renderObject(top, ""), '\n')
+				if err := os.WriteFile(settings, content, 0o640); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// O diff da confirmação mostra o statusLine.
+			var out bytes.Buffer
+			if err := installHooks(opts(settings, dir, "n\n", false, &out)); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), `+   "statusLine": {`) || !strings.Contains(out.String(), "fleet-statusline.sh") {
+				t.Errorf("diff sem o statusLine:\n%s", out.String())
+			}
+
+			got := mustInstall(t, settings, dir)
+			data := readFile(t, settings)
+			if sl := statusLineOf(t, data); sl == nil || compact(t, sl) != wantStatusLine(dir) {
+				t.Errorf("statusLine %s, queria %s", sl, wantStatusLine(dir))
+			}
+			if !strings.Contains(string(data), "  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": ") {
+				t.Errorf("statusLine mal indentado:\n%s", data)
+			}
+			if !strings.Contains(got, "statusLine do claude-fleet registrado") || !strings.Contains(got, "dicas do rodapé") || !strings.Contains(got, "não imprime nada") {
+				t.Errorf("mensagem final sem o aviso do rodapé:\n%s", got)
+			}
+			if tt.hooksAnterior == strings.Contains(got, "Hook registrado em") {
+				t.Errorf("mensagem do hook inesperada (hooks já instalados=%t):\n%s", tt.hooksAnterior, got)
+			}
+
+			// Segunda execução: idempotente, sem backup novo.
+			nBak := len(backups(t, settings))
+			again := mustInstall(t, settings, dir)
+			if !strings.Contains(again, "nada a fazer") || !strings.Contains(again, "statusLine") || strings.Contains(again, "gravado") {
+				t.Errorf("segunda execução:\n%s", again)
+			}
+			if !bytes.Equal(data, readFile(t, settings)) {
+				t.Error("segunda execução alterou o settings")
+			}
+			if n := len(backups(t, settings)); n != nBak {
+				t.Errorf("segunda execução criou backup: %d, antes %d", n, nBak)
+			}
+		})
+	}
+}
+
+func TestInstallHooksNaoSobrescreveStatusLineAlheio(t *testing.T) {
+	tests := []struct {
+		name, statusLine, wantCmd string
+	}{
+		{"comando alheio", `{"type": "command", "command": "~/bin/minha-linha.sh", "padding": 0}`, "~/bin/minha-linha.sh"},
+		{"command que não é string", `{"type": "command", "command": 1}`, `{"type":"command","command":1}`},
+		{"não é objeto", `"echo oi"`, `"echo oi"`},
+		{"objeto sem command", `{"type": "static"}`, `{"type":"static"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orig := `{
+  "model": "x",
+  "statusLine": ` + tt.statusLine + `
+}
+`
+			settings, dir := setupSettings(t, []byte(orig))
+			var out bytes.Buffer
+			code := runHooksCmd("install-hooks", []string{"-yes", "-settings", settings, "-dir", dir}, env(nil), nil, &out, io.Discard)
+			if code != 0 {
+				t.Fatalf("código %d\n%s", code, out.String())
+			}
+			got := readFile(t, settings)
+			top, err := parseObject(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var sl json.RawMessage
+			for _, m := range top {
+				if m.key == "statusLine" {
+					sl = m.raw
+				}
+			}
+			if string(sl) != tt.statusLine {
+				t.Errorf("statusLine alheio mudou: %s", sl)
+			}
+			if n := len(eventGroups(t, got)); n != len(fleetEvents) {
+				t.Errorf("hooks: %d eventos, queria %d", n, len(fleetEvents))
+			}
+			warn := settings + " já tem um statusLine (" + tt.wantCmd + "); o uso do plano fica sem fonte."
+			if !strings.Contains(out.String(), warn) {
+				t.Errorf("aviso ausente; queria %q em:\n%s", warn, out.String())
+			}
+			if strings.Contains(out.String(), "statusLine do claude-fleet registrado") {
+				t.Errorf("não deveria dizer que registrou:\n%s", out.String())
+			}
+
+			// Segunda execução: nada a fazer, aviso de novo, sem backup novo.
+			out.Reset()
+			if code := runHooksCmd("install-hooks", []string{"-yes", "-settings", settings, "-dir", dir}, env(nil), nil, &out, io.Discard); code != 0 {
+				t.Fatalf("segunda: código %d", code)
+			}
+			if !strings.Contains(out.String(), "nada a fazer") || !strings.Contains(out.String(), warn) {
+				t.Errorf("segunda execução:\n%s", out.String())
+			}
+			if !bytes.Equal(got, readFile(t, settings)) || len(backups(t, settings)) != 1 {
+				t.Error("segunda execução alterou o settings ou criou backup")
+			}
+
+			// Uninstall mantém o alheio.
+			mustUninstall(t, settings)
+			if sl := statusLineOf(t, readFile(t, settings)); compact(t, sl) != compact(t, []byte(tt.statusLine)) {
+				t.Errorf("uninstall mexeu no statusLine alheio: %s", sl)
+			}
+		})
+	}
+}
+
+func TestInstallHooksTrocaStatusLineAntigoDoFleet(t *testing.T) {
+	tests := []struct {
+		name, statusLine string
+	}{
+		{"caminho antigo", `{"type": "command", "command": "/antigo/fleet-statusline.sh"}`},
+		{"com padding", `{"type": "command", "command": "DIR/fleet-statusline.sh", "padding": 2}`},
+		{"sem type", `{"command": "DIR/fleet-statusline.sh"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			settings, dir := setupSettings(t, nil)
+			orig := `{
+  "statusLine": ` + strings.ReplaceAll(tt.statusLine, "DIR", dir) + `,
+  "model": "x"
+}
+`
+			if err := os.WriteFile(settings, []byte(orig), 0o640); err != nil {
+				t.Fatal(err)
+			}
+			out := mustInstall(t, settings, dir)
+			got := readFile(t, settings)
+			if sl := statusLineOf(t, got); compact(t, sl) != wantStatusLine(dir) {
+				t.Errorf("statusLine %s, queria %s", sl, wantStatusLine(dir))
+			}
+			if strings.Contains(out, "já tem um statusLine") {
+				t.Errorf("statusLine do Fleet não é alheio:\n%s", out)
+			}
+			if !strings.Contains(out, "statusLine do claude-fleet registrado") {
+				t.Errorf("saída:\n%s", out)
+			}
+			top, err := parseObject(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if top[0].key != "statusLine" {
+				t.Errorf("statusLine trocado deveria ficar no lugar: %v", top[0].key)
+			}
+		})
+	}
+}
+
+func TestUninstallHooksRemoveSoStatusLineDoFleet(t *testing.T) {
+	tests := []struct {
+		name, orig, want string
+		removed          bool
+	}{
+		{"só statusLine do Fleet, sem hooks",
+			`{"model": "x", "statusLine": {"type": "command", "command": "/d/fleet-statusline.sh"}}`,
+			"{\n  \"model\": \"x\"\n}\n", true},
+		{"statusLine alheio fica",
+			`{"model": "x", "statusLine": {"type": "command", "command": "/d/outra-linha.sh"}}`,
+			`{"model": "x", "statusLine": {"type": "command", "command": "/d/outra-linha.sh"}}`, false},
+		{"statusLine alheio que não é objeto fica",
+			`{"statusLine": "fleet-statusline.sh"}`,
+			`{"statusLine": "fleet-statusline.sh"}`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			settings, _ := setupSettings(t, []byte(tt.orig))
+			out := mustUninstall(t, settings)
+			if got := string(readFile(t, settings)); got != tt.want {
+				t.Errorf("queria\n%s\nveio\n%s", tt.want, got)
+			}
+			if tt.removed {
+				if !strings.Contains(out, "statusLine do claude-fleet removido") || !strings.Contains(out, "/d/fleet-statusline.sh não foi apagado") {
+					t.Errorf("saída:\n%s", out)
+				}
+				if strings.Contains(out, "Hook do claude-fleet removido") {
+					t.Errorf("não havia hook para remover:\n%s", out)
+				}
+			} else if !strings.Contains(out, "nada a fazer") {
+				t.Errorf("saída:\n%s", out)
+			}
+		})
+	}
+
+	// Install completo e uninstall: hooks e statusLine saem, os dois scripts ficam.
+	settings, dir := setupSettings(t, []byte(`{"model": "x"}`))
+	mustInstall(t, settings, dir)
+	out := mustUninstall(t, settings)
+	got := readFile(t, settings)
+	if statusLineOf(t, got) != nil || bytes.Contains(got, []byte("fleet-")) {
+		t.Errorf("sobrou algo do claude-fleet:\n%s", got)
+	}
+	for _, name := range []string{"fleet-hook.sh", "fleet-statusline.sh"} {
+		p := filepath.Join(dir, name)
+		if !strings.Contains(out, p+" não foi apagado") {
+			t.Errorf("saída não lembra de apagar %s:\n%s", p, out)
+		}
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("uninstall não deveria apagar %s: %v", p, err)
+		}
+	}
+}
+
+func TestInstallHooksGravaOsDoisScripts(t *testing.T) {
+	settings, dir := setupSettings(t, readFixture(t))
+	out := mustInstall(t, settings, dir)
+	for _, tc := range []struct{ name, content, msg string }{
+		{"fleet-hook.sh", hook.Script, "Script do hook gravado"},
+		{"fleet-statusline.sh", hook.StatusLine, "Script do status line gravado"},
+	} {
+		p := filepath.Join(dir, tc.name)
+		st, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Mode().Perm() != 0o755 {
+			t.Errorf("%s: modo %v, queria 0755", tc.name, st.Mode().Perm())
+		}
+		if tc.content == "" || string(readFile(t, p)) != tc.content {
+			t.Errorf("%s: conteúdo difere do embed", tc.name)
+		}
+		if !strings.Contains(out, tc.msg+" em "+p) {
+			t.Errorf("saída sem %q:\n%s", tc.msg, out)
+		}
+	}
+
+	// Status line alterado à mão volta ao embed, sem mexer no settings.
+	p := filepath.Join(dir, "fleet-statusline.sh")
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out = mustInstall(t, settings, dir)
+	if !strings.Contains(out, "Script do status line gravado") || strings.Contains(out, "Script do hook gravado") || !strings.Contains(out, "nada a fazer") {
+		t.Errorf("saída: %s", out)
+	}
+	if st, _ := os.Stat(p); string(readFile(t, p)) != hook.StatusLine || st.Mode().Perm() != 0o755 {
+		t.Error("script do status line não foi restaurado")
 	}
 }
