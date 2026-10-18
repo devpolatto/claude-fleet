@@ -1,6 +1,6 @@
 # multi-conta Specification
 
-> Status: **spec aprovada** em 2026-10-18 (AD-009 registrada no `STATE.md`). Design em `design.md`, aguardando aprovação.
+> Status: **spec aprovada** em 2026-10-18 (AD-009 registrada no `STATE.md`). Design aprovado em 2026-10-18; tasks em `tasks.md`, aguardando aprovação.
 
 ## Problem Statement
 
@@ -115,16 +115,16 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| CONTA-01 | P1: `install-hooks`/`uninstall-hooks` respeitam `CLAUDE_CONFIG_DIR` | Design | In Design |
-| CONTA-02 | P1: Flag `-account nome=dir`, validação e convivência com `-projects` | Design | In Design |
-| CONTA-03 | P1: Conta derivada do `transcript_path`, herdada pelos subagentes | Design | In Design |
-| CONTA-04 | P1: Bootstrap em todas as contas | Design | In Design |
-| CONTA-05 | P1: API expõe só o nome da conta | Design | In Design |
-| CONTA-06 | P1: Conta no tile e no pop-up quando há mais de uma (Figma junto) | Design | In Design |
-| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Design | In Design |
-| CONTA-08 | P2: Filtro da grade por conta, salvo no aparelho | Design | In Design |
+| CONTA-01 | P1: `install-hooks`/`uninstall-hooks` respeitam `CLAUDE_CONFIG_DIR` | Tasks | In Tasks |
+| CONTA-02 | P1: Flag `-account nome=dir`, validação e convivência com `-projects` | Tasks | In Tasks |
+| CONTA-03 | P1: Conta derivada do `transcript_path`, herdada pelos subagentes | Tasks | In Tasks |
+| CONTA-04 | P1: Bootstrap em todas as contas | Tasks | In Tasks |
+| CONTA-05 | P1: API expõe só o nome da conta | Tasks | In Tasks |
+| CONTA-06 | P1: Conta no tile e no pop-up quando há mais de uma (Figma junto) | Tasks | In Tasks |
+| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Tasks | In Tasks |
+| CONTA-08 | P2: Filtro da grade por conta, salvo no aparelho | Tasks | In Tasks |
 
-**Coverage:** 8 total, 0 mapped to tasks.
+**Coverage:** 8 total, 8 mapped to tasks (T1–T11).
 
 ---
 
