@@ -1,7 +1,7 @@
 # multi-conta Tasks
 
 **Design**: `.specs/features/multi-conta/design.md`
-**Status**: In Progress (aprovadas em 2026-10-18; fases 1 a 3 concluídas)
+**Status**: In Progress (aprovadas em 2026-10-18; fases 1 a 4 concluídas; falta o T11)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -203,9 +203,11 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Tokens `--conta-1…4` como variáveis no Figma
-- [ ] Telas de celular (vertical) e desktop atualizadas, com nomes fictícios ("pessoal", "trabalho")
-- [ ] Screenshot do Figma comparado com o do navegador
+- [x] Tokens `--conta-1…4` como variáveis no Figma
+- [x] Telas de celular (vertical) e desktop atualizadas, com nomes fictícios ("pessoal", "trabalho")
+- [x] Screenshot do Figma comparado com o do navegador
+
+**Feito** pelo `ui-figma`. O arquivo não tinha variáveis: foi criada a coleção `claude-fleet · :root` (13 tokens base + 5 pares de conta). Componente `conta (chip)` (nó 22:36) com variantes c-1…c-4 e outra; telas novas: celular com duas contas (22:38), desktop (22:209), pop-up com conta (22:372). O texto novo do Ocultar só existe no aria-label/title; registrado em nota (22:536). Diferença conhecida: fontes (Inter/DM Mono no Figma, fonte do sistema no navegador), anterior a esta feature.
 
 **Tests**: none (artefato de design) · **Gate**: comparação visual
 **Commit**: nenhum no repositório (link no PR)
@@ -223,10 +225,12 @@ T5, T7, T8, T9, T10 ──→ T11
 
 **Done when**:
 
-- [ ] Filtro escondido com uma conta; aparece com duas
-- [ ] Recarregar mantém a escolha; `localStorage` bloqueado volta a "todas" sem erro no console
-- [ ] Sessão de conta filtrada que vai para "aguardando" ainda toca o som
-- [ ] Cabeçalho cabe no celular, na vertical e na horizontal; Figma atualizado
+- [x] Filtro escondido com uma conta; aparece com duas
+- [x] Recarregar mantém a escolha; `localStorage` bloqueado volta a "todas" sem erro no console
+- [x] Sessão de conta filtrada que vai para "aguardando" ainda toca o som
+- [x] Cabeçalho cabe no celular, na vertical e na horizontal; Figma atualizado
+
+**Feito** pelo `ui-figma`, com o Figma junto (componente `filtro-conta`, nó 23:27). Decisões: "sessões" e "ocultas" seguem o filtro; "aguardando" conta todas as contas, com title "inclui N de outra conta, fora do filtro"; sessão aguardando de conta filtrada **não** fura o filtro (alerta segue por chip, som e push). Diferença: no celular deitado (`pointer: coarse`) o cabeçalho inteiro já ficava escondido, então o filtro não aparece ali, mas continua valendo. Som conferido pela chamada de `tocar()` com uma sessão de conta filtrada indo para aguardando (sem ouvir o áudio).
 
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): filtro da grade por conta`
