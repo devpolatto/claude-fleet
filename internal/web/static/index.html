@@ -30,7 +30,7 @@
     --concluido: #7c8798;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --tile-w: 160px;
-    /* Conta do Claude Code (chip no tile): fundo escuro + texto claro do mesmo
+    /* Conta do Claude Code (chip no pop-up e no filtro): fundo escuro + texto claro do mesmo
        tom, contraste AA (>= 7:1). A cor sai de hash(nome) % 4 + 1. */
     --conta-1: #1c2a4d;
     --conta-1-texto: #a9c2ff;
@@ -1012,16 +1012,21 @@ function gravarOcultas() {
 
 // chaveOculta: "nome:<Name>", "cwd:<Cwd>" ou, sem os dois, "id:<ID>". Com
 // conta, ganha o prefixo "<conta>|": o mesmo nome em outra conta não some
-// junto. Sem conta a chave é a de sempre, e o que já estava oculto continua.
+// junto.
 function chaveOculta(s) {
-  const pre = s.Account ? s.Account + '|' : '';
-  if (s.Name) return pre + 'nome:' + s.Name;
-  if (s.Cwd) return pre + 'cwd:' + s.Cwd;
-  return pre + 'id:' + s.ID;
+  return (s.Account ? s.Account + '|' : '') + chaveSemConta(s);
+}
+
+// chaveSemConta é a chave de antes das contas. Algo ocultado assim, antes de o
+// servidor ganhar -account, continua oculto em todas as contas.
+function chaveSemConta(s) {
+  if (s.Name) return 'nome:' + s.Name;
+  if (s.Cwd) return 'cwd:' + s.Cwd;
+  return 'id:' + s.ID;
 }
 
 function estaOculta(s) {
-  return ocultas.has(chaveOculta(s));
+  return ocultas.has(chaveOculta(s)) || ocultas.has(chaveSemConta(s));
 }
 
 // rotuloOculta: como o pop-up nomeia o que será ocultado.
@@ -1031,9 +1036,12 @@ function rotuloOculta(s) {
 }
 
 function alternarOculta(s) {
-  const k = chaveOculta(s);
-  if (ocultas.has(k)) ocultas.delete(k);
-  else ocultas.add(k);
+  if (estaOculta(s)) {
+    ocultas.delete(chaveOculta(s));
+    ocultas.delete(chaveSemConta(s));
+  } else {
+    ocultas.add(chaveOculta(s));
+  }
   gravarOcultas();
   render(ultimoSnapshot);
 }
