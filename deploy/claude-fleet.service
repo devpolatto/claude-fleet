@@ -8,12 +8,15 @@ After=network-online.target
 
 [Service]
 Type=simple
-# Arquivo com CLAUDE_FLEET_TOKEN=..., permissão 600.
+# Arquivo com CLAUDE_FLEET_TOKEN=..., permissão 600. Flags extras vão em
+# CLAUDE_FLEET_ARGS, separadas por espaço; por exemplo, uma conta do Claude
+# Code por -account (o servidor expande o ~):
+#   CLAUDE_FLEET_ARGS=-account pessoal=~/.claude-pessoal -account trabalho=~/.claude-trabalho
 EnvironmentFile=%h/.config/claude-fleet/env
 # O sh -c resolve o IP da tailnet na hora de subir. Sem IP, sai com erro em
 # vez de cair em ":7777" (todas as interfaces), e o systemd tenta de novo.
 # "$$" é o "$" literal para o systemd.
-ExecStart=/bin/sh -c 'ip=$$(tailscale ip -4 2>/dev/null | head -n1); [ -n "$$ip" ] || { echo "Tailscale sem IP" >&2; exit 1; }; exec %h/.local/bin/claude-fleet -addr "$$ip:7777" -tls-cert %h/.config/claude-fleet/tls.crt -tls-key %h/.config/claude-fleet/tls.key'
+ExecStart=/bin/sh -c 'ip=$$(tailscale ip -4 2>/dev/null | head -n1); [ -n "$$ip" ] || { echo "Tailscale sem IP" >&2; exit 1; }; exec %h/.local/bin/claude-fleet -addr "$$ip:7777" -tls-cert %h/.config/claude-fleet/tls.crt -tls-key %h/.config/claude-fleet/tls.key $$CLAUDE_FLEET_ARGS'
 Restart=on-failure
 RestartSec=10
 NoNewPrivileges=yes

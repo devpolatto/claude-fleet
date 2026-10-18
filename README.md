@@ -64,6 +64,24 @@ Eventos: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostTo
 
 </details>
 
+### Várias contas do Claude Code
+
+Quem usa mais de uma assinatura na mesma máquina separa cada uma num diretório de configuração com `CLAUDE_CONFIG_DIR`, por exemplo com um alias por conta:
+
+```sh
+alias claude-pessoal='CLAUDE_CONFIG_DIR=~/.claude-pessoal claude'
+alias claude-trabalho='CLAUDE_CONFIG_DIR=~/.claude-trabalho claude'
+```
+
+Cada diretório tem o próprio `settings.json`, então o hook é instalado em cada conta. Com `CLAUDE_CONFIG_DIR` definido, o instalador usa `$CLAUDE_CONFIG_DIR/settings.json` e `$CLAUDE_CONFIG_DIR/claude-fleet/`:
+
+```sh
+CLAUDE_CONFIG_DIR=~/.claude-pessoal claude-fleet install-hooks
+CLAUDE_CONFIG_DIR=~/.claude-trabalho claude-fleet install-hooks
+```
+
+O caminho precisa ser absoluto: um `~` entre aspas não é expandido pelo shell, e o instalador recusa. Para o painel mostrar de que conta é cada sessão, declare as contas no servidor com `-account` (seção 3).
+
 O hook manda o JSON do evento para `http://127.0.0.1:7777/event` com `curl -m 1` e sempre termina com sucesso, sem escrever nada na saída. Com o servidor fora do ar, ele volta na hora; o pior caso é 1 s, com um servidor travado. Se o servidor usar outra porta, defina `CLAUDE_FLEET_PORT` no ambiente do Claude Code (por exemplo, no bloco `"env"` do `settings.json`).
 
 ## 3. Rodar localmente
@@ -78,7 +96,8 @@ Abra <http://127.0.0.1:7777>. Sem flags o servidor escuta só em `127.0.0.1:7777
 | --- | --- | --- |
 | `-addr` | `127.0.0.1:7777` | Endereço de escuta (`host:porta`). |
 | `-token` | `$CLAUDE_FLEET_TOKEN` | Obrigatório quando o endereço não é loopback. |
-| `-projects` | `~/.claude/projects` | Onde ficam os transcripts. |
+| `-projects` | `~/.claude/projects` | Onde ficam os transcripts. Não combina com `-account`. |
+| `-account` | nenhuma | Conta do Claude Code como `nome=diretório` (o `CLAUDE_CONFIG_DIR` dela; aceita `~`). Repetível. Cada sessão mostra o nome da conta, e as sessões abertas são procuradas no `projects/` de cada uma. Um diretório não declarado aparece como "outra". |
 
 Um endereço fora do loopback sem token é recusado: o processo sai com código 2.
 
@@ -162,6 +181,12 @@ cp deploy/claude-fleet.service deploy/claude-fleet-cert.service deploy/claude-fl
 systemctl --user daemon-reload
 systemctl --user enable --now claude-fleet claude-fleet-cert.timer
 journalctl --user -u claude-fleet -f   # logs
+```
+
+Flags extras, como as `-account` de várias contas, vão em `CLAUDE_FLEET_ARGS` no mesmo `env`:
+
+```sh
+CLAUDE_FLEET_ARGS=-account pessoal=~/.claude-pessoal -account trabalho=~/.claude-trabalho
 ```
 
 Sem HTTPS ainda? Tire os dois flags `-tls-*` do `ExecStart` da cópia em `~/.config/systemd/user/` e não habilite o timer.
