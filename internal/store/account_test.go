@@ -118,13 +118,4 @@ func TestSemContasNaoMudaNada(t *testing.T) {
 		t.Errorf("sem WithAccounts: Account = %q, queria vazio", got)
 	}
 
-	s = New(WithAccounts(account.Implicit("/home/u/.claude")))
-	s.Apply(evNaConta(evSessionStart, "/home/u/.claude"), at(0))
-	if got := mustGet(t, s).Account; got != "" {
-		t.Errorf("conta implícita: Account = %q, queria vazio", got)
-	}
-	s.Apply(evNaConta(evStop, "/home/u/.claude-x"), at(1))
-	if got := mustGet(t, s).Account; got != account.Outra {
-		t.Errorf("transcript fora da conta implícita: Account = %q, queria %q", got, account.Outra)
-	}
 }

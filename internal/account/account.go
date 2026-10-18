@@ -25,7 +25,7 @@ const maxNome = 20
 
 // Account é uma conta do Claude Code: um nome e o diretório de configuração.
 type Account struct {
-	Name string // [a-z0-9-]{1,20}; vazio só na conta implícita
+	Name string // [a-z0-9-]{1,20}
 	Dir  string // diretório de configuração, absoluto e limpo
 }
 
@@ -77,12 +77,6 @@ func Parse(specs []string, home string) (*List, error) {
 	return newList(accs), nil
 }
 
-// Implicit é a conta única de quem não declarou nenhuma: Resolve devolve ""
-// para ela, e a interface não mostra conta.
-func Implicit(dir string) *List {
-	return newList([]Account{{Dir: filepath.Clean(dir)}})
-}
-
 func newList(accs []Account) *List {
 	byLen := append([]Account(nil), accs...)
 	sort.SliceStable(byLen, func(i, j int) bool { return len(byLen[i].Dir) > len(byLen[j].Dir) })
@@ -109,7 +103,8 @@ func (l *List) OnUnknown(f func(configDir string)) {
 
 // Resolve devolve o nome da conta que contém o transcript: a de diretório
 // mais longo, se uma conta estiver dentro de outra. Fora de todas, devolve
-// Outra. O caminho é só limpo (filepath.Clean); links simbólicos não são
+// Outra. Sem contas declaradas (List nil), devolve "" e a interface não
+// mostra conta. O caminho é só limpo (filepath.Clean); links simbólicos não são
 // resolvidos.
 func (l *List) Resolve(transcriptPath string) string {
 	if l == nil || transcriptPath == "" {

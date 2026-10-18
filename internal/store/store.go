@@ -81,7 +81,7 @@ type Store struct {
 	mu       sync.RWMutex
 	sessions map[string]*Session
 	subs     []chan struct{}
-	accounts *account.List // nil: nenhuma sessão recebe conta
+	accounts *account.List // nil: nenhuma sessão recebe conta (sem -account)
 }
 
 // Option configura o Store em New.

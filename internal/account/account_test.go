@@ -111,10 +111,6 @@ func TestResolvePrefixoMaisLongoVence(t *testing.T) {
 		})
 	}
 
-	impl := Implicit("/home/u/.claude")
-	if got := impl.Resolve("/home/u/.claude/projects/p/s.jsonl"); got != "" {
-		t.Errorf("conta implícita: Resolve = %q, queria vazio", got)
-	}
 	var nada *List
 	if got := nada.Resolve("/qualquer/projects/p/s.jsonl"); got != "" {
 		t.Errorf("List nil: Resolve = %q, queria vazio", got)
@@ -122,7 +118,10 @@ func TestResolvePrefixoMaisLongoVence(t *testing.T) {
 }
 
 func TestResolveForaDasContasViraOutraELogaUmaVez(t *testing.T) {
-	l := Implicit("/home/u/.claude")
+	l, err := Parse([]string{"padrao=/home/u/.claude"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var mu sync.Mutex
 	avisos := map[string]int{}
 	l.OnUnknown(func(dir string) {

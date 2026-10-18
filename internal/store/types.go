@@ -65,7 +65,7 @@ type Agent struct {
 type Session struct {
 	ID, Cwd, Project       string
 	Name                   string // nome dado com --name ou /rename; vazio se não houver
-	Account                string // conta do Claude Code (AD-009); vazio com a conta implícita
+	Account                string // conta do Claude Code (AD-009); vazio sem -account
 	TranscriptPath         string `json:"-"` // uso interno do Refresher, fora da API
 	Status                 Status
 	StartedAt, LastEventAt time.Time
