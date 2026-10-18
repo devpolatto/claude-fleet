@@ -284,23 +284,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* Com conta, o id encolhe (quase) todo antes do chip; o custo nunca encolhe. */
-  .tile .conta + .id { flex: 0 100 auto; margin-right: auto; }
-  .tile .conta {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 50%;
-    padding: 1px 6px;
-    border-radius: 6px;
-    background: var(--conta-bg);
-    color: var(--conta-fg);
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 1.4;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .conta.c-1 { --conta-bg: var(--conta-1); --conta-fg: var(--conta-1-texto); }
   .conta.c-2 { --conta-bg: var(--conta-2); --conta-fg: var(--conta-2-texto); }
   .conta.c-3 { --conta-bg: var(--conta-3); --conta-fg: var(--conta-3-texto); }
@@ -717,9 +700,6 @@
 
   /* Celular: o pop-up vira uma folha que sobe do rodapé e rola por dentro. */
   @media (max-width: 599px) {
-    /* Tile de 160 px: não cabem chip, id e custo; o id fica no pop-up. */
-    .tile .conta + .id { display: none; }
-    .tile .conta { max-width: none; }
     #detalhe {
       width: 100%;
       max-width: 100%;
@@ -956,7 +936,6 @@ function montarTile(s, oculta) {
 
   const linha = el('div', 'linha');
   const custo = formatarCusto(s.Total);
-  if (s.Account) linha.append(chipConta(s.Account));
   linha.append(el('span', 'id', s.ShortID), el('span', 'custo' + (custo === 'n/d' ? ' nd' : ''), custo));
   tile.append(linha);
 
