@@ -328,6 +328,19 @@
   .medidor.reiniciada .med-barra { opacity: .45; }
   .medidor.reiniciada .med-estado { font-size: 13px; color: var(--muted); text-align: right; }
 
+  /* Tokens e custo das janelas, somados dos transcripts (P2). Cache junta
+     escrita e leitura numa coluna para caber em 360 px; o detalhe vai no title. */
+  .uso-janelas { border-top: 1px solid var(--border); padding-top: 10px; min-width: 0; overflow-x: auto; }
+  .uso-janelas table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .uso-janelas th, .uso-janelas td { padding: 3px 0 3px 10px; text-align: right; white-space: nowrap; }
+  .uso-janelas th:first-child { padding-left: 0; text-align: left; }
+  .uso-janelas thead th { color: var(--muted); font-size: 11px; font-weight: 600; }
+  .uso-janelas tbody th { color: var(--muted); font-weight: 400; }
+  .uso-janelas td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .uso-janelas td.zero { color: var(--faint); }
+  .uso-janelas td.custo { color: var(--text); font-weight: 600; }
+  .uso-janelas .legenda { margin-top: 4px; }
+
   /* ---------- Pontinhos: qual tela está aberta ---------- */
   #pontos {
     position: sticky;
@@ -1989,6 +2002,62 @@ function medidor(rotulo, janela, agora) {
   return m;
 }
 
+// Linhas das janelas: rótulo curto, chave em u.windows.
+const JANELAS_TOKENS = [['five_hour', '5 h', 'janela de 5 h'], ['seven_day', 'Semana', 'janela semanal']];
+
+// janelasUso: tabela "entrada · cache · saída · custo" por janela, com os
+// totais que o servidor soma dos transcripts. Sem windows, nada.
+function janelasUso(w) {
+  if (!w || typeof w !== 'object') return null;
+  const tabela = el('table');
+  const thead = el('thead');
+  const hr = el('tr');
+  const cab = [['Tokens', null], ['entrada', 'input'], ['cache', 'cache write 5 min + cache write 1 h + cache read'], ['saída', 'output'], ['custo', ROTULO_ESTIMATIVA]];
+  for (const [txt, longo] of cab) {
+    const th = el('th', null, txt);
+    th.scope = 'col';
+    if (longo) th.title = longo;
+    hr.append(th);
+  }
+  thead.append(hr);
+  const tbody = el('tbody');
+  let linhas = 0;
+  for (const [chave, rotulo, longo] of JANELAS_TOKENS) {
+    const j = w[chave];
+    if (!j || typeof j !== 'object') continue;
+    const t = (j.tokens && typeof j.tokens === 'object') ? j.tokens : {};
+    const n = (k) => { const v = Number(t[k]); return Number.isFinite(v) && v > 0 ? v : 0; };
+    const cache = n('Cache5m') + n('Cache1h') + n('CacheRead');
+    const tr = el('tr');
+    const th = el('th', null, rotulo);
+    th.scope = 'row';
+    th.title = longo;
+    tr.append(th);
+    const celulas = [
+      [n('Input'), 'input: ' + milhar.format(n('Input'))],
+      [cache, 'cache write 5 min: ' + milhar.format(n('Cache5m')) + ' · cache write 1 h: ' + milhar.format(n('Cache1h')) + ' · cache read: ' + milhar.format(n('CacheRead'))],
+      [n('Output'), 'output: ' + milhar.format(n('Output'))],
+    ];
+    for (const [v, tit] of celulas) {
+      const td = el('td', v === 0 ? 'zero' : null, compacto(v));
+      td.title = tit;
+      tr.append(td);
+    }
+    const custo = Number(j.cost_usd);
+    const uso = { Tokens: t, CostUSD: Number.isFinite(custo) ? custo : 0, CostKnown: j.cost_known === true };
+    const tc = el('td', 'custo', formatarUso(uso));
+    tc.title = ROTULO_ESTIMATIVA;
+    tr.append(tc);
+    tbody.append(tr);
+    linhas++;
+  }
+  if (!linhas) return null;
+  tabela.append(thead, tbody);
+  const box = el('div', 'uso-janelas');
+  box.append(tabela, el('p', 'legenda', 'Somado dos transcripts · custo: ' + ROTULO_ESTIMATIVA));
+  return box;
+}
+
 function blocoUso(u, comNome, agora) {
   const b = el('section', 'uso-conta');
   const cab = el('div', 'uso-cab');
@@ -2002,6 +2071,8 @@ function blocoUso(u, comNome, agora) {
   if (!Number.isFinite(recebido)) {
     if (comNome) { cab.append(titulo); b.append(cab); }
     b.append(el('p', 'uso-sem-dado', 'sem dado do plano ainda — abra uma sessão do Claude Code'));
+    const jan = janelasUso(u.windows);
+    if (jan) b.append(jan);
     return b;
   }
   const at = el('span', 'uso-atualizado', atualizadoHa(agora - recebido));
@@ -2013,6 +2084,8 @@ function blocoUso(u, comNome, agora) {
   const meds = el('div', 'uso-medidores');
   for (const [chave, rotulo] of JANELAS) meds.append(medidor(rotulo, u[chave], agora));
   b.append(meds);
+  const jan = janelasUso(u.windows);
+  if (jan) b.append(jan);
   return b;
 }
 
