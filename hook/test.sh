@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Teste de integração do hook (gate da T12): `bash hook/test.sh`.
+# Teste de integração dos scripts (gate da T12): `bash hook/test.sh`.
 #
 # Sobe o servidor real numa porta livre e verifica o hook em seis casos:
 #   1. servidor ligado: o evento chega e a sessão fica "ativo";
@@ -10,11 +10,17 @@
 #   6. duas contas (CLAUDE_CONFIG_DIR): install-hooks em cada uma, servidor
 #      com -account e a conta certa em cada sessão, mais "outra" para um
 #      diretório não declarado.
-# Nos casos 1 a 5: exit 0 e stdout/stderr vazios.
+# E o fleet-statusline.sh em mais quatro:
+#   7. servidor desligado: termina em ≤ 1,1 s;
+#   8. servidor que aceita e nunca responde: termina em ≤ 1,1 s;
+#   9. porta inválida em CLAUDE_FLEET_PORT;
+#  10. stdin vazio.
+# Nos casos 1 a 5 e 7 a 10: exit 0 e stdout/stderr vazios.
 set -u
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 hook="$repo/hook/fleet-hook.sh"
+statusline="$repo/hook/fleet-statusline.sh"
 limit_ms=1100
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/fleet-hook-test.XXXXXX")
@@ -78,6 +84,11 @@ check_fast() {
 		fail "$1" "levou ${elapsed} ms (limite ${limit_ms} ms)"
 		return 1
 	fi
+}
+
+# payload_sl: JSON no formato do status line, com o uso do plano.
+payload_sl() {
+	printf '{"session_id":"%s","transcript_path":"%s/x.jsonl","model":{"id":"claude-opus-4-1"},"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":1760000000},"seven_day":{"used_percentage":7,"resets_at":1760500000}}}' "$1" "$tmp"
 }
 
 payload() {
@@ -255,6 +266,29 @@ if [ -n "$installed" ]; then
 	wait "$server_pid" 2>/dev/null
 	server_pid=""
 fi
+
+# Casos 7 a 10: fleet-statusline.sh, com o mesmo roteiro dos casos 2 a 5. A
+# porta do caso 1 segue sem ninguém escutando (o servidor do caso 6 usa outra).
+# O caso "servidor ligado" entra junto com a rota /statusline (T9).
+case7="7 statusline: servidor desligado"
+run_hook "$port" "$(payload_sl "$sid")" "$statusline"
+check_quiet "$case7" && check_fast "$case7" && pass "$case7 (${elapsed} ms)"
+
+case8="8 statusline: servidor mudo"
+if [ -z "$hole_port" ]; then
+	echo "AVISO caso 8 pulado: não foi possível subir o listener mudo"
+else
+	run_hook "$hole_port" "$(payload_sl "$sid")" "$statusline"
+	check_quiet "$case8" && check_fast "$case8" && pass "$case8 (${elapsed} ms)"
+fi
+
+case9="9 statusline: porta inválida"
+run_hook "abc" "$(payload_sl "$sid")" "$statusline"
+check_quiet "$case9" && check_fast "$case9" && pass "$case9 (${elapsed} ms)"
+
+case10="10 statusline: stdin vazio"
+run_hook "${hole_port:-$port}" "" "$statusline"
+check_quiet "$case10" && check_fast "$case10" && pass "$case10 (${elapsed} ms)"
 
 if [ "$failures" -ne 0 ]; then
 	echo "$failures caso(s) falharam"
