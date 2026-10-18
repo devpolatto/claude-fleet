@@ -1,7 +1,7 @@
 # uso-plano Tasks
 
 **Design**: `.specs/features/uso-plano/design.md`
-**Status**: In Progress (Phases 1–3 feitas em 2026-10-18)
+**Status**: Done (2026-10-18)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -431,9 +431,11 @@ T9, T12, T15, T16 ──→ T17
 
 **Done when**:
 
-- [ ] Cada critério de aceitação do spec com resultado no `uat.md`
-- [ ] `reviewer` sem achado aberto
-- [ ] Gate full passa
+- [x] Cada critério de aceitação do spec com resultado no `uat.md`
+- [x] `reviewer` sem achado aberto
+- [x] Gate full passa
+
+**Feito** em `uat.md`. Achados do `reviewer` corrigidos em `ca46626` (conta fora das declaradas não volta do arquivo) e `a2890f3` (mensagem repetida entre transcripts conta uma vez).
 
 **Tests**: UAT · **Gate**: full
 **Commit**: `docs(specs): UAT do uso-plano`

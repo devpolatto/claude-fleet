@@ -122,10 +122,10 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 | CONTA-04 | P1: Bootstrap em todas as contas | Verified | Verified |
 | CONTA-05 | P1: API expõe só o nome da conta | Verified | Verified |
 | CONTA-06 | P1: Conta no pop-up e no rótulo acessível do tile; tile sem chip (Figma junto) | Verified | Verified |
-| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Execute | Pending (`uso-plano`) |
+| CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Verified | Verified (`uso-plano`) |
 | CONTA-08 | P1: Filtro da grade por conta, salvo no aparelho (era P2) | Verified | Verified |
 
-**Coverage:** 8 total, 8 mapped to tasks (T1–T11); 7 verified, CONTA-07 depende do `uso-plano`.
+**Coverage:** 8 total, 8 mapped to tasks (T1–T11); 8 verified (CONTA-07 com o `uso-plano`, 2026-10-18).
 
 ---
 
