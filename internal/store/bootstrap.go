@@ -39,7 +39,8 @@ type discovered struct {
 // <dir>/<session_id>/subagents/, ficam de fora. Cwd e Project vêm do campo
 // cwd das primeiras linhas (vazios se não houver). LastEventAt é o mtime do
 // arquivo; StartedAt é o primeiro timestamp válido do transcript, ou o mtime
-// se não houver nenhum nas linhas lidas. Sessões já conhecidas não são
+// se não houver nenhum nas linhas lidas. Account sai do caminho do arquivo,
+// pelas contas de WithAccounts. Sessões já conhecidas não são
 // tocadas, e erros de leitura (diretório inexistente, arquivo ilegível) só
 // fazem o item ser pulado.
 func (s *Store) Bootstrap(projectsDir string, now time.Time, maxAge time.Duration) (added int) {
@@ -58,6 +59,7 @@ func (s *Store) Bootstrap(projectsDir string, now time.Time, maxAge time.Duratio
 			ID:             d.id,
 			Cwd:            d.cwd,
 			TranscriptPath: d.path,
+			Account:        s.accounts.Resolve(d.path),
 			Status:         StatusDesconhecido,
 			StartedAt:      d.started,
 			LastEventAt:    d.last,
