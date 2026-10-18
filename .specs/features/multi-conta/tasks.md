@@ -191,6 +191,8 @@ T5, T7, T8, T9, T10 ──→ T11
 **Tests**: browser · **Gate**: browser + quick
 **Commit**: `feat(ui): conta da sessão no tile e no pop-up`
 
+
+**Ajuste (2026-10-18), pedido do usuário:** o chip sai do tile e fica só no pop-up, porque o filtro do cabeçalho já diz que conta está em vista. Com isso o id volta ao tile no celular, e o desvio dos 160 px deixa de existir. Feito pelo `ui-figma` no código e no Figma; o filtro (T8) sobe para P1.
 ---
 
 ### T7: Figma do chip e do pop-up

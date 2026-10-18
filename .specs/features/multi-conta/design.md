@@ -29,7 +29,7 @@ flowchart LR
   IN -- "transcript_path" --> ST
   ST -- "Resolve(path)" --> AC
   BS -- "<dir>/projects" --> ST
-  ST --> HUB --> PAGE["Tile: chip da conta"]
+  ST --> HUB --> PAGE["Pop-up: chip da conta<br/>Cabeçalho: filtro"]
 ```
 
 O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava uma cópia em cada diretório de configuração. Assim cada conta fica independente, e desinstalar de uma não quebra a outra.
@@ -117,11 +117,11 @@ O mesmo script de hook vale para todas as contas, mas o `install-hooks` grava um
 
 - **Purpose**: Mostrar a conta e filtrar por ela.
 - **Interfaces / mudanças**:
-  - **Chip da conta no tile**: um `span.conta` na linha do id (`index.html:862`), só se `s.Account` não for vazio. Mostra o texto do nome em vez de um ponto colorido, para não depender só de cor (CONTA-06). O fundo vem de `--conta-N`, e `N = hash(nome) % 4 + 1` dá a mesma cor em qualquer aparelho, sem configuração.
+  - **Chip da conta** (`chipConta`): mostra o texto do nome em vez de um ponto colorido, para não depender só de cor (CONTA-06). O fundo vem de `--conta-N`, e `N = hash(nome) % 4 + 1` dá a mesma cor em qualquer aparelho, sem configuração. Fica **só no pop-up**: a primeira versão também o punha em cada tile, e o ajuste de 2026-10-18 o tirou de lá (o filtro do cabeçalho já diz que conta está em vista). O tile cita a conta só no `aria-label`.
   - **Pop-up**: a conta entra no subtítulo (`detSub`, `index.html:1377`) antes do projeto.
   - **Ocultar sessão**: a chave vira `<conta>|nome:…` ou `<conta>|<cwd>` quando há conta. Sem conta, a chave fica igual, então nada que já está oculto reaparece.
   - **Filtro (P2)**: um `<select>` no cabeçalho, que só aparece quando os tiles têm mais de uma conta distinta. Fica salvo em `localStorage` (`fleet.conta`, com try/catch). Só esconde tiles; som e push seguem o estado real.
-  - Celular: o chip encolhe com `text-overflow: ellipsis` e cabe nos 160 px do `--tile-w`; o seletor cabe no cabeçalho na vertical e na horizontal.
+  - Celular: o tile fica como antes da feature; o seletor cabe no cabeçalho na vertical (no celular deitado o cabeçalho já ficava escondido; ver T8).
 - **Figma**: chip, subtítulo e seletor entram no arquivo "claude-fleet — painel v2" pelo agente `ui-figma`, no mesmo PR.
 
 ---
@@ -166,7 +166,7 @@ com a chave `""` para quem roda sem `-account`. Um arquivo antigo, de valor úni
 | `-account` malformado, nome inválido, nome ou dir repetido | `parseConfig` devolve erro, saída 2 | Serviço não sobe; `journalctl` mostra a mensagem |
 | `-account` e `-projects` juntos | Erro, saída 2 | Idem |
 | `<dir>/projects` inexistente | `Bootstrap` já ignora diretório ilegível | Nenhum; a conta aparece quando houver sessão |
-| Transcript fora de qualquer conta | `Resolve` → `"outra"`, log único com o diretório de configuração | Tile com chip "outra" |
+| Transcript fora de qualquer conta | `Resolve` → `"outra"`, log único com o diretório de configuração | Pop-up com chip "outra"; opção "outra" no filtro |
 | Evento sem `transcript_path` | Conta não muda | Nenhum |
 | `CLAUDE_CONFIG_DIR` relativo ou com `~` literal | `install-hooks` recusa, saída 2 | Mensagem aponta o `~` não expandido |
 | `localStorage` indisponível | try/catch; filtro volta a "todas" | Filtro não lembrado |

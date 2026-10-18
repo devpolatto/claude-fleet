@@ -8,7 +8,7 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 ## Goals
 
-- [ ] Sessões e subagentes de todas as contas configuradas aparecem na mesma grade, com a conta identificada em cada tile.
+- [ ] Sessões e subagentes de todas as contas configuradas aparecem na mesma grade; o filtro do cabeçalho diz que conta está em vista e o pop-up diz a conta de cada sessão.
 - [ ] Instalar o hook numa conta nova é um comando: `CLAUDE_CONFIG_DIR=<dir> claude-fleet install-hooks`.
 - [ ] O uso do plano é guardado e mostrado por conta, sem misturar os números de duas assinaturas.
 - [ ] Com uma conta só (o caso de hoje), nada muda: mesma configuração, mesma tela.
@@ -33,7 +33,7 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 **Reason:** Não muda o hook nem a lista branca do `ingest`, não lê o ambiente da sessão e funciona também para as sessões achadas pelo Bootstrap, que não têm evento.
 **Trade-off:** A conta precisa ser declarada no servidor, que roda como serviço systemd e não herda o `CLAUDE_CONFIG_DIR` de ninguém. Um diretório não declarado aparece como "outra" (ver Edge Cases).
 **Alternative:** (a) O hook mandar `$CLAUDE_CONFIG_DIR` num cabeçalho. Seria campo novo vindo do cliente e mudaria o hook (AD-006), sem cobrir o Bootstrap. (b) Descobrir sozinho todos os `~/.claude*`. Seria mágico demais: pegaria backups e diretórios abandonados.
-**Impact:** Flag nova `-account`; `Session` ganha `Account`; Bootstrap varre o `projects/` de cada conta; `install-hooks` respeita `CLAUDE_CONFIG_DIR`; `uso-plano` passa a guardar um valor por conta; tile e pop-up mostram a conta quando há mais de uma.
+**Impact:** Flag nova `-account`; `Session` ganha `Account`; Bootstrap varre o `projects/` de cada conta; `install-hooks` respeita `CLAUDE_CONFIG_DIR`; `uso-plano` passa a guardar um valor por conta; o pop-up mostra a conta e o cabeçalho ganha um filtro por conta quando há mais de uma.
 
 ---
 
@@ -54,7 +54,7 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 ### P1: Sessões de todas as contas na grade, com a conta identificada ⭐ MVP
 
-**User Story**: Como dono da máquina, quero ver as sessões das duas assinaturas na mesma grade e saber de que conta é cada tile, para acompanhar tudo de um lugar só.
+**User Story**: Como dono da máquina, quero ver as sessões das duas assinaturas na mesma grade e saber de que conta é cada sessão, para acompanhar tudo de um lugar só.
 
 **Acceptance Criteria**:
 
@@ -64,10 +64,11 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 4. WHEN o servidor sobe THEN o Bootstrap SHALL varrer o `projects/` de **cada** conta e marcar as sessões encontradas com a conta correspondente.
 5. A API (`/api/state` e SSE) SHALL expor só o nome da conta, nunca o caminho do diretório.
 6. `-projects` SHALL continuar funcionando quando não há `-account` e SHALL ser recusado junto com `-account`, com mensagem dizendo para usar só `-account`.
-7. WHEN há mais de uma conta configurada THEN o tile SHALL mostrar a conta (rótulo curto ou cor tirada de tokens em `:root`) e o pop-up SHALL mostrar o nome; WHEN há uma só THEN a interface SHALL ficar como hoje.
+7. WHEN a sessão tem conta THEN o pop-up SHALL mostrar o nome da conta (chip com cor tirada de tokens em `:root`) e o rótulo acessível do tile SHALL citá-la; o tile **não** mostra a conta, porque o filtro do cabeçalho já diz que conta está em vista. WHEN não há conta THEN a interface SHALL ficar como hoje.
+   **Ajuste (2026-10-18):** a primeira versão tinha um chip da conta em cada tile; o usuário o tirou por ser redundante com o filtro, que por isso subiu para P1.
 8. A identificação SHALL funcionar no celular, na vertical e na horizontal, sem depender só de cor (acessibilidade).
 
-**Independent Test**: Subir o servidor com `-account pessoal=<tmp1> -account trabalho=<tmp2>` e mandar dois eventos por `curl` com `transcript_path` em cada diretório. `/api/state` mostra as duas sessões com `account` certo, e o painel mostra o rótulo nos dois tiles.
+**Independent Test**: Subir o servidor com `-account pessoal=<tmp1> -account trabalho=<tmp2>` e mandar dois eventos por `curl` com `transcript_path` em cada diretório. `/api/state` mostra as duas sessões com `account` certo, e o pop-up de cada sessão mostra a conta.
 
 ### P1: Uso do plano por conta ⭐ MVP
 
@@ -84,7 +85,7 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 
 **Independent Test**: Mandar dois JSONs de status line por `curl`, um por conta e com percentuais diferentes, e ver os dois pares de medidores com os números certos; reiniciar o serviço e ver os dois de novo.
 
-### P2: Filtrar a grade por conta
+### P1: Filtrar a grade por conta ⭐ MVP (era P2; ver o ajuste no critério 7 acima)
 
 **User Story**: Como dono da máquina, quero mostrar só as sessões de uma conta, para olhar o trabalho sem as sessões pessoais (e vice-versa).
 
@@ -120,9 +121,9 @@ Dá para usar duas assinaturas do Claude ao mesmo tempo na mesma máquina, por e
 | CONTA-03 | P1: Conta derivada do `transcript_path`, herdada pelos subagentes | Tasks | In Tasks |
 | CONTA-04 | P1: Bootstrap em todas as contas | Tasks | In Tasks |
 | CONTA-05 | P1: API expõe só o nome da conta | Tasks | In Tasks |
-| CONTA-06 | P1: Conta no tile e no pop-up quando há mais de uma (Figma junto) | Tasks | In Tasks |
+| CONTA-06 | P1: Conta no pop-up e no rótulo acessível do tile; tile sem chip (Figma junto) | Tasks | In Tasks |
 | CONTA-07 | P1: Uso do plano guardado, persistido e mostrado por conta | Tasks | In Tasks |
-| CONTA-08 | P2: Filtro da grade por conta, salvo no aparelho | Tasks | In Tasks |
+| CONTA-08 | P1: Filtro da grade por conta, salvo no aparelho (era P2) | Tasks | In Tasks |
 
 **Coverage:** 8 total, 8 mapped to tasks (T1–T11).
 
