@@ -1,7 +1,7 @@
 # multi-conta Design
 
 **Spec**: `.specs/features/multi-conta/spec.md`
-**Status**: Draft (aguardando aprovação)
+**Status**: Approved (2026-10-18)
 
 ---
 
