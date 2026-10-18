@@ -8,11 +8,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/devpolatto/claude-fleet/internal/account"
 	"github.com/devpolatto/claude-fleet/internal/push"
+	"github.com/devpolatto/claude-fleet/internal/ratelimit"
 	"github.com/devpolatto/claude-fleet/internal/store"
 )
 
@@ -487,5 +490,269 @@ func TestPushAPI(t *testing.T) {
 
 	if rec := reqJSON(h, http.MethodDelete, "/api/push/subscription", `{"endpoint":"https://fcm.googleapis.com/fcm/send/abc"}`, c, "application/json"); rec.Code != http.StatusNoContent || len(pf.subs) != 0 {
 		t.Errorf("desinscrever: status = %d, inscritos = %d", rec.Code, len(pf.subs))
+	}
+}
+
+// ---------- Uso do plano ----------
+
+// statusline monta um JSON do status line com transcript_path e as duas
+// janelas, além de campos que o servidor precisa ignorar.
+func statusline(transcriptPath string) string {
+	return `{
+  "session_id": "sess-1",
+  "transcript_path": "` + transcriptPath + `",
+  "cwd": "/home/usuario/` + sentinela + `",
+  "model": {"id": "claude-opus-4-1", "display_name": "Opus"},
+  "cost": {"total_cost_usd": 0.42},
+  "rate_limits": {
+    "five_hour": {"used_percentage": 23.5, "resets_at": 1792171200},
+    "seven_day": {"used_percentage": 41, "resets_at": 1792603200}
+  }
+}`
+}
+
+// usoFalso registra as chamadas de Apply.
+type usoFalso struct {
+	contas []string
+	snap   []ratelimit.Entry
+}
+
+func (u *usoFalso) Apply(conta string, r ratelimit.Reading) bool {
+	u.contas = append(u.contas, conta)
+	return true
+}
+
+func (u *usoFalso) Snapshot() []ratelimit.Entry { return u.snap }
+
+func TestStatuslineSoDoLoopback(t *testing.T) {
+	tests := []struct {
+		name   string
+		remote string
+		want   int
+	}{
+		{"IPv4 loopback", "127.0.0.1:40000", http.StatusNoContent},
+		{"IPv6 loopback", "[::1]:40000", http.StatusNoContent},
+		{"IP da tailnet", "100.64.0.10:40000", http.StatusForbidden},
+		{"rede local", "192.168.0.20:40000", http.StatusForbidden},
+		{"RemoteAddr inválido", "lixo", http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, srv, _ := novoServidor(t, "tok")
+			u := &usoFalso{}
+			srv.SetUsage(u, nil)
+			h := srv.Handler()
+			rec := do(h, http.MethodPost, "/statusline", tt.remote, statusline("/home/usuario/.claude/projects/p/a.jsonl"))
+			if rec.Code != tt.want {
+				t.Fatalf("status = %d, queria %d", rec.Code, tt.want)
+			}
+			if aplicou := len(u.contas) == 1; aplicou != (tt.want == http.StatusNoContent) {
+				t.Errorf("Apply chamado %d vezes", len(u.contas))
+			}
+		})
+	}
+}
+
+func TestStatuslineResolveConta(t *testing.T) {
+	duas, err := account.Parse([]string{"pessoal=/home/usuario/.claude-pessoal", "trabalho=/home/usuario/.claude-trabalho"}, "/home/usuario")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name     string
+		accounts *account.List
+		path     string
+		want     []string // contas passadas ao Apply
+	}{
+		{"conta pessoal", duas, "/home/usuario/.claude-pessoal/projects/p/a.jsonl", []string{"pessoal"}},
+		{"conta trabalho", duas, "/home/usuario/.claude-trabalho/projects/p/a.jsonl", []string{"trabalho"}},
+		{"fora das contas é descartado", duas, "/home/usuario/.claude/projects/p/a.jsonl", nil},
+		{"caminho vazio com contas é descartado", duas, "", nil},
+		{"sem contas vai para a conta vazia", nil, "/home/usuario/.claude/projects/p/a.jsonl", []string{""}},
+		{"sem contas e sem caminho vai para a conta vazia", nil, "", []string{""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, srv, _ := novoServidor(t, "")
+			u := &usoFalso{}
+			srv.SetUsage(u, tt.accounts)
+			rec := do(srv.Handler(), http.MethodPost, "/statusline", "127.0.0.1:1", statusline(tt.path))
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, queria 204", rec.Code)
+			}
+			if strings.Join(u.contas, ",") != strings.Join(tt.want, ",") || len(u.contas) != len(tt.want) {
+				t.Errorf("Apply em %q, queria %q", u.contas, tt.want)
+			}
+		})
+	}
+}
+
+func TestStatuslineSemUsageResponde204(t *testing.T) {
+	tests := []struct {
+		name   string
+		remote string
+		body   string
+		want   int
+	}{
+		{"leitura válida", "127.0.0.1:1", statusline("/x/projects/p/a.jsonl"), http.StatusNoContent},
+		{"JSON inválido também é descartado", "127.0.0.1:1", "{", http.StatusNoContent},
+		{"fora do loopback continua proibido", "100.64.0.10:1", statusline("/x/projects/p/a.jsonl"), http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, srv, h := novoServidor(t, "")
+			if rec := do(h, http.MethodPost, "/statusline", tt.remote, tt.body); rec.Code != tt.want {
+				t.Errorf("status = %d, queria %d", rec.Code, tt.want)
+			}
+			if n := srv.StatuslineErrors(); n != 0 {
+				t.Errorf("StatuslineErrors = %d, queria 0", n)
+			}
+		})
+	}
+}
+
+func TestStatuslinePayloadInvalido(t *testing.T) {
+	grande := `{"transcript_path":"` + strings.Repeat("a", ratelimit.MaxBytes) + `"}`
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"JSON inválido", `{` + sentinela, http.StatusBadRequest},
+		{"JSON truncado", `{"rate_limits": {"five_hour": "` + sentinela, http.StatusBadRequest},
+		{"corpo grande", grande, http.StatusRequestEntityTooLarge},
+	}
+	_, srv, _ := novoServidor(t, "")
+	u := &usoFalso{}
+	srv.SetUsage(u, nil)
+	h := srv.Handler()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := do(h, http.MethodPost, "/statusline", "127.0.0.1:1", tt.body)
+			if rec.Code != tt.want {
+				t.Errorf("status = %d, queria %d", rec.Code, tt.want)
+			}
+			if b := rec.Body.String(); strings.Contains(b, sentinela) || strings.Contains(b, "aaaa") {
+				t.Errorf("resposta cita o corpo: %q", b)
+			}
+		})
+	}
+	if n := srv.StatuslineErrors(); n != int64(len(tests)) {
+		t.Errorf("StatuslineErrors = %d, queria %d", n, len(tests))
+	}
+	if len(u.contas) != 0 {
+		t.Errorf("Apply chamado com payload inválido: %q", u.contas)
+	}
+	if rec := do(h, http.MethodGet, "/statusline", "127.0.0.1:1", ""); rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET /statusline: status = %d, queria 405", rec.Code)
+	}
+}
+
+func TestApiUsoExigeToken(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+		cookie *http.Cookie
+		want   int
+	}{
+		{"sem credencial", "/api/uso", nil, http.StatusUnauthorized},
+		{"token errado", "/api/uso?t=errado", nil, http.StatusUnauthorized},
+		{"cookie errado", "/api/uso", &http.Cookie{Name: CookieName, Value: "errado"}, http.StatusUnauthorized},
+		{"token na query", "/api/uso?t=tok", nil, http.StatusOK},
+		{"cookie", "/api/uso", &http.Cookie{Name: CookieName, Value: "tok"}, http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, h := novoServidor(t, "tok")
+			var cs []*http.Cookie
+			if tt.cookie != nil {
+				cs = append(cs, tt.cookie)
+			}
+			rec := do(h, http.MethodGet, tt.target, "100.64.0.10:1", "", cs...)
+			if rec.Code != tt.want {
+				t.Errorf("status = %d, queria %d", rec.Code, tt.want)
+			}
+		})
+	}
+}
+
+func TestApiUsoListaVaziaNuncaNull(t *testing.T) {
+	tests := []struct {
+		name  string
+		usage Usage
+	}{
+		{"sem SetUsage", nil},
+		{"Snapshot nil", &usoFalso{}},
+		{"Snapshot vazio", &usoFalso{snap: []ratelimit.Entry{}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, srv, _ := novoServidor(t, "")
+			if tt.usage != nil {
+				srv.SetUsage(tt.usage, nil)
+			}
+			rec := do(srv.Handler(), http.MethodGet, "/api/uso", "127.0.0.1:1", "")
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, queria 200", rec.Code)
+			}
+			if got := strings.TrimSpace(rec.Body.String()); got != "[]" {
+				t.Errorf("corpo = %q, queria []", got)
+			}
+		})
+	}
+}
+
+// TestApiUsoSoCamposDeEntry passa o status line completo pelo Tracker real e
+// confere que /api/uso devolve só os campos de ratelimit.Entry.
+func TestApiUsoSoCamposDeEntry(t *testing.T) {
+	fixture, err := os.ReadFile("../ratelimit/testdata/statusline-completo.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	contas, err := account.Parse([]string{"pessoal=/home/usuario/.claude"}, "/home/usuario")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, err := ratelimit.Load("", []string{"pessoal"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, srv, _ := novoServidor(t, "")
+	srv.SetUsage(tr, contas)
+	h := srv.Handler()
+	if rec := do(h, http.MethodPost, "/statusline", "127.0.0.1:1", string(fixture)); rec.Code != http.StatusNoContent {
+		t.Fatalf("POST /statusline: status = %d", rec.Code)
+	}
+
+	rec := do(h, http.MethodGet, "/api/uso", "127.0.0.1:1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/uso: status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, proibido := range []string{"transcript_path", "/home/usuario", "session_id", "cost", "context_window", "spend_limit", "model", "abc.jsonl"} {
+		if strings.Contains(body, proibido) {
+			t.Errorf("resposta contém %q: %s", proibido, body)
+		}
+	}
+	var entries []map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(body), &entries); err != nil {
+		t.Fatalf("JSON inválido: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entradas = %d, queria 1: %s", len(entries), body)
+	}
+	permitidos := map[string]bool{"account": true, "five_hour": true, "seven_day": true, "received_at": true}
+	for k := range entries[0] {
+		if !permitidos[k] {
+			t.Errorf("campo inesperado %q", k)
+		}
+	}
+	for k := range permitidos {
+		if _, ok := entries[0][k]; !ok {
+			t.Errorf("faltou o campo %q", k)
+		}
+	}
+	if string(entries[0]["account"]) != `"pessoal"` {
+		t.Errorf("account = %s, queria \"pessoal\"", entries[0]["account"])
 	}
 }
