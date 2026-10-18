@@ -297,3 +297,30 @@ func TestUsoPlanoJSONSemWindows(t *testing.T) {
 		}
 	}
 }
+
+func TestWindowsContaUmaVezMensagemRepetidaEntreArquivos(t *testing.T) {
+	dir := copiarFixtures(t)
+	tr := carregar(t, "", nil, novoRelogio())
+	w := NewWindows(map[string]string{"": dir}, tr)
+	w.RefreshOnce(agoraJanelas)
+	antes := janelasDe(t, tr, "")
+
+	// Sessão retomada: um arquivo novo repete as mensagens de outro, com os
+	// mesmos message.id e timestamps.
+	orig := filepath.Join(dir, "-proj-a", "sessao-a.jsonl")
+	data, err := os.ReadFile(orig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copia := filepath.Join(dir, "-proj-a", "sessao-retomada.jsonl")
+	if err := os.WriteFile(copia, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(copia, agoraJanelas, agoraJanelas); err != nil {
+		t.Fatal(err)
+	}
+	w.RefreshOnce(agoraJanelas)
+	depois := janelasDe(t, tr, "")
+	mesmaSoma(t, "five_hour", depois.FiveHour, antes.FiveHour)
+	mesmaSoma(t, "seven_day", depois.SevenDay, antes.SevenDay)
+}

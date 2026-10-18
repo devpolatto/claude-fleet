@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -278,6 +279,36 @@ func (f *File) SumSince(t time.Time) map[ModelKey]Tokens {
 		m[c.key] = m[c.key].Add(c.tokens)
 	}
 	return m
+}
+
+// Call é uma mensagem deduplicada, para quem precisa deduplicar entre
+// arquivos (ver CallsSince).
+type Call struct {
+	ID     string // message.id; "" quando a linha não trazia um
+	Key    ModelKey
+	Tokens Tokens
+	TS     time.Time
+}
+
+// CallsSince devolve as mensagens deduplicadas com timestamp igual ou
+// posterior a t, com o mesmo critério de SumSince. Uma sessão retomada pode
+// repetir mensagens de outro arquivo com o mesmo message.id; quem soma
+// vários arquivos usa o ID para contá-las uma vez. Mensagem sem id vem com
+// ID vazio e não deve ser deduplicada.
+func (f *File) CallsSince(t time.Time) []Call {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]Call, 0, len(f.calls))
+	for id, c := range f.calls {
+		if !t.IsZero() && (c.ts.IsZero() || c.ts.Before(t)) {
+			continue
+		}
+		if strings.HasPrefix(id, "\x00anon-") {
+			id = ""
+		}
+		out = append(out, Call{ID: id, Key: c.key, Tokens: c.tokens, TS: c.ts})
+	}
+	return out
 }
 
 // Messages devolve quantas mensagens distintas (por message.id) foram contadas.

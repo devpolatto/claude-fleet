@@ -112,11 +112,41 @@ func (w *Windows) RefreshOnce(now time.Time) {
 		fiveStart := windowStart(planFive, now, fiveHourSpan)
 		sevenStart := windowStart(planSeven, now, sevenDaySpan)
 
+		// Uma sessão retomada pode repetir, num arquivo novo, mensagens de
+		// outro com o mesmo message.id: deduplica por conta, ficando com a
+		// cópia de timestamp mais recente (como a L-001 dentro de um arquivo).
+		// Logo depois do reset semanal, a semana pode começar depois do
+		// início da janela de 5 h: busca a partir do mais antigo dos dois.
+		since := sevenStart
+		if fiveStart.Before(since) {
+			since = fiveStart
+		}
+		byID := make(map[string]transcript.Call)
+		var anon []transcript.Call
+		for _, f := range files {
+			for _, c := range f.CallsSince(since) {
+				if c.ID == "" {
+					anon = append(anon, c)
+				} else if old, ok := byID[c.ID]; !ok || c.TS.After(old.TS) {
+					byID[c.ID] = c
+				}
+			}
+		}
 		five := make(map[transcript.ModelKey]transcript.Tokens)
 		seven := make(map[transcript.ModelKey]transcript.Tokens)
-		for _, f := range files {
-			addTokens(five, f.SumSince(fiveStart))
-			addTokens(seven, f.SumSince(sevenStart))
+		add := func(c transcript.Call) {
+			if !c.TS.Before(sevenStart) {
+				seven[c.Key] = seven[c.Key].Add(c.Tokens)
+			}
+			if !c.TS.Before(fiveStart) {
+				five[c.Key] = five[c.Key].Add(c.Tokens)
+			}
+		}
+		for _, c := range byID {
+			add(c)
+		}
+		for _, c := range anon {
+			add(c)
 		}
 		w.tr.SetWindows(acc, WindowTotals{FiveHour: sumOf(five), SevenDay: sumOf(seven)})
 	}
@@ -180,12 +210,6 @@ func (w *Windows) scan(dir string, since time.Time, seen map[string]bool) []*tra
 		return nil
 	})
 	return out
-}
-
-func addTokens(dst, src map[transcript.ModelKey]transcript.Tokens) {
-	for k, v := range src {
-		dst[k] = dst[k].Add(v)
-	}
 }
 
 // sumOf soma os tokens e calcula o custo com pricing.Cost, como o

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -338,5 +339,40 @@ func TestSumSinceRespeitaTimestampEDedupe(t *testing.T) {
 	}
 	if got := len(f.ByModel()); got != 3 {
 		t.Errorf("ByModel tem %d chaves, queria 3", got)
+	}
+}
+
+func TestCallsSinceDevolveIDEDeixaSemIDVazio(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "t.jsonl")
+	linhas := `{"type":"assistant","timestamp":"2026-10-18T10:00:01Z","message":{"id":"msg_a","model":"claude-sonnet-4-5","usage":{"input_tokens":1,"output_tokens":2}}}
+{"type":"assistant","timestamp":"2026-10-18T10:00:02Z","message":{"id":"msg_a","model":"claude-sonnet-4-5","usage":{"input_tokens":1,"output_tokens":3}}}
+{"type":"assistant","timestamp":"2026-10-18T10:00:03Z","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":5,"output_tokens":5}}}
+`
+	if err := os.WriteFile(path, []byte(linhas), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := New(path)
+	if err := f.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	casos := []struct {
+		nome  string
+		desde time.Time
+		quer  map[string]int64 // id → output
+	}{
+		{"todas", time.Time{}, map[string]int64{"msg_a": 3, "": 5}},
+		{"repetida fica com o timestamp da última linha", time.Date(2026, 10, 18, 10, 0, 1, 500e6, time.UTC), map[string]int64{"msg_a": 3, "": 5}},
+		{"só a sem id", time.Date(2026, 10, 18, 10, 0, 2, 500e6, time.UTC), map[string]int64{"": 5}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			got := map[string]int64{}
+			for _, call := range f.CallsSince(c.desde) {
+				got[call.ID] = call.Tokens.Output
+			}
+			if !reflect.DeepEqual(got, c.quer) {
+				t.Errorf("CallsSince = %v, quer %v", got, c.quer)
+			}
+		})
 	}
 }
