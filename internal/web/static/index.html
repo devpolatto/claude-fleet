@@ -2219,18 +2219,22 @@ telas.addEventListener('click', (e) => {
 
 // ---------- Alerta sonoro ----------
 // Toca quando uma sessão ou subagente entra em aguardando e repete a cada
-// 30 s enquanto algo seguir assim. O som é gerado com Web Audio; o
+// 30 s enquanto algo seguir assim. Toca outro som, uma vez, quando a sessão
+// principal termina um turno longo. O som é gerado com Web Audio; o
 // navegador só libera o áudio depois de um gesto na página.
 
 const somBtn = document.getElementById('som');
 const SOM_CHAVE = 'fleet.som';
 const LEMBRETE_MS = 30000;
+const TURNO_MIN_MS = 20000;  // turno mais curto que isso não avisa o fim
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 
 let somLigado = false;
 let audio = null;            // AudioContext único, criado sob demanda
 let aguardandoAntes = null;  // chaves em aguardando no snapshot anterior; null = sem linha de base
 let referencia = 0;          // último toque ou linha de base: o lembrete conta a partir daqui
+let statusAntes = null;      // status de cada sessão no snapshot anterior; null = sem linha de base
+const inicioTurno = new Map(); // sessão → instante em que entrou em ativo/aguardando
 
 function lerSom() {
   try { return localStorage.getItem(SOM_CHAVE) === '1'; } catch (_) { return false; }
@@ -2255,27 +2259,38 @@ function garantirAudio() {
   return audio;
 }
 
-// tocar emite dois bipes curtos; com o áudio bloqueado, não agenda nada para
-// não acumular toques que soariam todos juntos ao destravar.
-function tocar() {
-  referencia = Date.now();
+// notas toca [frequência, atraso] em sequência; com o áudio bloqueado, não
+// agenda nada para não acumular toques que soariam todos juntos ao destravar.
+function notas(lista, pico, dur) {
   const ctx = garantirAudio();
   if (!ctx || ctx.state !== 'running') return;
   const t0 = ctx.currentTime + 0.01;
-  for (const [freq, atraso] of [[880, 0], [1320, 0.18]]) {
+  for (const [freq, atraso] of lista) {
     const osc = ctx.createOscillator();
     const ganho = ctx.createGain();
     const t = t0 + atraso;
     osc.type = 'sine';
     osc.frequency.value = freq;
-    // Envelope curto para o bipe não estalar.
+    // Envelope curto para a nota não estalar.
     ganho.gain.setValueAtTime(0.0001, t);
-    ganho.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-    ganho.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    ganho.gain.exponentialRampToValueAtTime(pico, t + 0.02);
+    ganho.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.connect(ganho).connect(ctx.destination);
     osc.start(t);
-    osc.stop(t + 0.16);
+    osc.stop(t + dur + 0.01);
   }
+}
+
+// tocar é o alerta de aguardando: dois bipes curtos subindo.
+function tocar() {
+  referencia = Date.now();
+  notas([[880, 0], [1320, 0.18]], 0.3, 0.15);
+}
+
+// tocarFim é o alerta de fim de turno: duas notas descendentes, mais longas
+// e mais baixas. Não mexe na referência do lembrete de aguardando.
+function tocarFim() {
+  notas([[660, 0], [440, 0.28]], 0.18, 0.25);
 }
 
 function atualizarSomBtn() {
@@ -2300,22 +2315,53 @@ function chavesAguardando(sessoes) {
   return chaves;
 }
 
-// avaliarSom compara com o snapshot anterior: chave nova toca uma vez. O
-// primeiro snapshot da conexão só vira linha de base.
+const emTurno = (st) => st === 'ativo' || st === 'aguardando';
+
+// fimDeTurno atualiza o início dos turnos e diz se alguma sessão passou de
+// ativo para parado depois de um turno longo. Sem linha de base (antes
+// null), só grava: quem está em turno começa a contar agora, mesmo que já
+// tivesse um início, porque durante a queda o turno pode ter acabado e outro
+// começado.
+function fimDeTurno(sessoes, antes) {
+  const agora = Date.now();
+  const status = new Map();
+  let fim = false;
+  for (const s of sessoes) {
+    status.set(s.ID, s.Status);
+    if (emTurno(s.Status)) {
+      if (!antes || !inicioTurno.has(s.ID)) inicioTurno.set(s.ID, agora);
+      continue;
+    }
+    const inicio = inicioTurno.get(s.ID);
+    inicioTurno.delete(s.ID);
+    if (antes && antes.get(s.ID) === 'ativo' && s.Status === 'parado' &&
+        inicio !== undefined && agora - inicio >= TURNO_MIN_MS) fim = true;
+  }
+  for (const id of inicioTurno.keys()) if (!status.has(id)) inicioTurno.delete(id);
+  statusAntes = status;
+  return fim;
+}
+
+// avaliarSom compara com o snapshot anterior: chave nova em aguardando toca
+// uma vez; senão, um fim de turno longo toca o alerta de fim. O primeiro
+// snapshot da conexão só vira linha de base.
 function avaliarSom(sessoes) {
   const agora = chavesAguardando(sessoes);
   const antes = aguardandoAntes;
   aguardandoAntes = agora;
+  const fim = fimDeTurno(sessoes, antes === null ? null : statusAntes);
   if (antes === null) {
     referencia = Date.now();
     return;
   }
+  if (!somLigado) return;
   for (const k of agora) {
     if (!antes.has(k)) {
-      if (somLigado) tocar();
+      tocar();
       return;
     }
   }
+  if (fim) tocarFim();
 }
 
 if (AudioCtx) {
