@@ -148,6 +148,8 @@ _Nenhum._
 - [ ] PWA (ícone na tela inicial) — Captured during: fleet-mvp/spec — especificada em `features/pwa` (2026-10-16)
 - [x] Custo e tokens por modelo e acerto de cache no pop-up — Captured during: issue #3 (2026-10-16) — feito em `features/custo-por-modelo` (2026-10-17)
 - [x] Várias assinaturas na mesma máquina (`CLAUDE_CONFIG_DIR` por conta): ver as sessões de todas e o uso de cada plano — Captured during: conversa de 2026-10-18 — spec, design e tasks aprovados em `features/multi-conta` (2026-10-18, AD-009); feito, UAT em `features/multi-conta/uat.md` (2026-10-18)
+- [x] Alerta sonoro quando a sessão principal termina um turno longo — Captured during: issue #15 (2026-10-18) — feito em `features/alerta-fim` (2026-10-18), só som, limite de 20 s, mesmo toggle
+- [ ] Push "terminou" pelo `internal/push/notifier.go` (fim de turno com o celular bloqueado, sem subagentes) — Captured during: alerta-fim/spec (2026-10-18)
 
 ---
 
