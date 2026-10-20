@@ -1,5 +1,7 @@
 # silenciar-agente Specification
 
+> Status: **implementada e verificada** em 2026-10-20. UAT em [`uat.md`](uat.md).
+
 Issue: [#19](https://github.com/devpolatto/claude-fleet/issues/19). Estende o [`alerta-sonoro`](../alerta-sonoro/spec.md).
 
 ## Problem Statement
@@ -95,6 +97,8 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 - **Bipe**: `avaliarSom` ignora chave nova silenciada. **Lembrete**: toca só se há chave em aguardando fora de `silenciados`.
 - **Controles**: botão no `.det-acoes` do pop-up (estilo do "Ocultar") e um botão pequeno na linha de cada subagente em aguardando. Alternar redesenha a grade e o pop-up; o pop-up não fecha.
 - **Marca**: ícone `somDesligado` no tile e no mini-tile.
+- **Celular**: abaixo de 600 px o "Silenciar" do pop-up fica só com o ícone (`aria-label` completo), para caber ao lado de "Ocultar".
+- **Sem Web Audio**: os controles não aparecem, porque não há som a silenciar.
 
 ---
 
@@ -102,16 +106,16 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| SIL-01 | P1: controle no pop-up da sessão em aguardando | Execute | Pending |
-| SIL-02 | P1: controle por subagente em aguardando | Execute | Pending |
-| SIL-03 | P1: silenciado não bipa nem conta no lembrete; os outros tocam | Execute | Pending |
-| SIL-04 | P1: todos silenciados, lembrete para | Execute | Pending |
-| SIL-05 | P1: chaves independentes | Execute | Pending |
-| SIL-06 | P1: desfazer pelo mesmo controle | Execute | Pending |
-| SIL-07 | P1: som global manda | Execute | Pending |
-| SIL-08 | P1: silêncio cai ao sair de aguardando | Execute | Pending |
-| SIL-09 | P1: recarregar desfaz | Execute | Pending |
-| SIL-10 | P1: marca no tile e no mini-tile, `aria-*` | Execute | Pending |
+| SIL-01 | P1: controle no pop-up da sessão em aguardando | Execute | Verified |
+| SIL-02 | P1: controle por subagente em aguardando | Execute | Verified |
+| SIL-03 | P1: silenciado não bipa nem conta no lembrete; os outros tocam | Execute | Verified |
+| SIL-04 | P1: todos silenciados, lembrete para | Execute | Verified |
+| SIL-05 | P1: chaves independentes | Execute | Verified |
+| SIL-06 | P1: desfazer pelo mesmo controle | Execute | Verified |
+| SIL-07 | P1: som global manda | Execute | Verified |
+| SIL-08 | P1: silêncio cai ao sair de aguardando | Execute | Verified |
+| SIL-09 | P1: recarregar desfaz | Execute | Verified |
+| SIL-10 | P1: marca no tile e no mini-tile, `aria-*` | Execute | Verified |
 
 **Coverage:** 10 total, 10 mapeados para Execute, 0 sem mapeamento.
 
