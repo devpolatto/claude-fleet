@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -144,7 +145,37 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/push/subscription", s.auth(http.HandlerFunc(s.handlePushSubscribe)))
 	mux.Handle("DELETE /api/push/subscription", s.auth(http.HandlerFunc(s.handlePushUnsubscribe)))
 	mux.Handle("POST /api/push/test", s.auth(http.HandlerFunc(s.handlePushTest)))
+	if s.token == "" {
+		return loopbackHost(mux)
+	}
 	return mux
+}
+
+// loopbackHost recusa, no modo sem token, requisições cujo Host não seja um
+// nome de loopback. Sem isso, uma página com DNS rebinding para 127.0.0.1
+// fica same-origin com o painel e lê as rotas abertas. Com token, o cookie
+// já amarra o acesso à origem certa.
+func loopbackHost(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if !isLoopbackName(host) {
+			http.Error(w, http.StatusText(http.StatusMisdirectedRequest), http.StatusMisdirectedRequest)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// isLoopbackName aceita "localhost" e IPs de loopback, com ou sem colchetes.
+func isLoopbackName(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip, err := netip.ParseAddr(strings.TrimSuffix(strings.TrimPrefix(host, "["), "]"))
+	return err == nil && ip.Unmap().IsLoopback()
 }
 
 func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {

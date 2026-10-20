@@ -145,6 +145,63 @@ func TestIngestRecusaRequisicaoDeNavegador(t *testing.T) {
 	}
 }
 
+// Sem token, só Host de loopback passa: um domínio com DNS rebinding para
+// 127.0.0.1 não lê as rotas abertas nem manda evento. Com token, o Host não
+// importa (o acesso pela tailnet usa o nome da máquina).
+func TestSemTokenSoHostDeLoopback(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+		host  string
+		want  int
+	}{
+		{"127.0.0.1 com porta", "", "127.0.0.1:7777", http.StatusOK},
+		{"localhost", "", "localhost:7777", http.StatusOK},
+		{"LOCALHOST sem porta", "", "LOCALHOST", http.StatusOK},
+		{"IPv6", "", "[::1]:7777", http.StatusOK},
+		{"outro 127/8", "", "127.0.0.2:7777", http.StatusOK},
+		{"domínio rebinding", "", "mal.example:7777", http.StatusMisdirectedRequest},
+		{"subdomínio de localhost", "", "localhost.mal.example", http.StatusMisdirectedRequest},
+		{"IP da LAN", "", "192.168.0.20:7777", http.StatusMisdirectedRequest},
+		{"Host vazio", "", "", http.StatusMisdirectedRequest},
+		{"com token, nome da tailnet", "tok", "maquina.tailnet.ts.net:7777", http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, h := novoServidor(t, tt.token)
+			for _, path := range []string{"/api/sessions", "/manifest.webmanifest"} {
+				target := path
+				if tt.token != "" {
+					target += "?t=" + tt.token
+				}
+				req := httptest.NewRequest(http.MethodGet, target, nil)
+				req.RemoteAddr = "127.0.0.1:40000"
+				req.Host = tt.host
+				rec := httptest.NewRecorder()
+				h.ServeHTTP(rec, req)
+				if rec.Code != tt.want {
+					t.Errorf("GET %s: status = %d, queria %d", path, rec.Code, tt.want)
+				}
+			}
+		})
+	}
+	t.Run("POST /event com Host de rebinding", func(t *testing.T) {
+		st, _, h := novoServidor(t, "")
+		req := httptest.NewRequest(http.MethodPost, "/event", strings.NewReader(eventoComConteudo))
+		req.RemoteAddr = "127.0.0.1:40000"
+		req.Host = "mal.example:7777"
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMisdirectedRequest {
+			t.Errorf("status = %d, queria 421", rec.Code)
+		}
+		if _, ok := st.Get("sess-0123456789"); ok {
+			t.Error("sessão criada com Host de rebinding")
+		}
+	})
+}
+
 func TestEventPayloadInvalido(t *testing.T) {
 	_, srv, h := novoServidor(t, "")
 	if rec := do(h, http.MethodPost, "/event", "127.0.0.1:1", `{"session_id":"x"}`); rec.Code != http.StatusBadRequest {
