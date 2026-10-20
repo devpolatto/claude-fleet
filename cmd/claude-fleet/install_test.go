@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -104,6 +105,70 @@ func compact(t *testing.T, raw []byte) string {
 
 func wantGroup(dir string) string {
 	return `{"hooks":[{"type":"command","command":"` + filepath.Join(dir, "fleet-hook.sh") + `","timeout":5}]}`
+}
+
+func TestShellQuote(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"/home/u/.claude/claude-fleet/fleet-hook.sh", "/home/u/.claude/claude-fleet/fleet-hook.sh"},
+		{"/home/u/my dir/fleet-hook.sh", "'/home/u/my dir/fleet-hook.sh'"},
+		{"/home/u/$(id)/fleet-hook.sh", "'/home/u/$(id)/fleet-hook.sh'"},
+		{"/home/u/`id`;x/fleet-hook.sh", "'/home/u/`id`;x/fleet-hook.sh'"},
+		{"/home/o'brien/fleet-hook.sh", `'/home/o'\''brien/fleet-hook.sh'`},
+		{"/home/joão/fleet-hook.sh", "'/home/joão/fleet-hook.sh'"},
+	}
+	for _, tt := range tests {
+		if got := shellQuote(tt.in); got != tt.want {
+			t.Errorf("shellQuote(%q) = %q, queria %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+// Diretório com espaço e caractere de shell: o comando sai entre aspas, roda
+// no sh sem executar nada do caminho, e reinstalar e desinstalar reconhecem o
+// comando citado.
+func TestInstallCaminhoComEspacoECaractereDeShell(t *testing.T) {
+	settings, _ := setupSettings(t, []byte("{}\n"))
+	dir := filepath.Join(filepath.Dir(settings), "meu dir $(touch pwned)")
+	mustInstall(t, settings, dir)
+
+	groups := eventGroups(t, readFile(t, settings))
+	want := `{"hooks":[{"type":"command","command":"'` + filepath.Join(dir, "fleet-hook.sh") + `'","timeout":5}]}`
+	for _, ev := range fleetEvents {
+		g := groups[ev]
+		if len(g) == 0 || compact(t, g[len(g)-1]) != want {
+			t.Fatalf("%s: grupos = %s, queria o último %s", ev, g, want)
+		}
+	}
+	if sl := compact(t, statusLineOf(t, readFile(t, settings))); sl != `{"type":"command","command":"'`+filepath.Join(dir, "fleet-statusline.sh")+`'"}` {
+		t.Errorf("statusLine = %s", sl)
+	}
+
+	// O comando gravado roda o script certo no sh, sem executar o $(...).
+	var cmd struct {
+		Hooks []struct {
+			Command string `json:"command"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(groups[fleetEvents[0]][len(groups[fleetEvents[0]])-1], &cmd); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("sh", "-c", "set -- "+cmd.Hooks[0].Command+`; printf %s "$1"`).Output()
+	if err != nil || string(out) != filepath.Join(dir, "fleet-hook.sh") {
+		t.Errorf("sh expandiu o comando para %q (%v)", out, err)
+	}
+	if _, err := os.Stat("pwned"); err == nil {
+		os.Remove("pwned")
+		t.Error("o $(...) do caminho foi executado")
+	}
+
+	if out := mustInstall(t, settings, dir); !strings.Contains(out, "nada a fazer") {
+		t.Errorf("reinstalar deveria dizer \"nada a fazer\":\n%s", out)
+	}
+	mustUninstall(t, settings)
+	data := readFile(t, settings)
+	if bytes.Contains(data, []byte("fleet-hook.sh")) || bytes.Contains(data, []byte("fleet-statusline.sh")) {
+		t.Errorf("uninstall deixou o comando citado:\n%s", data)
+	}
 }
 
 func TestInstallPreservaEntradasEFormato(t *testing.T) {
