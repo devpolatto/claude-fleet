@@ -64,10 +64,9 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam. Refer�
 | MSA-06 | v2: botão abre e fecha a lista | Execute | Substituído por MSA-10 |
 | MSA-07 | v2: lista e foco sobrevivem ao poll | Execute | Substituído (lista sem estado) |
 | MSA-08 | v2: `aria-*`, alvo ≥ `--toque-min` | Execute | Substituído (sem botão) |
-| MSA-09 | v2: sem "custo" na linha do card | Execute | Incorporado em MSA-11 |
 | MSA-10 | P1: lista sempre visível com nome completo e custo, mais caro primeiro, formato do pop-up | Execute | Verified |
 | MSA-11 | P1: linha só com vida, tokens e última | Execute | Verified |
 | MSA-12 | P1: sem modelo, sem lista | Execute | Verified |
 | MSA-13 | P1: nome longo quebra, sem rolagem; "Tokens por agente" e "Modelos" iguais | Execute | Verified |
 
-**Coverage:** 4 vigentes (MSA-10 a MSA-13), todos verificados; 9 substituídos.
+**Coverage:** 4 vigentes (MSA-10 a MSA-13), todos verificados; 8 substituídos.
