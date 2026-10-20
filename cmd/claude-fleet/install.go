@@ -131,7 +131,7 @@ func installHooks(o hookOpts) error {
 	if err != nil {
 		return err
 	}
-	updated, res, err := applyInstall(s.data, script, statusScript)
+	updated, res, err := applyInstall(s.data, shellQuote(script), shellQuote(statusScript))
 	if err != nil {
 		return fmt.Errorf("%s: %w", s.path, err)
 	}
@@ -454,7 +454,7 @@ func isFleetGroup(raw json.RawMessage) bool {
 		return false
 	}
 	for _, h := range g.Hooks {
-		if !strings.HasSuffix(h.Command, "/"+hookScriptName) {
+		if !isScriptCommand(h.Command, hookScriptName) {
 			return false
 		}
 	}
@@ -511,7 +511,31 @@ func statusLineCommand(raw json.RawMessage) (cmd string, ok bool) {
 // terminando em /fleet-statusline.sh.
 func isFleetStatusLine(raw json.RawMessage) bool {
 	cmd, ok := statusLineCommand(raw)
-	return ok && strings.HasSuffix(cmd, "/"+statusLineScriptName)
+	return ok && isScriptCommand(cmd, statusLineScriptName)
+}
+
+// shellQuote devolve o caminho pronto para o comando do settings, que o
+// Claude Code roda num shell. Caminho só com caracteres seguros vai como está
+// (o mesmo que versões anteriores gravaram); o resto vai entre aspas simples,
+// para espaço, $ ou crase no diretório não quebrarem nem executarem nada.
+func shellQuote(path string) string {
+	safe := path != ""
+	for _, r := range path {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("/._-+@%:,=", r)) {
+			safe = false
+			break
+		}
+	}
+	if safe {
+		return path
+	}
+	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
+}
+
+// isScriptCommand diz se cmd chama o script name do claude-fleet, com o
+// caminho entre aspas (shellQuote) ou não.
+func isScriptCommand(cmd, name string) bool {
+	return strings.HasSuffix(cmd, "/"+name) || strings.HasSuffix(cmd, "/"+name+"'")
 }
 
 // applyStatusLine registra o statusLine do claude-fleet no objeto de topo,

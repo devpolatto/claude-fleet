@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -280,6 +281,141 @@ func TestComToken(t *testing.T) {
 			t.Errorf("status = %d, queria 204", rec.Code)
 		}
 	})
+}
+
+// Token errado conta por IP: passadas maxTokenFailures falhas na janela, o IP
+// recebe 429 até ela acabar, mesmo com o token certo; outro IP não é afetado
+// e pedido sem credencial não conta.
+func TestTokenErradoLimitadoPorIP(t *testing.T) {
+	const token = "s3cr3t-token"
+	agora := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	tentativas := map[string]func(h http.Handler, remote, tok string) *httptest.ResponseRecorder{
+		"?t=": func(h http.Handler, remote, tok string) *httptest.ResponseRecorder {
+			return do(h, http.MethodGet, "/api/sessions?t="+tok, remote, "")
+		},
+		"cookie": func(h http.Handler, remote, tok string) *httptest.ResponseRecorder {
+			return do(h, http.MethodGet, "/api/sessions", remote, "", &http.Cookie{Name: CookieName, Value: tok})
+		},
+		"login": func(h http.Handler, remote, tok string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("token="+tok))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.RemoteAddr = remote
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			return rec
+		},
+	}
+	for nome, tentar := range tentativas {
+		t.Run(nome, func(t *testing.T) {
+			_, srv, _ := novoServidor(t, token)
+			srv.now = func() time.Time { return agora }
+			h := srv.Handler()
+			const ip = "100.64.0.10:1"
+
+			for i := 0; i < 20; i++ {
+				do(h, http.MethodGet, "/api/sessions", ip, "") // sem credencial: não conta
+			}
+			for i := 0; i < maxTokenFailures; i++ {
+				if rec := tentar(h, ip, "errado"); rec.Code != http.StatusUnauthorized {
+					t.Fatalf("tentativa %d: status = %d, queria 401", i+1, rec.Code)
+				}
+			}
+			rec := tentar(h, ip, token)
+			if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
+				t.Fatalf("depois de %d falhas: status = %d, Retry-After = %q; queria 429", maxTokenFailures, rec.Code, rec.Header().Get("Retry-After"))
+			}
+			if rec := tentar(h, "100.64.0.11:1", token); rec.Code == http.StatusTooManyRequests || rec.Code == http.StatusUnauthorized {
+				t.Errorf("outro IP: status = %d", rec.Code)
+			}
+			agora = agora.Add(failureWindow)
+			if rec := tentar(h, ip, token); rec.Code == http.StatusTooManyRequests || rec.Code == http.StatusUnauthorized {
+				t.Errorf("depois da janela: status = %d", rec.Code)
+			}
+		})
+	}
+}
+
+func TestFailuresDescartaJanelasVencidas(t *testing.T) {
+	var f failures
+	t0 := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < maxTrackedIPs; i++ {
+		f.add("10.0."+strconv.Itoa(i/256)+"."+strconv.Itoa(i%256), t0)
+	}
+	f.add("100.64.0.1", t0.Add(failureWindow))
+	if n := len(f.m); n != 1 {
+		t.Errorf("IPs no mapa = %d, queria 1", n)
+	}
+}
+
+// Origens novas a cada pedido, todas dentro da janela: o mapa não passa do
+// teto, e a origem já conhecida continua contando.
+func TestFailuresMapaNaoPassaDoTeto(t *testing.T) {
+	var f failures
+	t0 := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 3*maxTrackedIPs; i++ {
+		f.add("10."+strconv.Itoa(i>>16)+"."+strconv.Itoa(i>>8&255)+"."+strconv.Itoa(i&255), t0)
+		if len(f.m) > maxTrackedIPs {
+			t.Fatalf("mapa com %d origens, teto %d", len(f.m), maxTrackedIPs)
+		}
+	}
+}
+
+func TestFailureKeyAgrupaIPv6Por64(t *testing.T) {
+	tests := []struct{ remote, want string }{
+		{"100.64.0.10:1234", "100.64.0.10"},
+		{"[::ffff:100.64.0.10]:1234", "100.64.0.10"},
+		{"[2001:db8:1:2:aaaa::1]:1234", "2001:db8:1:2::/64"},
+		{"[2001:db8:1:2:bbbb::9]:1", "2001:db8:1:2::/64"},
+		{"[fe80::1%eth0]:1", "fe80::/64"},
+		{"lixo", "lixo"},
+	}
+	for _, tt := range tests {
+		if got := failureKey(tt.remote); got != tt.want {
+			t.Errorf("failureKey(%q) = %q, queria %q", tt.remote, got, tt.want)
+		}
+	}
+}
+
+// Pedido de outro site que não é navegação de topo (img, fetch, iframe) não
+// testa nem conta o token: uma página qualquer não tranca o dono fora.
+func TestAuthRecusaSubrecursoDeOutroSite(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	const ip = "100.64.0.10:1"
+	pedir := func(path, site, dest string) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.RemoteAddr = ip
+		req.Header.Set("Sec-Fetch-Site", site)
+		req.Header.Set("Sec-Fetch-Dest", dest)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for i := 0; i < 3*maxTokenFailures; i++ {
+		if c := pedir("/api/sessions?t=errado", "cross-site", "image"); c != http.StatusForbidden {
+			t.Fatalf("img de outro site: status = %d, queria 403", c)
+		}
+	}
+	if c := pedir("/api/sessions?t="+token, "cross-site", "empty"); c != http.StatusForbidden {
+		t.Errorf("fetch de outro site com token certo: status = %d, queria 403", c)
+	}
+	if c := pedir("/api/sessions?t="+token, "same-origin", "empty"); c != http.StatusOK {
+		t.Errorf("fetch do próprio painel depois do ataque: status = %d, queria 200", c)
+	}
+	if c := pedir("/?t="+token, "cross-site", "document"); c != http.StatusSeeOther {
+		t.Errorf("link com ?t= aberto de outro site: status = %d, queria 303", c)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("token=errado"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Sec-Fetch-Dest", "iframe")
+	req.RemoteAddr = ip
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("login de outro site em iframe: status = %d, queria 403", rec.Code)
+	}
 }
 
 func TestApiSession(t *testing.T) {
@@ -601,7 +737,10 @@ func TestPushAPI(t *testing.T) {
 		t.Fatalf("inscrição válida: status = %d, inscritos = %d", rec.Code, len(pf.subs))
 	}
 
-	rec = reqJSON(h, http.MethodPost, "/api/push/test", "", c, "")
+	if rec := reqJSON(h, http.MethodPost, "/api/push/test", "", c, "text/plain"); rec.Code != http.StatusUnsupportedMediaType || len(pf.enviada) != 0 {
+		t.Errorf("teste com text/plain: status = %d, enviadas = %d; queria 415 e 0", rec.Code, len(pf.enviada))
+	}
+	rec = reqJSON(h, http.MethodPost, "/api/push/test", "", c, "application/json")
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"sent":1`) || len(pf.enviada) != 1 {
 		t.Errorf("teste: %d %s", rec.Code, rec.Body)
 	}

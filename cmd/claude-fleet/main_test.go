@@ -34,12 +34,17 @@ func TestValidateBind(t *testing.T) {
 		{"IPv4 mapeado em IPv6", "[::ffff:127.0.0.1]:7777", "", false},
 		{"localhost", "localhost:7777", "", false},
 		{"todas as interfaces sem token", "0.0.0.0:7777", "", true},
-		{"todas as interfaces com token", "0.0.0.0:7777", "s3cr3t", false},
+		{"todas as interfaces com token", "0.0.0.0:7777", "Zb3kQ9wLx2PmV7nR4tYc8sHd", false},
 		{"host vazio sem token", ":7777", "", true},
 		{"IPv6 todas as interfaces sem token", "[::]:7777", "", true},
 		{"IP da tailnet sem token", "100.64.0.10:7777", "", true},
-		{"IP da tailnet com token", "100.64.0.10:7777", "s3cr3t", false},
+		{"IP da tailnet com token", "100.64.0.10:7777", "Zb3kQ9wLx2PmV7nR4tYc8sHd", false},
 		{"token só com espaços", "0.0.0.0:7777", "   ", true},
+		{"token curto na tailnet", "100.64.0.10:7777", "s3cr3t", true},
+		{"token com 23 caracteres", "100.64.0.10:7777", strings.Repeat("a", 23), true},
+		{"token com 24 caracteres", "100.64.0.10:7777", strings.Repeat("a", 24), false},
+		{"espaços não contam", "100.64.0.10:7777", "  " + strings.Repeat("a", 23) + "  ", true},
+		{"token curto no loopback", "127.0.0.1:7777", "s3cr3t", false},
 		{"hostname não loopback sem token", "minha-maquina:7777", "", true},
 		{"sem porta", "127.0.0.1", "", true},
 		{"porta vazia", "127.0.0.1:", "", true},
@@ -75,13 +80,13 @@ func TestParseConfigDefaults(t *testing.T) {
 }
 
 func TestParseConfigTokenFromEnv(t *testing.T) {
-	e := env(map[string]string{"HOME": "/home/x", "CLAUDE_FLEET_TOKEN": "do-ambiente"})
+	e := env(map[string]string{"HOME": "/home/x", "CLAUDE_FLEET_TOKEN": "token-vindo-do-ambiente-0001"})
 	cfg, err := parseConfig([]string{"-addr", "0.0.0.0:7777"}, e, io.Discard)
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
-	if cfg.Token != "do-ambiente" {
-		t.Errorf("Token = %q, queria do-ambiente", cfg.Token)
+	if cfg.Token != "token-vindo-do-ambiente-0001" {
+		t.Errorf("Token = %q, queria token-vindo-do-ambiente-0001", cfg.Token)
 	}
 
 	cfg, err = parseConfig([]string{"-token", "da-flag"}, e, io.Discard)
@@ -163,7 +168,7 @@ func TestValidateTLS(t *testing.T) {
 }
 
 func TestParseConfigTLS(t *testing.T) {
-	e := env(map[string]string{"HOME": "/h", "CLAUDE_FLEET_TOKEN": "tok"})
+	e := env(map[string]string{"HOME": "/h", "CLAUDE_FLEET_TOKEN": "Zb3kQ9wLx2PmV7nR4tYc8sHd"})
 	cfg, err := parseConfig([]string{"-addr", "100.75.1.2:7777", "-tls-cert", "c.crt", "-tls-key", "c.key"}, e, io.Discard)
 	if err != nil {
 		t.Fatal(err)

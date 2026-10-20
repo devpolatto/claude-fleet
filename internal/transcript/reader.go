@@ -118,7 +118,7 @@ func (f *File) Refresh() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	fh, err := os.Open(f.path)
+	fh, err := OpenRegular(f.path)
 	if err != nil {
 		return fmt.Errorf("transcript: abrir %s: %w", f.path, err)
 	}
@@ -140,8 +140,24 @@ func (f *File) Refresh() error {
 		return fmt.Errorf("transcript: seek %s: %w", f.path, err)
 	}
 	r := bufio.NewReaderSize(fh, 64*1024)
+	var (
+		buf      []byte
+		n        int64 // bytes da linha atual, inclusive os descartados
+		tooLarge bool
+	)
 	for {
-		line, err := r.ReadBytes('\n')
+		chunk, err := r.ReadSlice('\n')
+		n += int64(len(chunk))
+		if !tooLarge {
+			if len(buf)+len(chunk) > maxLineBytes {
+				tooLarge, buf = true, buf[:0]
+			} else {
+				buf = append(buf, chunk...)
+			}
+		}
+		if err == bufio.ErrBufferFull {
+			continue
+		}
 		if err == io.EOF {
 			// Linha incompleta (ou nada): não avança o offset.
 			return nil
@@ -149,10 +165,21 @@ func (f *File) Refresh() error {
 		if err != nil {
 			return fmt.Errorf("transcript: ler %s: %w", f.path, err)
 		}
-		f.offset += int64(len(line))
-		f.processLocked(line)
+		f.offset += n
+		if tooLarge {
+			f.parseErrors++
+		} else {
+			f.processLocked(buf)
+		}
+		buf, n, tooLarge = buf[:0], 0, false
 	}
 }
+
+// maxLineBytes limita a memória de uma linha. Linhas com imagem ou saída de
+// ferramenta grande passam de alguns MiB; as de usage, que interessam, têm
+// poucos KiB. Linha maior é pulada e conta como erro de parse. Variável para
+// os testes.
+var maxLineBytes = 64 << 20
 
 // line contém só os campos do transcript que interessam ao leitor.
 type line struct {

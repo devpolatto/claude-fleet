@@ -28,7 +28,14 @@ var (
 	// ErrMissingSession indica session_id ausente ou vazio. O Store indexa
 	// tudo pela sessão, então um evento sem ela não tem onde ser aplicado.
 	ErrMissingSession = errors.New("ingest: session_id ausente")
+	// ErrFieldTooLong indica campo maior que MaxFieldBytes.
+	ErrFieldTooLong = errors.New("ingest: campo excede o tamanho máximo")
 )
+
+// MaxFieldBytes limita cada campo do evento. O maior legítimo é um caminho
+// (cwd, transcript_path), e o Linux não passa de PATH_MAX = 4096; campo
+// maior só vem de quem forja o evento e inflaria a memória do Store por 12 h.
+const MaxFieldBytes = 4096
 
 // Event é o evento de hook reduzido a metadados.
 type Event struct {
@@ -91,6 +98,12 @@ func Parse(r io.Reader, maxBytes int64) (Event, error) {
 	}
 	if p.SessionID == "" {
 		return Event{}, ErrMissingSession
+	}
+	for _, f := range []string{p.HookEventName, p.Source, p.PermissionMode, p.SessionID, p.AgentID, p.AgentType,
+		p.ToolName, p.ToolUseID, p.Reason, p.Trigger, p.Cwd, p.TranscriptPath, p.AgentTranscriptPath} {
+		if len(f) > MaxFieldBytes {
+			return Event{}, ErrFieldTooLong
+		}
 	}
 
 	return Event{

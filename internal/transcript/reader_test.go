@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -143,6 +144,65 @@ func TestLinhaFinalIncompleta(t *testing.T) {
 		t.Errorf("Offset = %d, queria %d", got, want)
 	}
 	if got, want := f.Totals(), (Tokens{Input: 105, Output: 206}); got != want {
+		t.Errorf("Totals = %+v, queria %+v", got, want)
+	}
+}
+
+// Linha acima de maxLineBytes é pulada sem crescer a memória: conta como
+// erro de parse, o offset passa por ela e as linhas seguintes valem. Maior
+// que o buffer de 64 KiB do bufio para exercitar a leitura em pedaços.
+func TestLinhaGrandeDemaisPulada(t *testing.T) {
+	antes := maxLineBytes
+	maxLineBytes = 100 << 10
+	t.Cleanup(func() { maxLineBytes = antes })
+
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	grande := `{"type":"user","x":"` + strings.Repeat("a", 300<<10) + `"}`
+	limite := assistant("msg_c", "m", 7, 8)
+	limite = limite[:len(limite)-1] + `,"pad":"` + strings.Repeat("b", maxLineBytes-len(limite)-len(`,"pad":""}`)) + `"}`
+	if len(limite)+1 != maxLineBytes {
+		t.Fatalf("linha no limite com %d bytes, queria %d", len(limite)+1, maxLineBytes)
+	}
+	conteudo := assistant("msg_a", "m", 1, 2) + "\n" + grande + "\n" + limite + "\n" + assistant("msg_b", "m", 3, 4) + "\n"
+	appendFile(t, path, conteudo)
+
+	f := New(path)
+	refresh(t, f)
+	if got := f.ParseErrors(); got != 1 {
+		t.Errorf("ParseErrors = %d, queria 1", got)
+	}
+	if got, want := f.Totals(), (Tokens{Input: 11, Output: 14}); got != want {
+		t.Errorf("Totals = %+v, queria %+v", got, want)
+	}
+	if got := f.Offset(); got != int64(len(conteudo)) {
+		t.Errorf("Offset = %d, queria %d", got, len(conteudo))
+	}
+}
+
+// Linha grande demais e ainda sem '\n' não avança o offset: só conta quando
+// termina.
+func TestLinhaGrandeIncompletaNaoAvanca(t *testing.T) {
+	antes := maxLineBytes
+	maxLineBytes = 100 << 10
+	t.Cleanup(func() { maxLineBytes = antes })
+
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	inicio := assistant("msg_a", "m", 1, 2) + "\n"
+	appendFile(t, path, inicio+strings.Repeat("a", 300<<10))
+	f := New(path)
+	refresh(t, f)
+	if got := f.Offset(); got != int64(len(inicio)) {
+		t.Fatalf("Offset = %d, queria %d", got, len(inicio))
+	}
+	if got := f.ParseErrors(); got != 0 {
+		t.Errorf("ParseErrors = %d, queria 0", got)
+	}
+	appendFile(t, path, "\n"+assistant("msg_b", "m", 3, 4)+"\n")
+	refresh(t, f)
+	if got := f.ParseErrors(); got != 1 {
+		t.Errorf("ParseErrors = %d, queria 1", got)
+	}
+	if got, want := f.Totals(), (Tokens{Input: 4, Output: 6}); got != want {
 		t.Errorf("Totals = %+v, queria %+v", got, want)
 	}
 }

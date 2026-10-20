@@ -2,6 +2,7 @@ package transcript
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -74,10 +75,19 @@ func SubagentsOf(transcriptPath string) []SubagentFile {
 	return out
 }
 
+// maxMetaBytes limita a leitura do .meta.json, que tem poucas centenas de
+// bytes; um arquivo maior sai truncado e inválido.
+const maxMetaBytes = 64 << 10
+
 // readSubagentMeta lê o .meta.json; ok é false se ele faltar ou for inválido.
 func readSubagentMeta(path string) (subagentMeta, bool) {
 	var m subagentMeta
-	data, err := os.ReadFile(path)
+	fh, err := OpenRegular(path)
+	if err != nil {
+		return m, false
+	}
+	defer fh.Close()
+	data, err := io.ReadAll(io.LimitReader(fh, maxMetaBytes))
 	if err != nil {
 		return m, false
 	}

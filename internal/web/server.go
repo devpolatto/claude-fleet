@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -33,6 +34,28 @@ const MaxPushBytes = 4 << 10
 
 // MaxLoginBytes limita o corpo de POST /login (só o campo token).
 const MaxLoginBytes = 4 << 10
+
+// Prazos do http.Server. Os corpos aceitos são pequenos (no máximo
+// MaxEventBytes), então 30 s para ler ou escrever uma requisição inteira
+// sobram; o /stream renova os dele (sseWriteWait). Conexão ociosa fecha em 2
+// min, para um cliente lento não segurar descritores.
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 30 * time.Second
+	idleTimeout       = 2 * time.Minute
+)
+
+// NewHTTPServer devolve o http.Server do painel com os prazos acima.
+func NewHTTPServer(h http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           h,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+}
 
 // cookieMaxAge é a validade do cookie, renovada a cada visita à página.
 const cookieMaxAge = 30 * 24 * time.Hour
@@ -97,6 +120,8 @@ type Server struct {
 	eventErrors atomic.Int64
 	// statuslineErrors faz o mesmo para /statusline.
 	statuslineErrors atomic.Int64
+	// failures limita as tentativas de token errado por IP.
+	failures failures
 }
 
 // NewServer cria o servidor. Com token vazio, as rotas de leitura ficam
@@ -297,9 +322,16 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if crossSiteSubresource(r) {
+			http.Error(w, "proibido", http.StatusForbidden)
+			return
+		}
+		if s.throttled(w, r) {
+			return
+		}
 		page := r.URL.Path == "/"
 		if t := r.URL.Query().Get("t"); t != "" {
-			if s.tokenOK(t) {
+			if s.tryToken(r, t) {
 				s.setCookie(w, r)
 				if page {
 					q := r.URL.Query()
@@ -317,7 +349,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if c, err := r.Cookie(CookieName); err == nil && s.tokenOK(c.Value) {
+		if c, err := r.Cookie(CookieName); err == nil && s.tryToken(r, c.Value) {
 			if page {
 				s.setCookie(w, r) // validade conta a partir do último uso
 			}
@@ -339,12 +371,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
+	if crossSiteSubresource(r) {
+		http.Error(w, "proibido", http.StatusForbidden)
+		return
+	}
+	if s.throttled(w, r) {
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, MaxLoginBytes)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	if !s.tokenOK(r.PostForm.Get("token")) {
+	if !s.tryToken(r, r.PostForm.Get("token")) {
 		s.loginPage(w, http.StatusUnauthorized, true)
 		return
 	}
@@ -380,6 +419,41 @@ func (s *Server) setCookie(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) tokenOK(got string) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) == 1
+}
+
+// tryToken compara got com o token e, se errado, conta a falha para o IP de
+// origem (?t=, cookie ou tela de login).
+func (s *Server) tryToken(r *http.Request, got string) bool {
+	if s.tokenOK(got) {
+		return true
+	}
+	s.failures.add(failureKey(r.RemoteAddr), s.now())
+	return false
+}
+
+// crossSiteSubresource diz se o navegador marcou o pedido como vindo de outro
+// site sem ser navegação de topo (img, script, fetch, iframe). Nenhuma tela do
+// painel faz isso; aceitar deixaria qualquer página que o dono abra testar
+// tokens pelo navegador dele e esgotar as tentativas do IP, trancando-o fora.
+// Esses pedidos recebem 403 sem testar nem contar o token. Navegação de topo
+// (abrir um link com ?t=) continua valendo.
+func crossSiteSubresource(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "cross-site", "same-site":
+		return r.Header.Get("Sec-Fetch-Dest") != "document"
+	}
+	return false
+}
+
+// throttled responde 429 quando o IP de origem esgotou as tentativas de token;
+// nem um token certo é testado até a janela acabar.
+func (s *Server) throttled(w http.ResponseWriter, r *http.Request) bool {
+	if !s.failures.blocked(failureKey(r.RemoteAddr), s.now()) {
+		return false
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(int(failureWindow.Seconds())))
+	http.Error(w, "muitas tentativas; tente de novo em um minuto", http.StatusTooManyRequests)
+	return true
 }
 
 // fromLocalTool aceita só o que vem do hook ou do script do status line: peer
@@ -486,11 +560,21 @@ func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePushTest manda uma notificação de teste a todos os aparelhos.
+// handlePushTest exige Content-Type JSON, como as demais rotas de push, mesmo
+// sem corpo: sem token não há cookie para barrar o POST "simples" que uma
+// página de outro site faz pelo navegador do dono.
 func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {
 	if s.pushOff(w) {
 		return
 	}
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		http.Error(w, "Content-Type deve ser application/json", http.StatusUnsupportedMediaType)
+		return
+	}
 	n := s.push.SendAll(r.Context(), push.Message{Title: "Claude Fleet", Body: "Notificação de teste", Tag: "fleet-teste", URL: "/"}, "")
+	// O envio é sequencial, até 10 s por aparelho, e pode passar do
+	// WriteTimeout do servidor; o prazo da resposta conta a partir daqui.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(writeTimeout))
 	writeJSON(w, map[string]int{"sent": n})
 }
 

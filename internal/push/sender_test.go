@@ -177,6 +177,38 @@ func TestSendAllApagaInscricaoVencida(t *testing.T) {
 	}
 }
 
+// Um 307/308 do serviço de push não leva o POST para outro destino: a regra
+// "endpoint https" valeria só para o primeiro salto.
+func TestSendAllNaoSegueRedirect(t *testing.T) {
+	svc, _ := novoServico(t)
+	destino := false
+	alvo := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		destino = true
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer alvo.Close()
+	for _, codigo := range []int{http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, alvo.URL+"/interno", codigo)
+		}))
+		// Só o transporte do teste (confia no certificado); o CheckRedirect é o
+		// do serviço.
+		svc.client.Transport = ts.Client().Transport
+		svc.Subscribe(novoAparelho(t).inscricao(ts.URL + "/a"))
+		if n := svc.SendAll(context.Background(), Message{}, ""); n != 0 {
+			t.Errorf("%d: enviados = %d, queria 0", codigo, n)
+		}
+		if svc.Count() != 1 {
+			t.Errorf("%d: inscritos = %d, queria 1 (redirect não apaga)", codigo, svc.Count())
+		}
+		svc.Unsubscribe(ts.URL + "/a")
+		ts.Close()
+	}
+	if destino {
+		t.Error("o POST seguiu o redirect")
+	}
+}
+
 func TestInscricoesPersistemEChaveVAPIDEEstavel(t *testing.T) {
 	svc, dir := novoServico(t)
 	ap := novoAparelho(t)

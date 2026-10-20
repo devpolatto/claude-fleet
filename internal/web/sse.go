@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -20,6 +19,12 @@ const (
 	DefaultCoalesce  = 250 * time.Millisecond
 	DefaultHeartbeat = 20 * time.Second
 )
+
+// sseWriteWait é o prazo de cada escrita no stream. O ReadTimeout e o
+// WriteTimeout do http.Server (NewHTTPServer) valem para a conexão inteira e
+// derrubariam o SSE; o handler tira o prazo de leitura e renova o de escrita
+// a cada envio, de modo que só um cliente que parou de ler cai.
+const sseWriteWait = 30 * time.Second
 
 // Source é o que o Hub precisa do Store: um canal de sinais de mudança
 // (coalescidos, como em store.Store.Subscribe) e o snapshot atual.
@@ -202,6 +207,16 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.mu.Unlock()
 	}()
 
+	rc := http.NewResponseController(w)
+	// Sem suporte (ResponseRecorder dos testes), os erros são ignorados: o
+	// servidor sem prazos não precisa deles.
+	_ = rc.SetReadDeadline(time.Time{})
+	write := func(msg []byte) error {
+		_ = rc.SetWriteDeadline(time.Now().Add(sseWriteWait))
+		_, err := w.Write(msg)
+		return err
+	}
+
 	hdr := w.Header()
 	hdr.Set("Content-Type", "text/event-stream")
 	hdr.Set("Cache-Control", "no-cache")
@@ -213,7 +228,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("sse: falha ao serializar snapshot: %v", err)
 		return
 	}
-	if _, err := w.Write(msg); err != nil {
+	if err := write(msg); err != nil {
 		return
 	}
 	if h.usage != nil {
@@ -222,7 +237,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Printf("sse: falha ao serializar uso: %v", err)
 			return
 		}
-		if _, err := w.Write(msg); err != nil {
+		if err := write(msg); err != nil {
 			return
 		}
 	}
@@ -238,15 +253,15 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case <-h.done:
 			return
 		case msg := <-cl.snapshot:
-			if _, err := w.Write(msg); err != nil {
+			if err := write(msg); err != nil {
 				return
 			}
 		case msg := <-cl.uso:
-			if _, err := w.Write(msg); err != nil {
+			if err := write(msg); err != nil {
 				return
 			}
 		case <-ping.C:
-			if _, err := io.WriteString(w, ": ping\n\n"); err != nil {
+			if err := write([]byte(": ping\n\n")); err != nil {
 				return
 			}
 		}

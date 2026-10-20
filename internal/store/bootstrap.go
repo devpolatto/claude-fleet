@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/devpolatto/claude-fleet/internal/transcript"
 )
 
 // Limites da leitura do início do transcript: só as primeiras linhas e só
@@ -68,6 +70,7 @@ func (s *Store) Bootstrap(projectsDir string, now time.Time, maxAge time.Duratio
 		if d.cwd != "" {
 			sess.Project = filepath.Base(d.cwd)
 		}
+		s.makeRoomLocked()
 		s.sessions[d.id] = sess
 		added++
 	}
@@ -128,7 +131,7 @@ func scanProjects(projectsDir string, now time.Time, maxAge time.Duration) []dis
 // o primeiro timestamp encontrados. ok é false se o arquivo não pôde ser
 // aberto; linhas que não são JSON válido são ignoradas.
 func readHead(path string) (cwd string, first time.Time, ok bool) {
-	f, err := os.Open(path)
+	f, err := transcript.OpenRegular(path)
 	if err != nil {
 		return "", time.Time{}, false
 	}

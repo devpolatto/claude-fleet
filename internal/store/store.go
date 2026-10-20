@@ -155,6 +155,7 @@ func (s *Store) Apply(ev ingest.Event, now time.Time) (changed bool) {
 		if ev.Name == evSessionStart {
 			sess.Status = StatusParado
 		}
+		s.makeRoomLocked()
 		s.sessions[ev.SessionID] = sess
 		m.changed = true
 	}
