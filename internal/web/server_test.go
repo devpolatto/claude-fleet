@@ -347,6 +347,77 @@ func TestFailuresDescartaJanelasVencidas(t *testing.T) {
 	}
 }
 
+// Origens novas a cada pedido, todas dentro da janela: o mapa não passa do
+// teto, e a origem já conhecida continua contando.
+func TestFailuresMapaNaoPassaDoTeto(t *testing.T) {
+	var f failures
+	t0 := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 3*maxTrackedIPs; i++ {
+		f.add("10."+strconv.Itoa(i>>16)+"."+strconv.Itoa(i>>8&255)+"."+strconv.Itoa(i&255), t0)
+		if len(f.m) > maxTrackedIPs {
+			t.Fatalf("mapa com %d origens, teto %d", len(f.m), maxTrackedIPs)
+		}
+	}
+}
+
+func TestFailureKeyAgrupaIPv6Por64(t *testing.T) {
+	tests := []struct{ remote, want string }{
+		{"100.64.0.10:1234", "100.64.0.10"},
+		{"[::ffff:100.64.0.10]:1234", "100.64.0.10"},
+		{"[2001:db8:1:2:aaaa::1]:1234", "2001:db8:1:2::/64"},
+		{"[2001:db8:1:2:bbbb::9]:1", "2001:db8:1:2::/64"},
+		{"[fe80::1%eth0]:1", "fe80::/64"},
+		{"lixo", "lixo"},
+	}
+	for _, tt := range tests {
+		if got := failureKey(tt.remote); got != tt.want {
+			t.Errorf("failureKey(%q) = %q, queria %q", tt.remote, got, tt.want)
+		}
+	}
+}
+
+// Pedido de outro site que não é navegação de topo (img, fetch, iframe) não
+// testa nem conta o token: uma página qualquer não tranca o dono fora.
+func TestAuthRecusaSubrecursoDeOutroSite(t *testing.T) {
+	const token = "s3cr3t-token"
+	_, _, h := novoServidor(t, token)
+	const ip = "100.64.0.10:1"
+	pedir := func(path, site, dest string) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.RemoteAddr = ip
+		req.Header.Set("Sec-Fetch-Site", site)
+		req.Header.Set("Sec-Fetch-Dest", dest)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for i := 0; i < 3*maxTokenFailures; i++ {
+		if c := pedir("/api/sessions?t=errado", "cross-site", "image"); c != http.StatusForbidden {
+			t.Fatalf("img de outro site: status = %d, queria 403", c)
+		}
+	}
+	if c := pedir("/api/sessions?t="+token, "cross-site", "empty"); c != http.StatusForbidden {
+		t.Errorf("fetch de outro site com token certo: status = %d, queria 403", c)
+	}
+	if c := pedir("/api/sessions?t="+token, "same-origin", "empty"); c != http.StatusOK {
+		t.Errorf("fetch do próprio painel depois do ataque: status = %d, queria 200", c)
+	}
+	if c := pedir("/?t="+token, "cross-site", "document"); c != http.StatusSeeOther {
+		t.Errorf("link com ?t= aberto de outro site: status = %d, queria 303", c)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("token=errado"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Sec-Fetch-Dest", "iframe")
+	req.RemoteAddr = ip
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("login de outro site em iframe: status = %d, queria 403", rec.Code)
+	}
+}
+
 func TestApiSession(t *testing.T) {
 	_, _, h := novoServidor(t, "")
 	if rec := do(h, http.MethodGet, "/api/session/inexistente", "127.0.0.1:1", ""); rec.Code != http.StatusNotFound {

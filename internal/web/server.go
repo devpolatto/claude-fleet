@@ -322,6 +322,10 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if crossSiteSubresource(r) {
+			http.Error(w, "proibido", http.StatusForbidden)
+			return
+		}
 		if s.throttled(w, r) {
 			return
 		}
@@ -365,6 +369,10 @@ func (s *Server) auth(next http.Handler) http.Handler {
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if s.token == "" {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	if crossSiteSubresource(r) {
+		http.Error(w, "proibido", http.StatusForbidden)
 		return
 	}
 	if s.throttled(w, r) {
@@ -419,14 +427,28 @@ func (s *Server) tryToken(r *http.Request, got string) bool {
 	if s.tokenOK(got) {
 		return true
 	}
-	s.failures.add(ipOf(r.RemoteAddr), s.now())
+	s.failures.add(failureKey(r.RemoteAddr), s.now())
+	return false
+}
+
+// crossSiteSubresource diz se o navegador marcou o pedido como vindo de outro
+// site sem ser navegação de topo (img, script, fetch, iframe). Nenhuma tela do
+// painel faz isso; aceitar deixaria qualquer página que o dono abra testar
+// tokens pelo navegador dele e esgotar as tentativas do IP, trancando-o fora.
+// Esses pedidos recebem 403 sem testar nem contar o token. Navegação de topo
+// (abrir um link com ?t=) continua valendo.
+func crossSiteSubresource(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "cross-site", "same-site":
+		return r.Header.Get("Sec-Fetch-Dest") != "document"
+	}
 	return false
 }
 
 // throttled responde 429 quando o IP de origem esgotou as tentativas de token;
 // nem um token certo é testado até a janela acabar.
 func (s *Server) throttled(w http.ResponseWriter, r *http.Request) bool {
-	if !s.failures.blocked(ipOf(r.RemoteAddr), s.now()) {
+	if !s.failures.blocked(failureKey(r.RemoteAddr), s.now()) {
 		return false
 	}
 	w.Header().Set("Retry-After", strconv.Itoa(int(failureWindow.Seconds())))
@@ -550,6 +572,9 @@ func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n := s.push.SendAll(r.Context(), push.Message{Title: "Claude Fleet", Body: "Notificação de teste", Tag: "fleet-teste", URL: "/"}, "")
+	// O envio é sequencial, até 10 s por aparelho, e pode passar do
+	// WriteTimeout do servidor; o prazo da resposta conta a partir daqui.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(writeTimeout))
 	writeJSON(w, map[string]int{"sent": n})
 }
 
