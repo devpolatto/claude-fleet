@@ -148,8 +148,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
-	if !remoteIsLoopback(r.RemoteAddr) {
-		http.Error(w, "proibido", http.StatusForbidden)
+	if !fromLocalTool(w, r) {
 		return
 	}
 	ev, err := ingest.Parse(r.Body, MaxEventBytes)
@@ -171,8 +170,7 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 // percentuais do plano. Nem o corpo nem o transcript_path vão para log ou
 // resposta.
 func (s *Server) handleStatusline(w http.ResponseWriter, r *http.Request) {
-	if !remoteIsLoopback(r.RemoteAddr) {
-		http.Error(w, "proibido", http.StatusForbidden)
+	if !fromLocalTool(w, r) {
 		return
 	}
 	if s.usage == nil {
@@ -351,6 +349,28 @@ func (s *Server) setCookie(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) tokenOK(got string) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) == 1
+}
+
+// fromLocalTool aceita só o que vem do hook ou do script do status line: peer
+// de loopback, Content-Type application/json e nenhum sinal de navegador. O
+// navegador do dono também é peer de loopback e repassa POSTs "simples"
+// (text/plain, sem preflight) de qualquer site; Origin e Sec-Fetch-Site
+// denunciam esse caminho, e o curl dos scripts não manda nenhum dos dois.
+// Escreve a resposta de erro e devolve false quando recusa.
+func fromLocalTool(w http.ResponseWriter, r *http.Request) bool {
+	if !remoteIsLoopback(r.RemoteAddr) || r.Header.Get("Origin") != "" {
+		http.Error(w, "proibido", http.StatusForbidden)
+		return false
+	}
+	if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "none" {
+		http.Error(w, "proibido", http.StatusForbidden)
+		return false
+	}
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Content-Type deve ser application/json", http.StatusUnsupportedMediaType)
+		return false
+	}
+	return true
 }
 
 func remoteIsLoopback(remoteAddr string) bool {

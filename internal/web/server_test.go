@@ -44,8 +44,14 @@ func novoServidor(t *testing.T, token string) (*store.Store, *Server, http.Handl
 	return st, srv, srv.Handler()
 }
 
+// do monta a requisição como o hook e o navegador do dono a mandam: Host de
+// loopback e, com corpo, Content-Type application/json.
 func do(h http.Handler, method, target, remote, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.Host = "127.0.0.1:7777"
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if remote != "" {
 		req.RemoteAddr = remote
 	}
@@ -81,6 +87,61 @@ func TestEventSoAceitaLoopback(t *testing.T) {
 				t.Errorf("sessão criada = %t, queria %t", ok, tt.want == http.StatusNoContent)
 			}
 		})
+	}
+}
+
+// O navegador do dono também é peer de loopback: um POST cross-site "simples"
+// (text/plain, no-cors) ou qualquer requisição com Origin ou Sec-Fetch-Site de
+// outro site não pode criar sessão nem gravar uso do plano.
+func TestIngestRecusaRequisicaoDeNavegador(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers map[string]string
+		want    int
+	}{
+		{"hook (curl)", map[string]string{"Content-Type": "application/json"}, http.StatusNoContent},
+		{"Sec-Fetch-Site none", map[string]string{"Content-Type": "application/json", "Sec-Fetch-Site": "none"}, http.StatusNoContent},
+		{"sem Content-Type", nil, http.StatusUnsupportedMediaType},
+		{"text/plain no-cors", map[string]string{"Content-Type": "text/plain;charset=UTF-8"}, http.StatusUnsupportedMediaType},
+		{"form", map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, http.StatusUnsupportedMediaType},
+		{"text/plain com Origin", map[string]string{"Content-Type": "text/plain", "Origin": "https://mal.example"}, http.StatusForbidden},
+		{"JSON com Origin", map[string]string{"Content-Type": "application/json", "Origin": "https://mal.example"}, http.StatusForbidden},
+		{"Origin null", map[string]string{"Content-Type": "application/json", "Origin": "null"}, http.StatusForbidden},
+		{"Sec-Fetch-Site cross-site", map[string]string{"Content-Type": "application/json", "Sec-Fetch-Site": "cross-site"}, http.StatusForbidden},
+		{"Sec-Fetch-Site same-origin", map[string]string{"Content-Type": "application/json", "Sec-Fetch-Site": "same-origin"}, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		for _, token := range []string{"", "tok"} {
+			t.Run(tt.name+"/token="+token, func(t *testing.T) {
+				st, srv, _ := novoServidor(t, token)
+				u := &usoFalso{}
+				srv.SetUsage(u, nil)
+				h := srv.Handler()
+				for _, rota := range []struct{ path, body string }{
+					{"/event", eventoComConteudo},
+					{"/statusline", statusline("/home/usuario/.claude/projects/p/a.jsonl")},
+				} {
+					req := httptest.NewRequest(http.MethodPost, rota.path, strings.NewReader(rota.body))
+					req.RemoteAddr = "127.0.0.1:40000"
+					req.Host = "127.0.0.1:7777"
+					for k, v := range tt.headers {
+						req.Header.Set(k, v)
+					}
+					rec := httptest.NewRecorder()
+					h.ServeHTTP(rec, req)
+					if rec.Code != tt.want {
+						t.Errorf("POST %s: status = %d, queria %d", rota.path, rec.Code, tt.want)
+					}
+				}
+				aceito := tt.want == http.StatusNoContent
+				if _, ok := st.Get("sess-0123456789"); ok != aceito {
+					t.Errorf("sessão criada = %t, queria %t", ok, aceito)
+				}
+				if aplicou := len(u.contas) == 1; aplicou != aceito {
+					t.Errorf("uso gravado = %t, queria %t", aplicou, aceito)
+				}
+			})
+		}
 	}
 }
 
@@ -444,7 +505,7 @@ func reqJSON(h http.Handler, method, target, body string, cookie *http.Cookie, c
 
 func TestPushDesligado(t *testing.T) {
 	_, _, h := novoServidor(t, "")
-	if rec := reqJSON(h, http.MethodGet, "/api/push/key", "", nil, ""); rec.Code != http.StatusServiceUnavailable {
+	if rec := do(h, http.MethodGet, "/api/push/key", "127.0.0.1:1", ""); rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, queria 503", rec.Code)
 	}
 }
