@@ -348,7 +348,13 @@ func validateTLS(addr, cert, key string) error {
 	return nil
 }
 
-// validateBind exige token quando addr não é exclusivamente loopback.
+// minTokenLen é o tamanho mínimo do token fora do loopback. O comando do
+// README gera uns 43 caracteres base64 (~256 bits); 24 ainda passam de 140
+// bits, longe do alcance de tentativa e erro.
+const minTokenLen = 24
+
+// validateBind exige token, com pelo menos minTokenLen caracteres, quando addr
+// não é exclusivamente loopback.
 // Host vazio (":7777") escuta em todas as interfaces e por isso também exige token.
 func validateBind(addr, token string) error {
 	host, port, err := net.SplitHostPort(addr)
@@ -363,6 +369,9 @@ func validateBind(addr, token string) error {
 	}
 	if strings.TrimSpace(token) == "" {
 		return fmt.Errorf("bind em %q expõe o painel fora do loopback; defina -token ou CLAUDE_FLEET_TOKEN", addr)
+	}
+	if n := len(strings.TrimSpace(token)); n < minTokenLen {
+		return fmt.Errorf("token com %d caracteres; fora do loopback use pelo menos %d (o README mostra como gerar um)", n, minTokenLen)
 	}
 	return nil
 }
