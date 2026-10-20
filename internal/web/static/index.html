@@ -30,6 +30,7 @@
     --concluido: #7c8798;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --tile-w: 160px;
+    --toque-min: 28px;   /* menor alvo de toque (botão de silenciar subagente) */
     /* Conta do Claude Code (chip no pop-up e no filtro): fundo escuro + texto claro do mesmo
        tom, contraste AA (>= 7:1). A cor sai de hash(nome) % 4 + 1. */
     --conta-1: #1c2a4d;
@@ -424,13 +425,18 @@
   .tile:active { transform: scale(.98); }
   /* Oculta exibida pelo chip "N oculta(s)": esmaecida e tracejada. */
   .tile.oculta { opacity: .55; border-style: dashed; }
-  .tile .marca-oculta {
+  /* Marcas no canto do tile (oculta, alerta silenciado): lado a lado, nunca
+     uma sobre a outra. */
+  .tile .marcas {
     position: absolute;
     top: 10px;
     right: 10px;
     display: inline-flex;
-    color: var(--faint);
+    align-items: center;
+    gap: 4px;
   }
+  .tile .marca-oculta { display: inline-flex; color: var(--faint); }
+  .tile .marca-silenciada { display: inline-flex; color: var(--muted); }
 
   .tile .nome {
     font-weight: 600;
@@ -699,6 +705,24 @@
   }
   .ocultar[hidden] { display: none; }
   .ocultar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  /* Silenciar ligado: o botão fica em destaque para lembrar do agente mudo. */
+  .ocultar[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+  .silenciar-sub {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--toque-min);
+    height: var(--toque-min);
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .silenciar-sub[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+  .silenciar-sub:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
   .det-corpo {
     flex: 1;
@@ -836,6 +860,7 @@
     box-shadow: 0 0 14px var(--aguardando-glow);
   }
   .agente .cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+  .agente .cab-dir { flex: none; display: inline-flex; align-items: center; gap: 6px; }
   .agente .titulo { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .agente .tipo { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .agente .subtipo { flex: none; font-size: 11px; color: var(--muted); }
@@ -890,6 +915,10 @@
     }
     .det-topo { padding-top: 10px; }
     .metrica .v { font-size: 13px; }
+    /* Sem espaço para três ações com rótulo: silenciar fica só com o ícone
+       (o aria-label e o title seguem dizendo o que ele faz). */
+    #det-silenciar { width: 32px; padding: 0; justify-content: center; }
+    #det-silenciar span { display: none; }
   }
 
   /* Celular na horizontal: a tela é baixa demais para o cabeçalho, então só
@@ -958,6 +987,7 @@
       <div class="linha">
         <div class="det-estado" id="det-estado"></div>
         <div class="det-acoes">
+          <button type="button" class="ocultar" id="det-silenciar" hidden></button>
           <button type="button" class="ocultar" id="det-ocultar" hidden></button>
           <button type="button" class="fechar" id="det-fechar" aria-label="Fechar">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
@@ -1084,14 +1114,17 @@ function avisoSub(texto) {
 }
 
 // miniTile: ativos e aguardando um a um; concluídos entram agrupados.
-function miniTile(a) {
+function miniTile(a, sessaoId) {
   const st = ROTULO[a.Status] ? a.Status : 'desconhecido';
   const tipo = a.Type || 'subagente';
   const rotulo = a.Description || tipo;
   const mini = el('span', 'sub s-' + st);
   mini.dataset.agent = a.ID;
   mini.title = (a.Description ? a.Description + ' · ' : '') + tipo + ' · ' + ROTULO[st] + (a.LastTool ? ' · ' + a.LastTool : '');
+  const mudo = silenciados.has(sessaoId + '/' + a.ID);
+  if (mudo) mini.title += ' · alerta silenciado';
   if (st === 'aguardando') mini.append(icone('alerta', 10));
+  if (mudo) mini.append(icone('somDesligado', 10));
   mini.append(el('span', 'tipo', rotulo));
   return mini;
 }
@@ -1109,12 +1142,23 @@ function montarTile(s, oculta) {
   const nome = s.Name || s.Project || s.ShortID || s.ID;
   tile.title = s.Cwd || nome;
 
-  if (oculta) {
-    tile.classList.add('oculta');
-    const marca = el('span', 'marca-oculta');
-    marca.title = 'oculta da grade';
-    marca.append(icone('olhoCortado'));
-    tile.append(marca);
+  const mudo = silenciados.has(s.ID);
+  if (oculta) tile.classList.add('oculta');
+  if (oculta || mudo) {
+    const marcas = el('span', 'marcas');
+    if (mudo) {
+      const m = el('span', 'marca-silenciada');
+      m.title = 'alerta silenciado nesta espera';
+      m.append(icone('somDesligado', 13));
+      marcas.append(m);
+    }
+    if (oculta) {
+      const m = el('span', 'marca-oculta');
+      m.title = 'oculta da grade';
+      m.append(icone('olhoCortado'));
+      marcas.append(m);
+    }
+    tile.append(marcas);
   }
   tile.append(statusSpan(status));
   if (subAg && status !== 'aguardando') tile.append(avisoSub('subagente aguardando'));
@@ -1132,9 +1176,9 @@ function montarTile(s, oculta) {
   if (subs.length) {
     const box = el('div', 'subs');
     const feitos = subs.filter((a) => a.Status === 'concluido');
-    for (const a of subs) if (a.Status !== 'concluido') box.append(miniTile(a));
+    for (const a of subs) if (a.Status !== 'concluido') box.append(miniTile(a, s.ID));
     if (feitos.length === 1) {
-      const m = miniTile(feitos[0]);
+      const m = miniTile(feitos[0], s.ID);
       m.prepend(icone('check'));
       box.append(m);
     } else if (feitos.length > 1) {
@@ -1147,7 +1191,7 @@ function montarTile(s, oculta) {
     tile.append(box);
   }
 
-  const rotulo = nome + (s.Account ? ', conta ' + s.Account : '') + ', ' + ROTULO[status] + (subAg ? ', subagente aguardando' : '') + ', ' + custo + (oculta ? ', oculta' : '');
+  const rotulo = nome + (s.Account ? ', conta ' + s.Account : '') + ', ' + ROTULO[status] + (subAg ? ', subagente aguardando' : '') + ', ' + custo + (mudo ? ', alerta silenciado' : '') + (oculta ? ', oculta' : '');
   tile.setAttribute('aria-label', rotulo);
   return tile;
 }
@@ -1182,6 +1226,11 @@ const OCULTAS_CHAVE = 'fleet.ocultas';
 let ocultas = lerOcultas();
 let mostrarOcultas = false;  // chip "N oculta(s)" ligado
 let ultimoSnapshot = [];
+// Alerta silenciado (silenciar-agente): chaves de chavesAguardando() que não
+// bipam nem contam para o lembrete. Só em memória e só nesta espera: o
+// snapshot em que a chave sai de aguardando a tira daqui.
+const silenciados = new Set();
+let aguardandoAtual = new Set(); // chaves em aguardando no último snapshot do SSE
 
 function lerOcultas() {
   try {
@@ -1371,6 +1420,7 @@ const detSub = document.getElementById('det-sub');
 const detCorpo = document.getElementById('det-corpo');
 const detRodape = document.getElementById('det-rodape');
 const detOcultar = document.getElementById('det-ocultar');
+const detSilenciar = document.getElementById('det-silenciar');
 
 const milhar = new Intl.NumberFormat('pt-BR');
 const umaCasa = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -1405,6 +1455,7 @@ const det = {
   dados: null,      // último SessionDetail recebido
   aviso: '',        // "sessão removida", falha de rede etc.
   atualizadoEm: null,
+  sinalSom: '',     // sinalSilencio() do último desenho do pop-up
 };
 
 // ms converte uma data do JSON em milissegundos; a data zero do Go vira null.
@@ -1678,7 +1729,22 @@ function montarAgente(a, nome) {
   titulo.append(el('span', 'tipo', nome));
   if (a.Description && a.Type) titulo.append(el('span', 'subtipo', a.Type));
   if (foco) titulo.append(el('span', 'em-foco', 'em foco'));
-  cab.append(titulo, statusSpan(a.Status));
+  const dir = el('span', 'cab-dir');
+  const chave = det.sessionId + '/' + a.ID;
+  if (podeSilenciar(chave)) {
+    const mudo = silenciados.has(chave);
+    const b = el('button', 'silenciar-sub');
+    b.type = 'button';
+    b.dataset.chave = chave;
+    b.setAttribute('aria-pressed', String(mudo));
+    // Rótulo fixo: o estado vai só no aria-pressed (padrão de toggle button).
+    b.setAttribute('aria-label', 'Silenciar ' + nome);
+    b.title = (mudo ? 'Reativar som de ' : 'Silenciar ') + nome;
+    b.append(icone(mudo ? 'somDesligado' : 'somLigado', 14));
+    dir.append(b);
+  }
+  dir.append(statusSpan(a.Status));
+  cab.append(titulo, dir);
   li.append(cab);
 
   const meta = el('div', 'meta');
@@ -1707,6 +1773,7 @@ function renderDetalhe() {
   const frag = document.createDocumentFragment();
   if (det.aviso) frag.append(el('p', 'aviso', det.aviso));
 
+  atualizarDetSilenciar();
   detOcultar.hidden = !d;
   if (d) {
     const oculta = estaOculta(d);
@@ -1775,7 +1842,16 @@ function renderDetalhe() {
   }
   frag.append(secao('Subagentes · ' + subs.length, lista));
 
+  // O corpo é recriado a cada poll e snapshot: o foco num botão de silenciar
+  // volta para o botão novo da mesma chave.
+  const ativo = document.activeElement;
+  const chaveFoco = ativo && detCorpo.contains(ativo) && ativo.classList.contains('silenciar-sub') ? ativo.dataset.chave : null;
   detCorpo.replaceChildren(frag);
+  if (chaveFoco) {
+    for (const n of detCorpo.querySelectorAll('.silenciar-sub')) {
+      if (n.dataset.chave === chaveFoco) { n.focus({ preventScroll: true }); break; }
+    }
+  }
 
   detRodape.replaceChildren();
   if (d.TranscriptMissing) detRodape.append(alertaRodape('Transcript indisponível · mostrando os últimos totais lidos'));
@@ -1890,6 +1966,21 @@ detOcultar.addEventListener('click', () => {
   alternarOculta(d);
   if (ocultando) fecharDetalhe();
   else renderDetalhe();
+});
+// Silenciar não fecha o pop-up: o agente segue em aguardando na grade.
+detSilenciar.addEventListener('click', () => {
+  const d = det.dados;
+  if (!d) return;
+  alternarSilencio(d.ID);
+  detSilenciar.focus();
+});
+// Botão de silenciar de cada subagente; renderDetalhe devolve o foco.
+detCorpo.addEventListener('click', (e) => {
+  const b = e.target.closest('.silenciar-sub');
+  if (!b) return;
+  e.stopPropagation();
+  b.focus(); // Safari não foca botão no clique
+  alternarSilencio(b.dataset.chave);
 });
 // Toque fora: o clique cai no próprio <dialog> (o backdrop), não no conteúdo.
 dlg.addEventListener('click', (e) => {
@@ -2303,6 +2394,58 @@ function atualizarSomBtn() {
   somBtn.replaceChildren(icone(somLigado ? 'somLigado' : 'somDesligado'));
 }
 
+// ---------- Silenciar um agente (silenciar-agente) ----------
+// O silêncio vale só para a espera em curso e só nesta página. O som global
+// continua mandando: desligado, nada toca de qualquer jeito.
+
+// podeSilenciar: o controle aparece para quem está em aguardando no último
+// snapshot do SSE (não no poll do pop-up) ou já está silenciado.
+function podeSilenciar(chave) {
+  return !!AudioCtx && (aguardandoAtual.has(chave) || silenciados.has(chave));
+}
+
+// podarSilenciados tira o silêncio de quem saiu de aguardando.
+function podarSilenciados(chaves) {
+  for (const k of silenciados) if (!chaves.has(k)) silenciados.delete(k);
+}
+
+// haAlertaAudivel: alguma chave em aguardando fora dos silenciados.
+function haAlertaAudivel(chaves) {
+  if (!chaves) return false;
+  for (const k of chaves) if (!silenciados.has(k)) return true;
+  return false;
+}
+
+// alternarSilencio: silencia só quem está em aguardando; desfazer vale sempre.
+function alternarSilencio(chave) {
+  if (silenciados.has(chave)) silenciados.delete(chave);
+  else if (aguardandoAtual.has(chave)) silenciados.add(chave);
+  else return;
+  render(ultimoSnapshot);
+  if (dlg.open) renderDetalhe();
+}
+
+// sinalSilencio resume o que os controles de silêncio do pop-up mostram para a
+// sessão; se mudou entre snapshots, o pop-up é redesenhado.
+function sinalSilencio(sid) {
+  const doPopup = (k) => k === sid || k.startsWith(sid + '/');
+  return [...aguardandoAtual].filter(doPopup).sort().join(',') + '|' +
+    [...silenciados].filter(doPopup).sort().join(',');
+}
+
+function atualizarDetSilenciar() {
+  const d = det.dados;
+  det.sinalSom = d ? sinalSilencio(d.ID) : '';
+  detSilenciar.hidden = !d || !podeSilenciar(d.ID);
+  if (detSilenciar.hidden) return;
+  const mudo = silenciados.has(d.ID);
+  const nome = d.Name || d.Project || d.ShortID || d.ID;
+  detSilenciar.setAttribute('aria-pressed', String(mudo));
+  detSilenciar.replaceChildren(icone(mudo ? 'somDesligado' : 'somLigado'), el('span', null, mudo ? 'Reativar som' : 'Silenciar'));
+  detSilenciar.setAttribute('aria-label', 'Silenciar o alerta de ' + nome);
+  detSilenciar.title = (mudo ? 'Reativar o som do alerta de ' : 'Silenciar o alerta de ') + nome;
+}
+
 // chavesAguardando: "<sessão>" ou "<sessão>/<subagente>" para cada um em aguardando.
 function chavesAguardando(sessoes) {
   const chaves = new Set();
@@ -2343,10 +2486,9 @@ function fimDeTurno(sessoes, antes) {
 }
 
 // avaliarSom compara com o snapshot anterior: chave nova em aguardando toca
-// uma vez; senão, um fim de turno longo toca o alerta de fim. O primeiro
-// snapshot da conexão só vira linha de base.
-function avaliarSom(sessoes) {
-  const agora = chavesAguardando(sessoes);
+// uma vez (se não estiver silenciada); senão, um fim de turno longo toca o
+// alerta de fim. O primeiro snapshot da conexão só vira linha de base.
+function avaliarSom(sessoes, agora) {
   const antes = aguardandoAntes;
   aguardandoAntes = agora;
   const fim = fimDeTurno(sessoes, antes === null ? null : statusAntes);
@@ -2356,7 +2498,7 @@ function avaliarSom(sessoes) {
   }
   if (!somLigado) return;
   for (const k of agora) {
-    if (!antes.has(k)) {
+    if (!antes.has(k) && !silenciados.has(k)) {
       tocar();
       return;
     }
@@ -2387,7 +2529,7 @@ if (AudioCtx) {
   document.addEventListener('keydown', destravar);
 
   setInterval(() => {
-    if (somLigado && aguardandoAntes && aguardandoAntes.size > 0 && Date.now() - referencia >= LEMBRETE_MS) {
+    if (somLigado && haAlertaAudivel(aguardandoAntes) && Date.now() - referencia >= LEMBRETE_MS) {
       tocar();
     }
   }, 5000);
@@ -2414,8 +2556,13 @@ es.addEventListener('snapshot', (e) => {
     return; // snapshot corrompido: mantém a grade anterior
   }
   sessoes = Array.isArray(sessoes) ? sessoes : [];
+  // Poda antes de desenhar: a marca de silenciado não atrasa um snapshot.
+  const chaves = chavesAguardando(sessoes);
+  aguardandoAtual = chaves;
+  podarSilenciados(chaves);
   render(sessoes);
-  avaliarSom(sessoes);
+  avaliarSom(sessoes, chaves);
+  if (dlg.open && det.dados && sinalSilencio(det.dados.ID) !== det.sinalSom) renderDetalhe();
 });
 es.addEventListener('uso', (e) => {
   let lista;
