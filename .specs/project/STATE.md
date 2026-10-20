@@ -124,6 +124,13 @@ _Nenhum._
 **Solution:** `fromLocalTool` exige `Content-Type: application/json` (415), sem `Origin` e com `Sec-Fetch-Site` ausente ou `none` (403); o curl dos scripts já manda assim. Sem token, `loopbackHost` aceita só `localhost` ou IP de loopback no `Host` (421).
 **Prevents:** Tratar a origem TCP como prova de quem é o cliente em qualquer rota sem token.
 
+### L-006: Limite de tentativas por IP vira bloqueio do dono se o navegador dele puder tentar
+
+**Context:** Revisão do endurecimento da #25 (2026-10-20).
+**Problem:** O primeiro desenho do limite de token errado (10 por minuto por IP) contava qualquer pedido. Uma página qualquer aberta no celular, com dez `<img src=".../api/sessions?t=x">`, esgotava as tentativas do IP do próprio celular e deixava o painel em 429, mesmo com o cookie certo.
+**Solution:** Pedido que o navegador marca como de outro site sem ser navegação de topo (`Sec-Fetch-Site` cross-site ou same-site com `Sec-Fetch-Dest` diferente de `document`) recebe 403 sem testar nem contar o token. Navegação de topo com `?t=` continua valendo; o risco que sobra (uma página que navega a aba de topo dez vezes) foi aceito.
+**Prevents:** Rate limit que um terceiro usa para negar acesso ao dono.
+
 ---
 
 ## Resolved Blockers
