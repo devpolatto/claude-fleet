@@ -205,6 +205,9 @@ func TestParseErros(t *testing.T) {
 		{"string no topo", `"` + sentinela + `"`, ErrInvalidJSON},
 		{"tipo errado em campo da lista branca", `{"hook_event_name":"Stop","session_id":"s","tool_name":{"x":"` + sentinela + `"}}`, ErrInvalidJSON},
 		{"número em campo da lista branca", `{"hook_event_name":"Stop","session_id":"s","cwd":4242424242}`, ErrInvalidJSON},
+		{"cwd maior que MaxFieldBytes", `{"hook_event_name":"Stop","session_id":"s","cwd":"/` + strings.Repeat("a", MaxFieldBytes) + `"}`, ErrFieldTooLong},
+		{"transcript_path maior que MaxFieldBytes", `{"hook_event_name":"Stop","session_id":"s","transcript_path":"/` + strings.Repeat("a", MaxFieldBytes) + `"}`, ErrFieldTooLong},
+		{"session_id maior que MaxFieldBytes", `{"hook_event_name":"Stop","session_id":"` + strings.Repeat("s", MaxFieldBytes+1) + `"}`, ErrFieldTooLong},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -219,6 +222,15 @@ func TestParseErros(t *testing.T) {
 				t.Errorf("Event deveria vir zerado em erro, veio %+v", ev)
 			}
 		})
+	}
+}
+
+// Campo com exatamente MaxFieldBytes passa: é o tamanho de PATH_MAX.
+func TestParseCampoNoLimite(t *testing.T) {
+	cwd := "/" + strings.Repeat("a", MaxFieldBytes-1)
+	ev, err := Parse(strings.NewReader(`{"hook_event_name":"Stop","session_id":"s","cwd":"`+cwd+`"}`), limite)
+	if err != nil || ev.Cwd != cwd {
+		t.Fatalf("erro = %v, len(Cwd) = %d", err, len(ev.Cwd))
 	}
 }
 
