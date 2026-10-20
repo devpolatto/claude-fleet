@@ -117,6 +117,13 @@ _Nenhum._
 **Solution:** O `install-hooks` avisa na mensagem final; o README documenta; contas não declaradas no serviço não recebem o `statusLine`.
 **Prevents:** Surpresa de quem instala o Fleet e perde as dicas sem saber por quê.
 
+### L-005: Peer de loopback não é sinônimo de script local
+
+**Context:** Auditoria de segurança (2026-10-20, commit `35cd73a`).
+**Problem:** `POST /event` e `POST /statusline` só checavam `remoteIsLoopback`. O navegador do dono também é peer de loopback e repassa POSTs "simples" (`text/plain`, `no-cors`, sem preflight) de qualquer site: uma página aberta forjava sessões, push de "aguardando permissão" e uso do plano, inclusive com token (o listener extra em `127.0.0.1` usa o mesmo handler). Sem token, o servidor também não olhava o `Host`, o que deixava as rotas abertas ao alcance de DNS rebinding.
+**Solution:** `fromLocalTool` exige `Content-Type: application/json` (415), sem `Origin` e com `Sec-Fetch-Site` ausente ou `none` (403); o curl dos scripts já manda assim. Sem token, `loopbackHost` aceita só `localhost` ou IP de loopback no `Host` (421).
+**Prevents:** Tratar a origem TCP como prova de quem é o cliente em qualquer rota sem token.
+
 ---
 
 ## Resolved Blockers
@@ -136,6 +143,7 @@ _Nenhum._
 
 | # | Description | Date | Commit | Status |
 | --- | --- | --- | --- | --- |
+| 1 | Ingest recusa requisição de navegador e, sem token, Host fora do loopback (L-005) | 2026-10-20 | branch `fix/web-ingest-origem` | Feito |
 
 ---
 
