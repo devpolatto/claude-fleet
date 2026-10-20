@@ -36,3 +36,16 @@ Legenda: ✅ verificado · ⚠️ desvio
 | MSA-08: `aria-expanded` alterna; alvo de 130 × 28 px; o nome de 60+ caracteres quebra em três linhas na lista em 360 px | ✅ `scrollWidth` igual à largura nas três |
 | MSA-08, alvo com a `.meta` quebrada em 360 px: `elementFromPoint` em cada pixel da altura do botão | ✅ 29/29 px caem no botão. A primeira versão (`padding`/`margin` de 6 px fixos) dava 24/29: os 5 px de baixo caíam no `span` da linha seguinte; o alvo passou a sair de `--toque-min` com `1lh` e `z-index` (achado do `reviewer`) |
 | Erros no console | ✅ nenhum |
+
+## Lista sempre visível (MSA-10 a MSA-13)
+
+**Data:** 2026-10-20 · **Base:** `main` em `e6b3f79` · mesmo cenário e navegador; referência: desenho do usuário no Figma (nó 46:466). Substitui as seções anteriores (item na linha e lista por toque), que ficam como registro do que foi entregue nos PRs #22 e #23.
+
+| Critério | Resultado |
+| --- | --- |
+| MSA-10: "revisar a branch" mostra "claude-opus-5-5 US$ 0,0424 / claude-haiku-5-5 US$ 0,0003", sem toque | ✅ nas três larguras |
+| MSA-11: linha "vida … · tokens 71,1 k", sem "modelo" nem "custo"; em 360 px cabe numa linha, como no Figma | ✅ |
+| MSA-12: "recém-lançado" (sem resposta) sem lista | ✅ |
+| MSA-13: nome de 60+ caracteres quebra em três linhas na lista em 360 px; "Tokens por agente" e "Modelos" iguais | ✅ `scrollWidth` igual à largura em 1280, 360 × 760 e 812 × 375 |
+| A lista continua depois de um poll (6 s) | ✅ |
+| Erros no console | ✅ nenhum |
