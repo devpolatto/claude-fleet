@@ -1,6 +1,6 @@
 # modelo-subagente Specification
 
-> Status: **implementada e verificada** em 2026-10-20 (PR #22); lista aberta por toque acrescentada no mesmo dia (MSA-06 a MSA-08). UAT em [`uat.md`](uat.md). Escopo pequeno: spec curta, design inline, sem `tasks.md`.
+> Status: **implementada e verificada** em 2026-10-20 (PR #22); lista aberta por toque acrescentada no mesmo dia (MSA-06 a MSA-08, PR #23); custo só na lista do modelo (MSA-09). UAT em [`uat.md`](uat.md). Escopo pequeno: spec curta, design inline, sem `tasks.md`.
 
 ## Problem Statement
 
@@ -47,6 +47,17 @@ O card de cada subagente no pop-up mostra vida, tokens e custo, mas não o model
 2. WHILE o pop-up está aberto THEN a lista SHALL continuar aberta (e o foco no botão) a cada atualização de 5 s; fechar o pop-up fecha todas.
 3. O botão SHALL ter `aria-expanded` e `aria-controls` e alvo de toque com pelo menos `--toque-min` de altura; nome longo na lista quebra linha, sem rolagem horizontal.
 
+### P2: Custo só na lista do modelo
+
+**User Story**: Como dono da máquina, quero ver o custo do subagente num lugar só, ao lado do modelo, para o card ficar mais limpo.
+
+**Acceptance Criteria**:
+
+1. A linha do card SHALL mostrar modelo, vida, tokens (e última, se houver), sem o item "custo"; o custo de cada modelo fica só na lista aberta pelo botão do modelo.
+2. A seção "Tokens por agente" e a tabela "Modelos" do pop-up SHALL NOT mudar.
+
+**Trade-off aceito:** com dois modelos ou mais, o card não mostra o custo total do subagente; a lista traz o de cada modelo.
+
 ---
 
 ## Design (inline)
@@ -71,5 +82,6 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 | MSA-06 | P1: botão abre e fecha a lista com nome e custo | Execute | Verified |
 | MSA-07 | P1: lista e foco sobrevivem ao poll; fechar o pop-up fecha | Execute | Verified |
 | MSA-08 | P1: `aria-*`, alvo ≥ `--toque-min`, nome longo quebra | Execute | Verified |
+| MSA-09 | P2: sem "custo" na linha do card; custo só na lista | Execute | Verified |
 
-**Coverage:** 8 total, 8 mapeados para Execute, 0 sem mapeamento.
+**Coverage:** 9 total, 9 mapeados para Execute, 0 sem mapeamento.

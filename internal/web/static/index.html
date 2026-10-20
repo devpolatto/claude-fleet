@@ -1833,8 +1833,7 @@ function montarAgente(a, nome) {
   if (modelos.length) meta.append(botaoModelo(a, modelos, aberto));
   meta.append(
     metaItem('vida', b),
-    metaItem('tokens', compacto(somaTokens(a.Usage && a.Usage.Tokens))),
-    metaItem('custo', formatarUso(a.Usage)));
+    metaItem('tokens', compacto(somaTokens(a.Usage && a.Usage.Tokens))));
   if (a.LastTool) meta.append(metaItem('última', a.LastTool));
   li.append(meta);
   if (aberto) li.append(modelosAgente(a, modelos));

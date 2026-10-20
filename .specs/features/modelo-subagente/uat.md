@@ -36,3 +36,15 @@ Legenda: ✅ verificado · ⚠️ desvio
 | MSA-08: `aria-expanded` alterna; alvo de 130 × 28 px; o nome de 60+ caracteres quebra em três linhas na lista em 360 px | ✅ `scrollWidth` igual à largura nas três |
 | MSA-08, alvo com a `.meta` quebrada em 360 px: `elementFromPoint` em cada pixel da altura do botão | ✅ 29/29 px caem no botão. A primeira versão (`padding`/`margin` de 6 px fixos) dava 24/29: os 5 px de baixo caíam no `span` da linha seguinte; o alvo passou a sair de `--toque-min` com `1lh` e `z-index` (achado do `reviewer`) |
 | Erros no console | ✅ nenhum |
+
+## Custo só na lista do modelo (MSA-09)
+
+**Data:** 2026-10-20 · **Base:** `main` em `e6b3f79` · mesmo cenário e navegador; design feito antes no Figma (cards 13:98 e 13:120).
+
+| Critério | Resultado |
+| --- | --- |
+| MSA-09: linha do card "modelo opus-5-5 +1 · vida … · tokens 71,1 k", sem "custo"; a lista aberta segue com o custo de cada modelo | ✅ nas três larguras |
+| Card sem modelo ainda: "vida … · tokens 0" | ✅ |
+| Em 360 px a linha segue em duas (modelo + vida / tokens), como no Figma; alvo do botão 29/29 px | ✅ `scrollWidth` igual à largura nas três |
+| "Tokens por agente" e "Modelos" sem mudança | ✅ |
+| Erros no console | ✅ nenhum |
