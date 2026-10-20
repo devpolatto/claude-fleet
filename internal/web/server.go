@@ -486,8 +486,15 @@ func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePushTest manda uma notificação de teste a todos os aparelhos.
+// handlePushTest exige Content-Type JSON, como as demais rotas de push, mesmo
+// sem corpo: sem token não há cookie para barrar o POST "simples" que uma
+// página de outro site faz pelo navegador do dono.
 func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {
 	if s.pushOff(w) {
+		return
+	}
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		http.Error(w, "Content-Type deve ser application/json", http.StatusUnsupportedMediaType)
 		return
 	}
 	n := s.push.SendAll(r.Context(), push.Message{Title: "Claude Fleet", Body: "Notificação de teste", Tag: "fleet-teste", URL: "/"}, "")

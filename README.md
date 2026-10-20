@@ -171,7 +171,7 @@ Com o painel em HTTPS, o sino do cabeçalho (ao lado do botão de som) liga as n
 
 - O servidor guarda a chave VAPID (`vapid.pem`) e as inscrições (`push-subscriptions.json`) em `~/.config/claude-fleet/` (flag `-state-dir`), com permissão 600. Apagar o `vapid.pem` invalida todas as inscrições.
 - O envio sai do servidor para o serviço de push do navegador (no Chrome, `fcm.googleapis.com`), com o conteúdo cifrado de ponta a ponta (RFC 8291): o serviço não lê a mensagem.
-- Para testar sem esperar uma sessão: `curl -X POST -b "fleet_token=<token>" https://<nome>.ts.net:7777/api/push/test`.
+- Para testar sem esperar uma sessão: `curl -X POST -H "Content-Type: application/json" -b "fleet_token=<token>" https://<nome>.ts.net:7777/api/push/test`.
 - Se o diretório de estado não puder ser usado, só o push fica desligado (o sino não aparece) e o painel sobe normalmente.
 
 ## 5. Deixar sempre de pé (systemd de usuário)

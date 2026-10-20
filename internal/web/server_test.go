@@ -601,7 +601,10 @@ func TestPushAPI(t *testing.T) {
 		t.Fatalf("inscrição válida: status = %d, inscritos = %d", rec.Code, len(pf.subs))
 	}
 
-	rec = reqJSON(h, http.MethodPost, "/api/push/test", "", c, "")
+	if rec := reqJSON(h, http.MethodPost, "/api/push/test", "", c, "text/plain"); rec.Code != http.StatusUnsupportedMediaType || len(pf.enviada) != 0 {
+		t.Errorf("teste com text/plain: status = %d, enviadas = %d; queria 415 e 0", rec.Code, len(pf.enviada))
+	}
+	rec = reqJSON(h, http.MethodPost, "/api/push/test", "", c, "application/json")
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"sent":1`) || len(pf.enviada) != 1 {
 		t.Errorf("teste: %d %s", rec.Code, rec.Body)
 	}
