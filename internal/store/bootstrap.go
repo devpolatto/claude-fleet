@@ -70,6 +70,7 @@ func (s *Store) Bootstrap(projectsDir string, now time.Time, maxAge time.Duratio
 		if d.cwd != "" {
 			sess.Project = filepath.Base(d.cwd)
 		}
+		s.makeRoomLocked()
 		s.sessions[d.id] = sess
 		added++
 	}

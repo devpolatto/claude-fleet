@@ -10,7 +10,27 @@ const (
 	// idleTTL é quanto tempo uma sessão sem eventos continua na grade,
 	// qualquer que seja o status, contado a partir do último evento.
 	idleTTL = 12 * time.Hour
+	// maxSessions limita o tamanho do mapa. Uma máquina real tem dezenas de
+	// sessões nas últimas 12 h; passar disso só acontece com eventos forjados,
+	// e aí sai a sessão parada há mais tempo.
+	maxSessions = 500
 )
+
+// makeRoomLocked tira a sessão com a atividade mais antiga quando o mapa está
+// cheio, antes de uma sessão nova entrar. Exige s.mu travado.
+func (s *Store) makeRoomLocked() {
+	if len(s.sessions) < maxSessions {
+		return
+	}
+	var oldest string
+	var at time.Time
+	for id, sess := range s.sessions {
+		if t := lastActivity(sess); oldest == "" || t.Before(at) {
+			oldest, at = id, t
+		}
+	}
+	delete(s.sessions, oldest)
+}
 
 // Prune remove sessões encerradas há mais de 15 min e sessões sem eventos há
 // mais de 12 h.

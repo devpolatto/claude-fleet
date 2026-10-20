@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -212,5 +213,30 @@ func TestPruneSinaliza(t *testing.T) {
 	}
 	if len(s.Snapshot()) != 0 {
 		t.Error("Snapshot ainda traz a sessão removida")
+	}
+}
+
+// Com o mapa cheio, a sessão nova entra e sai a de atividade mais antiga.
+func TestSessaoNovaComMapaCheioTiraAMaisAntiga(t *testing.T) {
+	s := New()
+	for i := 0; i < maxSessions; i++ {
+		s.Apply(ingest.Event{Name: "SessionStart", SessionID: "s" + strconv.Itoa(i)}, t0.Add(time.Duration(i)*time.Second))
+	}
+	// s0 é a mais antiga, mas recebe um evento agora: a mais antiga passa a ser s1.
+	s.Apply(ingest.Event{Name: "Stop", SessionID: "s0"}, t0.Add(time.Hour))
+	s.Apply(ingest.Event{Name: "SessionStart", SessionID: "nova"}, t0.Add(time.Hour))
+
+	if n := len(s.Snapshot()); n != maxSessions {
+		t.Errorf("sessões = %d, queria %d", n, maxSessions)
+	}
+	for id, want := range map[string]bool{"nova": true, "s0": true, "s1": false, "s2": true} {
+		if _, ok := s.Get(id); ok != want {
+			t.Errorf("%s presente = %t, queria %t", id, ok, want)
+		}
+	}
+	// Evento de sessão já conhecida não tira ninguém.
+	s.Apply(ingest.Event{Name: "Stop", SessionID: "s2"}, t0.Add(2*time.Hour))
+	if n := len(s.Snapshot()); n != maxSessions {
+		t.Errorf("depois de evento conhecido: sessões = %d, queria %d", n, maxSessions)
 	}
 }
