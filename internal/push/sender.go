@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -134,7 +135,10 @@ func (s *Service) send(ctx context.Context, sub Subscription, payload []byte, to
 // hostOf mostra só o host do endpoint no log: o caminho identifica o aparelho.
 func hostOf(endpoint string) string {
 	if u, err := http.NewRequest(http.MethodGet, endpoint, nil); err == nil {
-		return u.URL.Host
+		host := u.URL.Host
+		host = strings.ReplaceAll(host, "\n", "")
+		host = strings.ReplaceAll(host, "\r", "")
+		return host
 	}
 	return "?"
 }
