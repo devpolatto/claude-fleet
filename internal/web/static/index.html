@@ -878,30 +878,8 @@
   .agente .cab .status.s-ativo::after { left: 8px; }
   .agente .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 11px; color: var(--faint); }
   .agente .meta span { white-space: nowrap; }
-  /* Item "modelo" como botão: mesma tipografia da linha e alvo de toque de
-     --toque-min; a margem negativa devolve à linha a altura do texto, e o
-     z-index põe o alvo por cima da linha de baixo quando a .meta quebra. */
-  .modelo-btn {
-    position: relative;
-    z-index: 1;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    max-width: 100%;
-    min-width: 0;
-    min-height: var(--toque-min);
-    margin-block: calc((1lh - var(--toque-min)) / 2);
-    padding: 0;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-  }
-  .modelo-btn b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .modelo-btn svg { flex: none; color: var(--muted); }
-  .modelo-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
-  .modelo-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 4px; }
+  /* Lista de modelos do subagente, sempre visível: nome completo e custo de
+     cada modelo, do mais caro ao mais barato. */
   .modelos-ag {
     list-style: none;
     margin: 0;
@@ -1075,7 +1053,6 @@ const ICONES = {
   sinoCortado: { size: 16, paths: [{ d: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z', fill: 'currentColor' }, { d: 'M10 20.5a2 2 0 0 0 4 0', stroke: 'currentColor', w: 2 }, { d: 'M3.5 3.5l17 17', stroke: 'var(--surface-2)', w: 4 }, { d: 'M3.5 3.5l17 17', stroke: 'currentColor', w: 2 }] },
   olhoCortado: { size: 13, paths: [{ d: 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a12 12 0 0 1-3 4.2M6.6 6.6C4.3 8 2.7 10.2 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2', stroke: 'currentColor', w: 2 }] },
   olho: { size: 13, paths: [{ d: 'M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z', stroke: 'currentColor', w: 2 }, { d: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', stroke: 'currentColor', w: 2 }] },
-  seta: { size: 10, paths: [{ d: 'M6 9l6 6 6-6', stroke: 'currentColor', w: 2.4 }] },
   aviso: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'var(--parado)' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--surface)', w: 2.4 }] },
 };
 
@@ -1495,7 +1472,6 @@ const det = {
   aviso: '',        // "sessão removida", falha de rede etc.
   atualizadoEm: null,
   sinalSom: '',     // sinalSilencio() do último desenho do pop-up
-  modelosAbertos: new Set(), // subagentes com a lista de modelos aberta
 };
 
 // ms converte uma data do JSON em milissegundos; a data zero do Go vira null.
@@ -1766,26 +1742,11 @@ function modelosDoAgente(a) {
     .sort(([na, x], [nb, y]) => (y.CostUSD || 0) - (x.CostUSD || 0) || (na < nb ? -1 : na > nb ? 1 : 0));
 }
 
-// botaoModelo: o modelo que mais custou, sem o prefixo "claude-", e "+N" se
-// houve outros. Um toque abre a lista de modelosAgente, porque o title não
-// abre no celular.
-function botaoModelo(a, lista, aberto) {
-  const b = el('button', 'modelo-btn');
-  b.type = 'button';
-  b.dataset.agent = a.ID;
-  b.dataset.foco = 'modelo:' + a.ID;
-  b.setAttribute('aria-expanded', String(aberto));
-  b.setAttribute('aria-controls', 'modelos-' + a.ID);
-  const nome = el('b', null, lista[0][0].replace(/^claude-/, ''));
-  if (lista.length > 1) nome.append(' +' + (lista.length - 1));
-  b.append('modelo ', nome, icone('seta'));
-  return b;
-}
-
-// modelosAgente: nome completo e custo de cada modelo do subagente.
-function modelosAgente(a, lista) {
+// modelosAgente: nome completo e custo de cada modelo do subagente, sempre
+// visível no card (sem toque extra, sem estado a sobreviver ao poll).
+function modelosAgente(nome, lista) {
   const ul = el('ul', 'modelos-ag');
-  ul.id = 'modelos-' + a.ID;
+  ul.setAttribute('aria-label', 'Custo por modelo de ' + nome);
   for (const [m, u] of lista) {
     const li = el('li');
     li.append(el('span', null, m), el('b', null, formatarUso(u)));
@@ -1828,15 +1789,13 @@ function montarAgente(a, nome) {
   const vida = vivo('vida', ms(a.StartedAt), fimDe(a, a.Status === 'concluido'));
   const b = el('b');
   b.append(vida);
-  const modelos = modelosDoAgente(a);
-  const aberto = modelos.length > 0 && det.modelosAbertos.has(a.ID);
-  if (modelos.length) meta.append(botaoModelo(a, modelos, aberto));
   meta.append(
     metaItem('vida', b),
     metaItem('tokens', compacto(somaTokens(a.Usage && a.Usage.Tokens))));
   if (a.LastTool) meta.append(metaItem('última', a.LastTool));
   li.append(meta);
-  if (aberto) li.append(modelosAgente(a, modelos));
+  const modelos = modelosDoAgente(a);
+  if (modelos.length) li.append(modelosAgente(nome, modelos));
   return li;
 }
 
@@ -1923,7 +1882,7 @@ function renderDetalhe() {
   frag.append(secao('Subagentes · ' + subs.length, lista));
 
   // O corpo é recriado a cada poll e snapshot: o foco num botão de silenciar
-  // ou de modelo volta para o botão novo com o mesmo data-foco.
+  // volta para o botão novo com o mesmo data-foco.
   const ativo = document.activeElement;
   const chaveFoco = ativo && detCorpo.contains(ativo) ? ativo.dataset.foco : null;
   detCorpo.replaceChildren(frag);
@@ -2018,7 +1977,6 @@ function openDetail(sessionId, agentId) {
   det.sessionId = sessionId;
   det.agentId = agentId || null;
   det.focado = false;
-  det.modelosAbertos.clear();
   det.dados = null;
   det.aviso = '';
   det.atualizadoEm = null;
@@ -2055,20 +2013,13 @@ detSilenciar.addEventListener('click', () => {
   alternarSilencio(d.ID);
   detSilenciar.focus();
 });
-// Botões de silenciar e de modelo de cada subagente; renderDetalhe devolve
-// o foco.
+// Botão de silenciar de cada subagente; renderDetalhe devolve o foco.
 detCorpo.addEventListener('click', (e) => {
-  const b = e.target.closest('.silenciar-sub, .modelo-btn');
+  const b = e.target.closest('.silenciar-sub');
   if (!b) return;
   e.stopPropagation();
   b.focus(); // Safari não foca botão no clique
-  if (b.classList.contains('silenciar-sub')) {
-    alternarSilencio(b.dataset.chave);
-    return;
-  }
-  const id = b.dataset.agent;
-  if (!det.modelosAbertos.delete(id)) det.modelosAbertos.add(id);
-  renderDetalhe();
+  alternarSilencio(b.dataset.chave);
 });
 // Toque fora: o clique cai no próprio <dialog> (o backdrop), não no conteúdo.
 dlg.addEventListener('click', (e) => {

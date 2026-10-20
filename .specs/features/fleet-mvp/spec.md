@@ -76,7 +76,7 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 2. O modal SHALL mostrar: status, projeto e `cwd`, início, **tempo de vida** contando ao vivo, última atividade ("há 12 s"), última ferramenta e modelo(s) usados.
 3. O modal SHALL mostrar tokens separados em input, cache write (5m e 1h), cache read e output, mais o total, para a sessão principal, para cada subagente e para a soma.
 4. O modal SHALL mostrar o **custo estimado em USD** por linha e no total, com o rótulo "estimativa · preço de lista da API".
-5. O modal SHALL listar os subagentes com descrição (do `.meta.json`) como título, tipo, status, tempo de vida, tokens e custo. Em 2026-10-16 o usuário reverteu a decisão de 2026-10-15 de mostrar só o tipo: com quase todo subagente sendo `general-purpose`, o tipo não distingue um do outro. Em 2026-10-20 o custo saiu do card e foi para a lista aberta pelo modelo ([`modelo-subagente`](../modelo-subagente/spec.md), MSA-09).
+5. O modal SHALL listar os subagentes com descrição (do `.meta.json`) como título, tipo, status, tempo de vida, tokens e custo. Em 2026-10-16 o usuário reverteu a decisão de 2026-10-15 de mostrar só o tipo: com quase todo subagente sendo `general-purpose`, o tipo não distingue um do outro. Em 2026-10-20 o custo saiu da linha do card e passou a aparecer por modelo, numa lista sempre visível no card ([`modelo-subagente`](../modelo-subagente/spec.md), MSA-10 e MSA-11).
 6. WHEN toco num mini-tile de subagente THEN o modal SHALL abrir focado nesse subagente.
 7. WHILE o modal está aberto THEN os números SHALL se atualizar sozinhos (≤ 5 s).
 

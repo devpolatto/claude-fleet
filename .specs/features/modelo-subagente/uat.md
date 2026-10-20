@@ -48,3 +48,16 @@ Legenda: ✅ verificado · ⚠️ desvio
 | Em 360 px a linha segue em duas (modelo + vida / tokens), como no Figma; alvo do botão 29/29 px | ✅ `scrollWidth` igual à largura nas três |
 | "Tokens por agente" e "Modelos" sem mudança | ✅ |
 | Erros no console | ✅ nenhum |
+
+## Lista sempre visível (MSA-10 a MSA-13)
+
+**Data:** 2026-10-20 · **Base:** `main` em `e6b3f79` · mesmo cenário e navegador; referência: desenho do usuário no Figma (nó 46:466). Substitui as seções do botão e da lista por toque acima.
+
+| Critério | Resultado |
+| --- | --- |
+| MSA-10: "revisar a branch" mostra "claude-opus-5-5 US$ 0,0424 / claude-haiku-5-5 US$ 0,0003", sem toque | ✅ nas três larguras |
+| MSA-11: linha "vida … · tokens 71,1 k", sem "modelo" nem "custo"; em 360 px cabe numa linha, como no Figma | ✅ |
+| MSA-12: "recém-lançado" (sem resposta) sem lista | ✅ |
+| MSA-13: nome de 60+ caracteres quebra em três linhas na lista em 360 px; "Tokens por agente" e "Modelos" iguais | ✅ `scrollWidth` igual à largura em 1280, 360 × 760 e 812 × 375 |
+| A lista continua depois de um poll (6 s) | ✅ |
+| Erros no console | ✅ nenhum |
