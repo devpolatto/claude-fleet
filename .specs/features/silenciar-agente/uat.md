@@ -11,7 +11,7 @@ Legenda: ✅ verificado · ⚠️ desvio
 | Silenciar alfa no pop-up | `aria-pressed=true`, pop-up aberto, tile segue aguardando com ", alerta silenciado" (SIL-01, SIL-07, SIL-10) | ✅ |
 | Lembrete com beta e o subagente audíveis | toca (SIL-03) | 1 bipe em 36 s ✅ |
 | Silenciar a sessão beta | botão do subagente segue sem silêncio (SIL-05) | ✅ |
-| Silenciar o subagente | `aria-label` "Reativar som de Explore", foco preservado, ícone no mini-tile (SIL-02, SIL-10) | ✅ |
+| Silenciar o subagente | `aria-pressed=true` com `aria-label` fixo "Silenciar Explore", foco preservado no clique e no poll de 5 s, ícone no mini-tile (SIL-02, SIL-10) | ✅ |
 | Os três silenciados | lembrete não toca (SIL-04) | 0 bipes em 36 s ✅ |
 | `PostToolUse` em alfa | silêncio cai e a marca some (SIL-08) | ✅ |
 | Novo `PermissionRequest` em alfa | toca de novo (SIL-08) | 1 bipe ✅ |

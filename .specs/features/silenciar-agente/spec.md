@@ -10,8 +10,8 @@ Com três agentes em paralelo esperando permissão, o lembrete toca a cada 30 s 
 
 ## Goals
 
-- [ ] Calar o alerta de um agente em aguardando custa 2 toques (abrir o pop-up, tocar em "Silenciar") e não cala os outros.
-- [ ] Nenhum agente fica mudo para sempre: o silêncio vale só para a espera em curso.
+- [x] Calar o alerta de um agente em aguardando custa 2 toques (abrir o pop-up, tocar em "Silenciar") e não cala os outros.
+- [x] Nenhum agente fica mudo para sempre: o silêncio vale só para a espera em curso.
 
 ## Out of Scope
 
@@ -123,5 +123,5 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 
 ## Success Criteria
 
-- [ ] Com três agentes em aguardando, silenciar um mantém o lembrete pelos outros dois; silenciar os três o cala.
-- [ ] Layout conferido no desktop e no celular (vertical e horizontal); Figma atualizado.
+- [x] Com três agentes em aguardando, silenciar um mantém o lembrete pelos outros dois; silenciar os três o cala.
+- [x] Layout conferido no desktop e no celular (vertical e horizontal); Figma atualizado.

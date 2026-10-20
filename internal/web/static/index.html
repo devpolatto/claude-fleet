@@ -1737,8 +1737,9 @@ function montarAgente(a, nome) {
     b.type = 'button';
     b.dataset.chave = chave;
     b.setAttribute('aria-pressed', String(mudo));
-    b.setAttribute('aria-label', (mudo ? 'Reativar som de ' : 'Silenciar ') + nome);
-    b.title = b.getAttribute('aria-label');
+    // Rótulo fixo: o estado vai só no aria-pressed (padrão de toggle button).
+    b.setAttribute('aria-label', 'Silenciar ' + nome);
+    b.title = (mudo ? 'Reativar som de ' : 'Silenciar ') + nome;
     b.append(icone(mudo ? 'somDesligado' : 'somLigado', 14));
     dir.append(b);
   }
@@ -1841,7 +1842,16 @@ function renderDetalhe() {
   }
   frag.append(secao('Subagentes · ' + subs.length, lista));
 
+  // O corpo é recriado a cada poll e snapshot: o foco num botão de silenciar
+  // volta para o botão novo da mesma chave.
+  const ativo = document.activeElement;
+  const chaveFoco = ativo && detCorpo.contains(ativo) && ativo.classList.contains('silenciar-sub') ? ativo.dataset.chave : null;
   detCorpo.replaceChildren(frag);
+  if (chaveFoco) {
+    for (const n of detCorpo.querySelectorAll('.silenciar-sub')) {
+      if (n.dataset.chave === chaveFoco) { n.focus({ preventScroll: true }); break; }
+    }
+  }
 
   detRodape.replaceChildren();
   if (d.TranscriptMissing) detRodape.append(alertaRodape('Transcript indisponível · mostrando os últimos totais lidos'));
@@ -1964,17 +1974,13 @@ detSilenciar.addEventListener('click', () => {
   alternarSilencio(d.ID);
   detSilenciar.focus();
 });
-// Botão de silenciar de cada subagente: o corpo é redesenhado, então o foco
-// volta para o botão novo da mesma chave.
+// Botão de silenciar de cada subagente; renderDetalhe devolve o foco.
 detCorpo.addEventListener('click', (e) => {
   const b = e.target.closest('.silenciar-sub');
   if (!b) return;
   e.stopPropagation();
-  const chave = b.dataset.chave;
-  alternarSilencio(chave);
-  for (const n of detCorpo.querySelectorAll('.silenciar-sub')) {
-    if (n.dataset.chave === chave) { n.focus(); break; }
-  }
+  b.focus(); // Safari não foca botão no clique
+  alternarSilencio(b.dataset.chave);
 });
 // Toque fora: o clique cai no próprio <dialog> (o backdrop), não no conteúdo.
 dlg.addEventListener('click', (e) => {
@@ -2436,8 +2442,8 @@ function atualizarDetSilenciar() {
   const nome = d.Name || d.Project || d.ShortID || d.ID;
   detSilenciar.setAttribute('aria-pressed', String(mudo));
   detSilenciar.replaceChildren(icone(mudo ? 'somDesligado' : 'somLigado'), el('span', null, mudo ? 'Reativar som' : 'Silenciar'));
-  detSilenciar.setAttribute('aria-label', (mudo ? 'Reativar o som do alerta de ' : 'Silenciar o alerta de ') + nome);
-  detSilenciar.title = detSilenciar.getAttribute('aria-label');
+  detSilenciar.setAttribute('aria-label', 'Silenciar o alerta de ' + nome);
+  detSilenciar.title = (mudo ? 'Reativar o som do alerta de ' : 'Silenciar o alerta de ') + nome;
 }
 
 // chavesAguardando: "<sessão>" ou "<sessão>/<subagente>" para cada um em aguardando.
