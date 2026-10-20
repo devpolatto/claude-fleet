@@ -50,7 +50,19 @@ func NewService(dir string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{vapid: v, subs: subs, client: &http.Client{Timeout: 10 * time.Second}, now: time.Now}, nil
+	return &Service{vapid: v, subs: subs, client: newClient(), now: time.Now}, nil
+}
+
+// newClient não segue redirect: a inscrição só é aceita com endpoint https, e
+// um 307/308 do outro lado levaria o POST para qualquer destino, inclusive a
+// rede local. O redirect volta como status e conta como falha de envio.
+func newClient() *http.Client {
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 // PublicKey é a chave pública VAPID em base64url.
