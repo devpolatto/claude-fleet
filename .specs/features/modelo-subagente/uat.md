@@ -24,3 +24,14 @@ Legenda: ✅ verificado · ⚠️ desvio
 | MSA-04: "recém-lançado" sem o item | ✅ |
 | MSA-05: desktop 1280 px, celular 360 px em pé, 812 × 375 deitado | ✅ `scrollWidth` igual à largura nos três; o nome de 60+ caracteres é cortado com reticências em 360 px |
 | Erros no console | ✅ nenhum |
+
+## Lista com um toque (MSA-06 a MSA-08)
+
+**Data:** 2026-10-20 · **Base:** `main` em `d96b8fb` · mesmo cenário, Chromium headless com toque emulado (`hasTouch`, `isMobile`) em 360 × 760 e 812 × 375; mouse e teclado em 1280 × 900.
+
+| Critério | Resultado |
+| --- | --- |
+| MSA-06: toque em "opus-5-5 +1" abre "claude-opus-5-5 US$ 0,0424 / claude-haiku-5-5 US$ 0,0003"; Enter no desktop fecha | ✅ |
+| MSA-07: depois de um poll (6 s) a lista segue aberta e o foco segue no botão (`data-foco` = `modelo:b2`) | ✅ nas três larguras |
+| MSA-08: `aria-expanded` alterna; alvo de 130 × 28 px; o nome de 60+ caracteres quebra em três linhas na lista em 360 px | ✅ `scrollWidth` igual à largura nas três |
+| Erros no console | ✅ nenhum |
