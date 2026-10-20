@@ -35,6 +35,28 @@ const MaxPushBytes = 4 << 10
 // MaxLoginBytes limita o corpo de POST /login (só o campo token).
 const MaxLoginBytes = 4 << 10
 
+// Prazos do http.Server. Os corpos aceitos são pequenos (no máximo
+// MaxEventBytes), então 30 s para ler ou escrever uma requisição inteira
+// sobram; o /stream renova os dele (sseWriteWait). Conexão ociosa fecha em 2
+// min, para um cliente lento não segurar descritores.
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 30 * time.Second
+	idleTimeout       = 2 * time.Minute
+)
+
+// NewHTTPServer devolve o http.Server do painel com os prazos acima.
+func NewHTTPServer(h http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           h,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+}
+
 // cookieMaxAge é a validade do cookie, renovada a cada visita à página.
 const cookieMaxAge = 30 * 24 * time.Hour
 

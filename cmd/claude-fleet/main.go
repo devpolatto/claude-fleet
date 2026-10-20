@@ -202,7 +202,7 @@ func serve(ctx context.Context, handler http.Handler, tlsCfg *tls.Config, listen
 	servers := make([]*http.Server, len(listeners))
 	errc := make(chan error, len(listeners))
 	for i, ln := range listeners {
-		srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+		srv := web.NewHTTPServer(handler)
 		useTLS := i == 0 && tlsCfg != nil
 		scheme := "http"
 		if useTLS {

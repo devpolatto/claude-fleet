@@ -297,6 +297,35 @@ func TestStreamHeartbeat(t *testing.T) {
 	}
 }
 
+// Os prazos do http.Server valem para a conexão inteira; o /stream precisa
+// sobreviver a eles enquanto o cliente lê.
+func TestStreamSobreviveAosPrazosDoServidor(t *testing.T) {
+	st := store.New()
+	h := NewHub(st)
+	h.Coalesce = 10 * time.Millisecond
+	h.Heartbeat = 20 * time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	go h.Run(ctx)
+	srv := httptest.NewUnstartedServer(h)
+	srv.Config = NewHTTPServer(h)
+	srv.Config.ReadTimeout = 50 * time.Millisecond
+	srv.Config.WriteTimeout = 50 * time.Millisecond
+	srv.Start()
+	t.Cleanup(func() {
+		cancel() // encerra o stream antes do Close, que espera os handlers
+		srv.Close()
+	})
+
+	c := connect(t, srv.URL+"/stream")
+	c.nextSnapshot(t, time.Second)
+	fim := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(fim) {
+		if m := c.next(t, time.Second); m.comment != "ping" {
+			t.Fatalf("mensagem = %+v, quero comentário ping", m)
+		}
+	}
+}
+
 func TestStreamRunCanceladoEncerraConexoes(t *testing.T) {
 	h, url, stop := startHub(t, store.New(), 10*time.Millisecond, time.Hour)
 	c := connect(t, url)
