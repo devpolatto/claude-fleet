@@ -4,7 +4,7 @@
 
 ## Problem Statement
 
-O card de cada subagente no pop-up mostra vida, tokens e custo, mas não o modelo. Para decidir a orquestração (que subagente vale rodar num modelo mais barato ou mais forte) preciso ver o modelo ao lado do custo, sem somar de cabeça a tabela "Modelos", que junta todos os agentes.
+O card de cada subagente no pop-up mostrava vida, tokens e custo, mas não o modelo. Para decidir a orquestração (que subagente vale rodar num modelo mais barato ou mais forte) preciso ver o modelo ao lado do custo, sem somar de cabeça a tabela "Modelos", que junta todos os agentes.
 
 ## Goals
 
@@ -29,7 +29,7 @@ O card de cada subagente no pop-up mostra vida, tokens e custo, mas não o model
 
 **Acceptance Criteria**:
 
-1. WHEN o transcript do subagente já foi lido THEN o card SHALL mostrar "modelo <nome>" antes de vida, tokens e custo, com o nome sem o prefixo `claude-`.
+1. WHEN o transcript do subagente já foi lido THEN o card SHALL mostrar "modelo <nome>" antes dos outros itens da linha, com o nome sem o prefixo `claude-`.
 2. WHEN o subagente usou mais de um modelo THEN o card SHALL mostrar o que mais custou seguido de "+N"; empate pelo nome.
 3. O nome completo e o custo de cada modelo SHALL estar ao alcance de um toque (ver a próxima história), no formato do restante do pop-up (`n/d`, `≥ US$ X`). A primeira versão usava `title`, que não abre no celular.
 4. WHEN o subagente ainda não tem modelo (`Models` vazio) THEN o item SHALL NOT aparecer.
