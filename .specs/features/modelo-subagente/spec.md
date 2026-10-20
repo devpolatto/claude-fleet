@@ -1,6 +1,6 @@
 # modelo-subagente Specification
 
-> Status: **implementada e verificada** em 2026-10-20. UAT em [`uat.md`](uat.md). Escopo pequeno: spec curta, design inline, sem `tasks.md`.
+> Status: **implementada e verificada** em 2026-10-20 (PR #22); lista aberta por toque acrescentada no mesmo dia (MSA-06 a MSA-08). UAT em [`uat.md`](uat.md). Escopo pequeno: spec curta, design inline, sem `tasks.md`.
 
 ## Problem Statement
 
@@ -31,11 +31,21 @@ O card de cada subagente no pop-up mostra vida, tokens e custo, mas não o model
 
 1. WHEN o transcript do subagente já foi lido THEN o card SHALL mostrar "modelo <nome>" antes de vida, tokens e custo, com o nome sem o prefixo `claude-`.
 2. WHEN o subagente usou mais de um modelo THEN o card SHALL mostrar o que mais custou seguido de "+N"; empate pelo nome.
-3. O `title` do nome SHALL listar todos os modelos com o nome completo e o custo de cada um, no formato do restante do pop-up (`n/d`, `≥ US$ X`).
+3. O nome completo e o custo de cada modelo SHALL estar ao alcance de um toque (ver a próxima história), no formato do restante do pop-up (`n/d`, `≥ US$ X`). A primeira versão usava `title`, que não abre no celular.
 4. WHEN o subagente ainda não tem modelo (`Models` vazio) THEN o item SHALL NOT aparecer.
 5. WHEN o nome é longo demais para a largura THEN ele SHALL ser cortado com reticências, sem rolagem horizontal da página.
 
 **Independent Test**: Servidor com `-projects` apontando para transcripts sintéticos (um subagente por modelo, um com dois modelos, um sem resposta ainda) e conferência do card em desktop e celular.
+
+### P1: Lista de modelos com um toque
+
+**User Story**: Como dono da máquina, quero tocar no modelo do card para ver o nome inteiro e o custo de cada modelo, porque no celular o `title` não abre.
+
+**Acceptance Criteria**:
+
+1. O item "modelo" SHALL ser um botão com seta; um toque (ou Enter/Espaço) abre, logo abaixo da linha do card, uma lista com o nome completo e o custo de cada modelo, na ordem do item; outro toque fecha.
+2. WHILE o pop-up está aberto THEN a lista SHALL continuar aberta (e o foco no botão) a cada atualização de 5 s; fechar o pop-up fecha todas.
+3. O botão SHALL ter `aria-expanded` e `aria-controls` e alvo de toque com pelo menos `--toque-min` de altura; nome longo na lista quebra linha, sem rolagem horizontal.
 
 ---
 
@@ -43,8 +53,9 @@ O card de cada subagente no pop-up mostra vida, tokens e custo, mas não o model
 
 Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 
-- `modeloAgente(a)` ordena `a.Models` pelo custo (como `montarModelos`) e devolve o `<b>` do item, ou `null`.
-- `montarAgente` acrescenta o item com `metaItem('modelo', …)` e a classe `.modelo`, que corta o nome com `text-overflow: ellipsis`.
+- `modelosDoAgente(a)` ordena `a.Models` pelo custo (como `montarModelos`).
+- `botaoModelo` monta o `button.modelo-btn` (tipografia da linha `.meta`, `min-height: var(--toque-min)` com margem negativa de `(1lh − --toque-min) / 2` e `z-index` acima da linha seguinte, nome cortado com reticências, ícone `seta` que gira 180° aberto) e `modelosAgente` monta a `ul.modelos-ag` com fundo `--surface-2`.
+- Estado em `det.modelosAbertos` (IDs dos subagentes), limpo em `openDetail`. O clique entra no mesmo listener delegado do `.silenciar-sub`; o foco volta pelo `data-foco` comum aos dois botões.
 
 ---
 
@@ -54,8 +65,11 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 | --- | --- | --- | --- |
 | MSA-01 | P1: modelo no card, sem prefixo | Execute | Verified |
 | MSA-02 | P1: o que mais custou + "+N" | Execute | Verified |
-| MSA-03 | P1: `title` com todos os modelos e custos | Execute | Verified |
+| MSA-03 | P1: nome completo e custo de cada modelo a um toque (o `title` da primeira versão saiu; ver MSA-06) | Execute | Verified |
 | MSA-04 | P1: sem modelo, sem item | Execute | Verified |
 | MSA-05 | P1: nome longo cortado, sem rolagem | Execute | Verified |
+| MSA-06 | P1: botão abre e fecha a lista com nome e custo | Execute | Verified |
+| MSA-07 | P1: lista e foco sobrevivem ao poll; fechar o pop-up fecha | Execute | Verified |
+| MSA-08 | P1: `aria-*`, alvo ≥ `--toque-min`, nome longo quebra | Execute | Verified |
 
-**Coverage:** 5 total, 5 mapeados para Execute, 0 sem mapeamento.
+**Coverage:** 8 total, 8 mapeados para Execute, 0 sem mapeamento.
