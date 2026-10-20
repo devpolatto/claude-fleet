@@ -144,6 +144,7 @@ _Nenhum._
 | # | Description | Date | Commit | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Ingest recusa requisição de navegador e, sem token, Host fora do loopback (L-005) | 2026-10-20 | branch `fix/web-ingest-origem` | Feito |
+| 2 | Endurecimento da auditoria (#25): timeouts do servidor, limite de token errado por IP, token ≥ 24 fora do loopback, push sem redirect, `/api/push/test` só JSON, aspas no `install-hooks`, transcript só arquivo regular e linha ≤ 64 MiB, campo ≤ 4096 bytes, até 500 sessões | 2026-10-20 | branch `fix/endurecimento` | Feito |
 
 ---
 
