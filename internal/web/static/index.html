@@ -878,16 +878,20 @@
   .agente .cab .status.s-ativo::after { left: 8px; }
   .agente .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 11px; color: var(--faint); }
   .agente .meta span { white-space: nowrap; }
-  /* Item "modelo" como botão: mesma tipografia da linha, alvo de toque mais
-     alto que o texto (a margem negativa não mexe no layout). */
+  /* Item "modelo" como botão: mesma tipografia da linha e alvo de toque de
+     --toque-min; a margem negativa devolve à linha a altura do texto, e o
+     z-index põe o alvo por cima da linha de baixo quando a .meta quebra. */
   .modelo-btn {
+    position: relative;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     gap: 4px;
     max-width: 100%;
     min-width: 0;
-    margin: -6px 0;
-    padding: 6px 0;
+    min-height: var(--toque-min);
+    margin-block: calc((1lh - var(--toque-min)) / 2);
+    padding: 0;
     border: 0;
     background: none;
     color: inherit;

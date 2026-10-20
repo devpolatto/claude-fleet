@@ -54,7 +54,7 @@ O card de cada subagente no pop-up mostra vida, tokens e custo, mas não o model
 Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 
 - `modelosDoAgente(a)` ordena `a.Models` pelo custo (como `montarModelos`).
-- `botaoModelo` monta o `button.modelo-btn` (tipografia da linha `.meta`, `padding`/`margin` de 6 px para o alvo de 28 px sem mexer no layout, nome cortado com reticências, ícone `seta` que gira 180° aberto) e `modelosAgente` monta a `ul.modelos-ag` com fundo `--surface-2`.
+- `botaoModelo` monta o `button.modelo-btn` (tipografia da linha `.meta`, `min-height: var(--toque-min)` com margem negativa de `(1lh − --toque-min) / 2` e `z-index` acima da linha seguinte, nome cortado com reticências, ícone `seta` que gira 180° aberto) e `modelosAgente` monta a `ul.modelos-ag` com fundo `--surface-2`.
 - Estado em `det.modelosAbertos` (IDs dos subagentes), limpo em `openDetail`. O clique entra no mesmo listener delegado do `.silenciar-sub`; o foco volta pelo `data-foco` comum aos dois botões.
 
 ---
@@ -65,7 +65,7 @@ Tudo em `internal/web/static/index.html`; backend, API e hook não mudam.
 | --- | --- | --- | --- |
 | MSA-01 | P1: modelo no card, sem prefixo | Execute | Verified |
 | MSA-02 | P1: o que mais custou + "+N" | Execute | Verified |
-| MSA-03 | P1: `title` com todos os modelos e custos | Execute | Verified |
+| MSA-03 | P1: nome completo e custo de cada modelo a um toque (o `title` da primeira versão saiu; ver MSA-06) | Execute | Verified |
 | MSA-04 | P1: sem modelo, sem item | Execute | Verified |
 | MSA-05 | P1: nome longo cortado, sem rolagem | Execute | Verified |
 | MSA-06 | P1: botão abre e fecha a lista com nome e custo | Execute | Verified |
