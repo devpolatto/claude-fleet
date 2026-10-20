@@ -128,7 +128,7 @@ Como fica protegido:
 
 - `POST /event` e `POST /statusline` só aceitam conexões vindas da própria máquina; pela tailnet respondem 403. Também recusam o que parece vir de um navegador (`Origin`, `Sec-Fetch-Site` de outro site ou corpo que não seja `application/json`), para uma página aberta na máquina não forjar eventos.
 - Sem token, o servidor só responde a `Host` de loopback (`localhost`, `127.0.0.1`, `[::1]`); outro nome recebe 421, o que barra DNS rebinding.
-- As outras rotas exigem o token (cookie, `?t=` ou a tela de login), comparado em tempo constante.
+- As outras rotas exigem o token (cookie, `?t=` ou a tela de login), comparado em tempo constante. Depois de 10 tokens errados num minuto, o IP de origem recebe 429 até o minuto acabar. Fora do loopback, o token precisa ter pelo menos 24 caracteres.
 - O tráfego é cifrado pelo Tailscale (WireGuard). Com HTTPS (abaixo), o painel também é, e o cookie ganha `Secure`.
 
 > **Não use `tailscale serve` na frente do painel.** Ele faz proxy a partir da própria máquina, então toda requisição chega como loopback, e o `/event` passaria a aceitar eventos falsos vindos da tailnet. Use o bind direto no IP da tailnet, como acima. Também não exponha a porta na internet.

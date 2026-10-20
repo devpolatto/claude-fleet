@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -280,6 +281,70 @@ func TestComToken(t *testing.T) {
 			t.Errorf("status = %d, queria 204", rec.Code)
 		}
 	})
+}
+
+// Token errado conta por IP: passadas maxTokenFailures falhas na janela, o IP
+// recebe 429 até ela acabar, mesmo com o token certo; outro IP não é afetado
+// e pedido sem credencial não conta.
+func TestTokenErradoLimitadoPorIP(t *testing.T) {
+	const token = "s3cr3t-token"
+	agora := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	tentativas := map[string]func(h http.Handler, remote, tok string) *httptest.ResponseRecorder{
+		"?t=": func(h http.Handler, remote, tok string) *httptest.ResponseRecorder {
+			return do(h, http.MethodGet, "/api/sessions?t="+tok, remote, "")
+		},
+		"cookie": func(h http.Handler, remote, tok string) *httptest.ResponseRecorder {
+			return do(h, http.MethodGet, "/api/sessions", remote, "", &http.Cookie{Name: CookieName, Value: tok})
+		},
+		"login": func(h http.Handler, remote, tok string) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("token="+tok))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.RemoteAddr = remote
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			return rec
+		},
+	}
+	for nome, tentar := range tentativas {
+		t.Run(nome, func(t *testing.T) {
+			_, srv, _ := novoServidor(t, token)
+			srv.now = func() time.Time { return agora }
+			h := srv.Handler()
+			const ip = "100.64.0.10:1"
+
+			for i := 0; i < 20; i++ {
+				do(h, http.MethodGet, "/api/sessions", ip, "") // sem credencial: não conta
+			}
+			for i := 0; i < maxTokenFailures; i++ {
+				if rec := tentar(h, ip, "errado"); rec.Code != http.StatusUnauthorized {
+					t.Fatalf("tentativa %d: status = %d, queria 401", i+1, rec.Code)
+				}
+			}
+			rec := tentar(h, ip, token)
+			if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
+				t.Fatalf("depois de %d falhas: status = %d, Retry-After = %q; queria 429", maxTokenFailures, rec.Code, rec.Header().Get("Retry-After"))
+			}
+			if rec := tentar(h, "100.64.0.11:1", token); rec.Code == http.StatusTooManyRequests || rec.Code == http.StatusUnauthorized {
+				t.Errorf("outro IP: status = %d", rec.Code)
+			}
+			agora = agora.Add(failureWindow)
+			if rec := tentar(h, ip, token); rec.Code == http.StatusTooManyRequests || rec.Code == http.StatusUnauthorized {
+				t.Errorf("depois da janela: status = %d", rec.Code)
+			}
+		})
+	}
+}
+
+func TestFailuresDescartaJanelasVencidas(t *testing.T) {
+	var f failures
+	t0 := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < maxTrackedIPs; i++ {
+		f.add("10.0."+strconv.Itoa(i/256)+"."+strconv.Itoa(i%256), t0)
+	}
+	f.add("100.64.0.1", t0.Add(failureWindow))
+	if n := len(f.m); n != 1 {
+		t.Errorf("IPs no mapa = %d, queria 1", n)
+	}
 }
 
 func TestApiSession(t *testing.T) {
