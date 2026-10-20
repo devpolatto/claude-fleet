@@ -878,6 +878,7 @@
   .agente .cab .status.s-ativo::after { left: 8px; }
   .agente .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 11px; color: var(--faint); }
   .agente .meta span { white-space: nowrap; }
+  .agente .meta .modelo { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .agente .meta b { font-family: var(--mono); font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
   .vazio-det { color: var(--muted); margin: 0; }
 
@@ -1718,6 +1719,19 @@ function metaItem(rotulo, valor) {
   return s;
 }
 
+// modeloAgente: o modelo que mais custou no subagente, sem o prefixo
+// "claude-", e "+N" se ele usou outros; o title lista todos com o custo.
+// null enquanto o transcript não foi lido (Models vazio).
+function modeloAgente(a) {
+  const lista = Object.entries(a.Models || {})
+    .sort(([na, x], [nb, y]) => (y.CostUSD || 0) - (x.CostUSD || 0) || (na < nb ? -1 : na > nb ? 1 : 0));
+  if (!lista.length) return null;
+  const b = el('b', null, lista[0][0].replace(/^claude-/, ''));
+  if (lista.length > 1) b.append(' +' + (lista.length - 1));
+  b.title = lista.map(([m, u]) => m + ': ' + formatarUso(u)).join('\n');
+  return b;
+}
+
 function montarAgente(a, nome) {
   const li = el('li', 'agente');
   li.dataset.agent = a.ID;
@@ -1751,6 +1765,12 @@ function montarAgente(a, nome) {
   const vida = vivo('vida', ms(a.StartedAt), fimDe(a, a.Status === 'concluido'));
   const b = el('b');
   b.append(vida);
+  const modelo = modeloAgente(a);
+  if (modelo) {
+    const s = metaItem('modelo', modelo);
+    s.className = 'modelo';
+    meta.append(s);
+  }
   meta.append(
     metaItem('vida', b),
     metaItem('tokens', compacto(somaTokens(a.Usage && a.Usage.Tokens))),

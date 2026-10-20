@@ -1,6 +1,6 @@
 # State
 
-**Last Updated:** 2026-10-18
+**Last Updated:** 2026-10-20
 **Current Work:** fleet-mvp concluído (T1–T18; M1 entregue em 2026-10-15). Painel v2 no ar como serviço systemd na tailnet. Próximo: M2
 
 ---
@@ -151,6 +151,8 @@ _Nenhum._
 - [x] Alerta sonoro quando a sessão principal termina um turno longo — Captured during: issue #15 (2026-10-18) — feito em `features/alerta-fim` (2026-10-18), só som, limite de 20 s, mesmo toggle
 - [ ] Push "terminou" pelo `internal/push/notifier.go` (fim de turno com o celular bloqueado, sem subagentes) — Captured during: alerta-fim/spec (2026-10-18)
 - [x] Silenciar o alerta sonoro de um agente específico em aguardando — Captured during: issue #19 (2026-10-20) — feito em `features/silenciar-agente` (2026-10-20), só desta espera, em memória, chaves independentes
+- [x] Modelo de cada subagente no card do pop-up — Captured during: conversa de 2026-10-20 — feito em `features/modelo-subagente` (2026-10-20), só frontend
+- [ ] Modelo do subagente no mini-tile da grade (exige `Models` no `AgentView` do SSE) — Captured during: modelo-subagente/spec (2026-10-20)
 - [ ] Silêncio com prazo (5 / 15 min) — Captured during: silenciar-agente/spec (2026-10-20)
 - [ ] Silenciar também o push de aguardando (exige estado no servidor e rota de escrita) — Captured during: silenciar-agente/spec (2026-10-20)
 
