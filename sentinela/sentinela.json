@@ -1,0 +1,11 @@
+{
+  "name": "claude-fleet",
+  "roots": ["~/.claude", "~/.claude-pessoal", "~/.claude-equanimus"],
+  "options": {
+    "local_url": "http://127.0.0.1:7777",
+    "tailnet_port": 7777,
+    "binary": "~/.local/bin/claude-fleet",
+    "config_dir": "~/.config/claude-fleet",
+    "unit": "~/.config/systemd/user/claude-fleet.service"
+  }
+}

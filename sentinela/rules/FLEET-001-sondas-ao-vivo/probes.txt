@@ -1,0 +1,40 @@
+# Sondas do FLEET-001 contra o claude-fleet rodando (modo com token, como em produção).
+#
+#   <status esperado> <MÉTODO> <alvo> <caminho> [Cabeçalho=valor ...]
+#
+#   alvo: local   (local_url, o listener HTTP em 127.0.0.1 que o hook usa)
+#         tailnet (https://<IP da tailnet>:<tailnet_port>, certificado não verificado)
+#   status: um código ou alternativas (401|421)
+#
+# Nenhuma sonda muda estado: POST leva o corpo "x", que não é JSON. Se um portão
+# falhar, o servidor responde 400 em vez de aplicar o evento. Nenhuma leva token,
+# então o throttle (que só conta token errado) não tranca o dono.
+
+# [I1] ingest com cara de navegador (run-1, PR #26)
+403 POST local /event Content-Type=text/plain Origin=https://evil.example
+403 POST local /event Content-Type=application/json Sec-Fetch-Site=cross-site
+403 POST local /event Content-Type=application/json Sec-Fetch-Site=same-site
+403 POST local /event Content-Type=application/json Origin=null
+403 POST local /statusline Content-Type=text/plain Origin=https://evil.example
+415 POST local /event Content-Type=text/plain
+415 POST local /event Content-Type=application/json;charset=utf-8
+415 POST local /event Content-Type=APPLICATION/JSON
+
+# [I2] ingest só pelo loopback: a tailnet não alimenta o painel
+403 POST tailnet /event Content-Type=application/json
+
+# [A1] leitura sem credencial (modo com token: 401; sem token, Host fora do loopback: 421)
+401 GET local /api/sessions
+401 GET local /api/uso
+401|421 GET local /api/sessions Host=rebind.attacker.example:7777
+401|421 GET local /api/sessions Host=127.0.0.1.nip.io:7777
+401|421 GET local /api/sessions Host=localhost.:7777
+401 GET tailnet /api/sessions
+401 POST tailnet /api/push/test Content-Type=application/json
+
+# [X1] pedido cross-site de subrecurso recusado antes do token (PR #27)
+403 GET local /api/sessions Sec-Fetch-Site=cross-site Sec-Fetch-Dest=empty
+403 GET tailnet /api/sessions Sec-Fetch-Site=cross-site Sec-Fetch-Dest=image
+
+# [L1] controle: o caminho do hook legítimo continua aberto
+400 POST local /event Content-Type=application/json
