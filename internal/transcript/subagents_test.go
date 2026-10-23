@@ -132,3 +132,28 @@ func TestSubagentsOfOrdemPorAgentID(t *testing.T) {
 		}
 	}
 }
+
+func TestListSubagentsDistingueAusenteDeIlegivel(t *testing.T) {
+	dir := t.TempDir()
+	tp := filepath.Join(dir, "sess.jsonl")
+	if got, err := ListSubagents(tp); got != nil || err != nil {
+		t.Fatalf("sem diretório: ListSubagents = %v, %v; queria nil, nil", got, err)
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root lê o diretório sem permissão")
+	}
+	sub := filepath.Join(dir, "sess", "subagents")
+	if err := os.MkdirAll(sub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sub, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(sub, 0o700) })
+	if _, err := ListSubagents(tp); err == nil {
+		t.Error("diretório ilegível: ListSubagents não devolveu erro")
+	}
+	if got := SubagentsOf(tp); got != nil {
+		t.Errorf("diretório ilegível: SubagentsOf = %v, queria nil", got)
+	}
+}

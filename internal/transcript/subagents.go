@@ -2,7 +2,9 @@ package transcript
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -43,16 +45,27 @@ const (
 // também quando não há nenhum agent-*.jsonl: quem chama só precisa de len().
 // Arquivos fora do padrão agent-<id>.jsonl e subdiretórios são ignorados.
 func SubagentsOf(transcriptPath string) []SubagentFile {
+	out, _ := ListSubagents(transcriptPath)
+	return out
+}
+
+// ListSubagents é SubagentsOf com o erro de leitura do diretório: diretório
+// inexistente não é erro, mas qualquer outra falha do ReadDir é devolvida,
+// para quem precisa saber que a lista não é confiável.
+func ListSubagents(transcriptPath string) ([]SubagentFile, error) {
 	if !strings.HasSuffix(transcriptPath, subagentExt) {
-		return nil
+		return nil, nil
 	}
 	dir := filepath.Join(strings.TrimSuffix(transcriptPath, subagentExt), "subagents")
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs
 	}
 	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	var out []SubagentFile
@@ -72,7 +85,7 @@ func SubagentsOf(transcriptPath string) []SubagentFile {
 		out = append(out, sf)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].AgentID < out[j].AgentID })
-	return out
+	return out, nil
 }
 
 // maxMetaBytes limita a leitura do .meta.json, que tem poucas centenas de
