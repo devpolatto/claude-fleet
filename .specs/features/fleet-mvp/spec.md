@@ -56,6 +56,7 @@ Rodo várias sessões do Claude Code em paralelo (terminais diferentes, subagent
 1. WHEN chega `SubagentStart` com `agent_id` THEN o tile da sessão SHALL exibir um mini-tile ativo para o subagente, rotulado com a `description` do `.meta.json` (o nome curto que o Claude dá na chamada do `Agent`) e, sem ela, com o `agent_type`.
 2. WHEN um evento de ferramenta chega com `agent_id` THEN a atividade SHALL ser atribuída ao subagente (mini-tile pulsa) e não só à sessão.
 3. WHEN chega `SubagentStop` THEN o mini-tile SHALL ficar concluído.
+   - WHEN o transcript principal grava `system/agents_killed` (Esc mata os agentes em background sem `SubagentStop`) THEN todo subagente ativo ou aguardando sem evento posterior à linha SHALL ficar concluído, com o fim no horário dela (L-007).
 4. WHEN a sessão-pai está **parada** mas um subagente segue ativo THEN o tile-pai SHALL indicar "subagente em background" (mini-tile pulsando).
 5. WHEN chega `SubagentStop` de um `agent_id` sem `SubagentStart` (ex.: o agente interno da compactação) THEN o sistema SHALL ignorá-lo, sem criar mini-tile.
 6. WHEN chegam `PreToolUse`/`PostToolUse` da ferramenta `Agent` na sessão-pai THEN eles SHALL NOT alterar o status de nenhum subagente.

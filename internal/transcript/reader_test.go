@@ -310,6 +310,25 @@ func TestTurnEndedAt(t *testing.T) {
 	}
 }
 
+func TestAgentsKilledAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	conteudo := `{"type":"system","subtype":"agents_killed","timestamp":"2026-10-15T12:00:05Z"}
+{"type":"system","subtype":"turn_duration","timestamp":"2026-10-15T12:00:09Z"}
+{"type":"system","subtype":"agents_killed","timestamp":"2026-10-15T12:00:07Z"}
+`
+	if err := os.WriteFile(path, []byte(conteudo), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := New(path)
+	if err := f.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2026, 10, 15, 12, 0, 7, 0, time.UTC)
+	if got := f.AgentsKilledAt(); !got.Equal(want) {
+		t.Errorf("AgentsKilledAt = %v, queria %v (só agents_killed conta)", got, want)
+	}
+}
+
 func TestTitleUsaSoCustomTitle(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "s.jsonl")
 	conteudo := `{"type":"custom-title","customTitle":"primeiro","sessionId":"s"}

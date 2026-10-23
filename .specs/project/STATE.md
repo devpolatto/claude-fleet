@@ -131,6 +131,13 @@ _Nenhum._
 **Solution:** Pedido que o navegador marca como de outro site sem ser navegação de topo (`Sec-Fetch-Site` cross-site ou same-site com `Sec-Fetch-Dest` diferente de `document`) recebe 403 sem testar nem contar o token. Navegação de topo com `?t=` continua valendo; o risco que sobra (uma página que navega a aba de topo dez vezes) foi aceito.
 **Prevents:** Rate limit que um terceiro usa para negar acesso ao dono.
 
+### L-007: Subagente morto pelo Esc não dispara SubagentStop
+
+**Context:** Sessão real (2026-10-23) com dois subagentes em background (Claude Code 2.1.309).
+**Problem:** Interromper com Esc matou os agentes, mas nenhum hook chegou: a sessão foi a parado pelo `turn_duration` (L-002) e os dois mini-tiles ficaram em ativo para sempre; reabrir o painel não mudava nada, porque o estado está no servidor. O último hook dos dois foi anterior ao Esc.
+**Solution:** O transcript principal grava `system/agents_killed` (sem dizer quais agentes). No `SetUsage`, subagente ativo ou aguardando sem evento depois dessa linha vira concluído, com `EndedAt` no horário dela. Nas três ocorrências vistas (2026-10-21 e 2026-10-23), todo agente que rodava morreu ali; se um dia houver kill parcial, um sobrevivente quieto seria concluído por engano.
+**Prevents:** Confiar só nos hooks para o fim de subagente; todo encerramento sem hook precisa de um sinal no transcript.
+
 ---
 
 ## Resolved Blockers

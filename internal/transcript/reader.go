@@ -79,6 +79,7 @@ type File struct {
 	byModel     map[ModelKey]Tokens
 	first, last time.Time
 	turnEnd     time.Time // última linha system/turn_duration
+	agentsKill  time.Time // última linha system/agents_killed
 	title       string    // último custom-title (--name ou /rename)
 	parseErrors int
 	anon        int // contador para mensagens sem message.id
@@ -102,6 +103,7 @@ func (f *File) resetLocked() {
 	f.byModel = make(map[ModelKey]Tokens)
 	f.first, f.last = time.Time{}, time.Time{}
 	f.turnEnd = time.Time{}
+	f.agentsKill = time.Time{}
 	f.title = ""
 	f.parseErrors = 0
 	f.anon = 0
@@ -228,6 +230,9 @@ func (f *File) processLocked(raw []byte) {
 			}
 			if l.Type == "system" && l.Subtype == "turn_duration" && ts.After(f.turnEnd) {
 				f.turnEnd = ts
+			}
+			if l.Type == "system" && l.Subtype == "agents_killed" && ts.After(f.agentsKill) {
+				f.agentsKill = ts
 			}
 		}
 	}
@@ -360,6 +365,16 @@ func (f *File) TurnEndedAt() time.Time {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.turnEnd
+}
+
+// AgentsKilledAt devolve o horário da última linha system/agents_killed, que o
+// Claude Code grava ao matar os subagentes em background (Esc duplo, por
+// exemplo). Ela não diz quais agentes morreram e não vem acompanhada de
+// SubagentStop.
+func (f *File) AgentsKilledAt() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.agentsKill
 }
 
 // Title devolve o último nome dado à sessão com --name ou /rename (vazio se
