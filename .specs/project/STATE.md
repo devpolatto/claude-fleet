@@ -138,6 +138,13 @@ _Nenhum._
 **Solution:** O transcript principal grava `system/agents_killed` (sem dizer quais agentes). No `SetUsage`, subagente ativo ou aguardando sem evento depois dessa linha vira concluído, com `EndedAt` no horário dela. Nas três ocorrências vistas (2026-10-21 e 2026-10-23), todo agente que rodava morreu ali; se um dia houver kill parcial, um sobrevivente quieto seria concluído por engano.
 **Prevents:** Confiar só nos hooks para o fim de subagente; todo encerramento sem hook precisa de um sinal no transcript.
 
+### L-008: Agente interno sem transcript manda hook com `agent_id`
+
+**Context:** Issue #30 (2026-10-23).
+**Problem:** Um `agent_id` que nunca mandou `SubagentStart` nem `SubagentStop`, e não tem `agent-<id>.jsonl`, mandou dois eventos de Bash. Pela regra que cobre um `SubagentStart` perdido, ele virou mini-tile ativo e ficou assim até o prune de 12 h. A origem (algum agente interno do Claude Code) não foi confirmada.
+**Solution:** No `SetUsage`, subagente ativo ou aguardando sem transcript em `subagents/` e sem eventos há mais de 2 min vira concluído, com o fim no último evento. Em 404 subagentes reais da máquina, o transcript apareceu em até 40 s depois da chamada do `Agent` (mediana 0,5 s, p99 25 s). A regra só vale com o transcript principal legível e o diretório `subagents/` listado sem erro (ausente conta como vazio). O id conta como presente mesmo se o arquivo dele falhar na leitura. A regra do `agents_killed` (L-007) roda antes, para o fim ficar no horário do Esc.
+**Prevents:** Mini-tile eterno para agente que o disco não conhece.
+
 ---
 
 ## Resolved Blockers
