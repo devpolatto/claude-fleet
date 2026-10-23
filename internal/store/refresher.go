@@ -33,6 +33,9 @@ type SessionUsage struct {
 	ParseErrors       int              // linhas ilegíveis no principal e nos subagentes
 	// TurnEndedAt é o fim do último turno gravado no transcript principal.
 	TurnEndedAt time.Time
+	// AgentsKilledAt é a última vez que o Claude Code matou os subagentes
+	// em background da sessão.
+	AgentsKilledAt time.Time
 	// Name é o nome dado à sessão (customTitle); vazio mantém o atual.
 	Name   string
 	Agents map[string]AgentUsage
@@ -44,7 +47,8 @@ type SessionUsage struct {
 //
 // Com TranscriptMissing, Main e Models não são tocados: os totais anteriores
 // ficam. Subagente ainda desconhecido é criado como concluido, com Type e
-// Description do .meta.json. Em subagente já conhecido o status não muda;
+// Description do .meta.json. Em subagente já conhecido o status só muda
+// quando o transcript mostra que os agentes foram mortos (AgentsKilledAt);
 // Type, Description e TranscriptPath só são preenchidos se estiverem vazios.
 func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 	s.mu.Lock()
@@ -111,6 +115,21 @@ func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 		}
 		m.setUsage(&ag.Usage, au.Usage)
 		m.setModels(&ag.Models, au.Models)
+	}
+
+	// Subagentes mortos sem hook: o Claude Code mata os agentes em background
+	// sem SubagentStop e só grava system/agents_killed no transcript
+	// principal. Quem ainda está ativo ou aguardando e não teve evento depois
+	// dela morreu ali.
+	if !u.AgentsKilledAt.IsZero() {
+		for _, ag := range sess.Subagents {
+			if (ag.Status == StatusAtivo || ag.Status == StatusAguardando) &&
+				!ag.LastEventAt.After(u.AgentsKilledAt) {
+				m.setStatus(&ag.Status, StatusConcluido)
+				t := u.AgentsKilledAt
+				m.setTimePtr(&ag.EndedAt, &t)
+			}
+		}
 	}
 
 	if m.changed {
@@ -264,6 +283,7 @@ func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
 	} else {
 		u.Main, u.Models = usageOf(main.ByModel())
 		u.TurnEndedAt = main.TurnEndedAt()
+		u.AgentsKilledAt = main.AgentsKilledAt()
 		u.Name = sanitizeName(main.Title())
 	}
 	u.ParseErrors = main.ParseErrors()

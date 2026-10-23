@@ -445,6 +445,44 @@ func TestFimDeTurnoSemHookDeixaParado(t *testing.T) {
 	}
 }
 
+// Matar os agentes em background (Esc) não dispara SubagentStop; a linha
+// system/agents_killed no transcript principal conclui quem estava rodando.
+func TestAgentesMortosSemHookFicamConcluidos(t *testing.T) {
+	tests := []struct {
+		name    string
+		mortoEm time.Duration // agents_killed relativo ao último evento do subagente
+		inicio  string        // evento que deixa o subagente no estado inicial
+		want    Status
+	}{
+		{"ativo morto depois do último evento", 20 * time.Second, "PreToolUse", StatusConcluido},
+		{"aguardando morto depois do último evento", 20 * time.Second, "PermissionRequest", StatusConcluido},
+		{"subagente iniciado depois da morte", -10 * time.Second, "SubagentStart", StatusAtivo},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mainPath := filepath.Join(dir, sid+".jsonl")
+			morto := t0.Add(tt.mortoEm)
+			linha := `{"type":"system","subtype":"agents_killed","timestamp":"` + morto.UTC().Format(time.RFC3339Nano) + `"}`
+			if err := os.WriteFile(mainPath, []byte(linha+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			s := New()
+			s.Apply(ingest.Event{Name: evSessionStart, SessionID: sid, TranscriptPath: mainPath}, t0.Add(-time.Minute))
+			s.Apply(ingest.Event{Name: evSubagentStart, SessionID: sid, AgentID: "a1", AgentType: "Explore"}, t0.Add(-time.Minute))
+			s.Apply(ingest.Event{Name: tt.inicio, SessionID: sid, AgentID: "a1", ToolName: "Bash"}, t0)
+			NewRefresher(s).RefreshOnce()
+			ag := mustGet(t, s).Subagents["a1"]
+			if ag.Status != tt.want {
+				t.Fatalf("status = %q, queria %q", ag.Status, tt.want)
+			}
+			if tt.want == StatusConcluido && (ag.EndedAt == nil || !ag.EndedAt.Equal(morto)) {
+				t.Errorf("EndedAt = %v, queria %v", ag.EndedAt, morto)
+			}
+		})
+	}
+}
+
 func TestRefresherUsaNomeDaSessao(t *testing.T) {
 	dir := t.TempDir()
 	mainPath := filepath.Join(dir, sid+".jsonl")
