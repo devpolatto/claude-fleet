@@ -467,6 +467,14 @@ func TestAgentesMortosSemHookFicamConcluidos(t *testing.T) {
 			if err := os.WriteFile(mainPath, []byte(linha+"\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
+			// Agente morto pelo Esc é real: tem transcript em subagents/.
+			sub := filepath.Join(dir, sid, "subagents")
+			if err := os.MkdirAll(sub, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(sub, "agent-a1.jsonl"), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
 			s := New()
 			s.Apply(ingest.Event{Name: evSessionStart, SessionID: sid, TranscriptPath: mainPath}, t0.Add(-time.Minute))
 			s.Apply(ingest.Event{Name: evSubagentStart, SessionID: sid, AgentID: "a1", AgentType: "Explore"}, t0.Add(-time.Minute))
@@ -478,6 +486,90 @@ func TestAgentesMortosSemHookFicamConcluidos(t *testing.T) {
 			}
 			if tt.want == StatusConcluido && (ag.EndedAt == nil || !ag.EndedAt.Equal(morto)) {
 				t.Errorf("EndedAt = %v, queria %v", ag.EndedAt, morto)
+			}
+		})
+	}
+}
+
+// Atividade com agent_id desconhecido cria o mini-tile, mas há agentes
+// internos do Claude Code sem transcript que nunca mandam SubagentStop (#30).
+func TestSubagenteSemTranscriptQuietoFicaConcluido(t *testing.T) {
+	const (
+		semArquivo  = ""
+		arquivoOK   = "ok"
+		ilegivel    = "symlink quebrado" // aparece no ReadDir, falha no Refresh
+		dirIlegivel = "subagents sem permissão"
+	)
+	tests := []struct {
+		name    string
+		quieto  time.Duration // da última atividade até a leitura
+		evento  string
+		arquivo string // estado de agent-a1.jsonl em subagents/
+		semMain bool   // transcript principal ausente
+		morto   bool   // agents_killed 20 s depois da última atividade
+		want    Status
+		fimEm   time.Duration // EndedAt esperado, relativo à última atividade
+	}{
+		{"sem transcript e quieto", 3 * time.Minute, "PostToolUse", semArquivo, false, false, StatusConcluido, 0},
+		{"sem transcript aguardando", 3 * time.Minute, "PermissionRequest", semArquivo, false, false, StatusConcluido, 0},
+		{"sem transcript com evento recente", 30 * time.Second, "PostToolUse", semArquivo, false, false, StatusAtivo, 0},
+		{"sem transcript morto pelo Esc", 3 * time.Minute, "PostToolUse", semArquivo, false, true, StatusConcluido, 20 * time.Second},
+		{"real em ferramenta longa", 10 * time.Minute, "PreToolUse", arquivoOK, false, false, StatusAtivo, 0},
+		{"real esperando permissão", 10 * time.Minute, "PermissionRequest", arquivoOK, false, false, StatusAguardando, 0},
+		{"transcript do subagente ilegível", 10 * time.Minute, "PreToolUse", ilegivel, false, false, StatusAtivo, 0},
+		{"diretório subagents ilegível", 10 * time.Minute, "PreToolUse", dirIlegivel, false, false, StatusAtivo, 0},
+		{"transcript principal ausente", 3 * time.Minute, "PostToolUse", semArquivo, true, false, StatusAtivo, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mainPath := filepath.Join(dir, sid+".jsonl")
+			if !tt.semMain {
+				var linha []byte
+				if tt.morto {
+					linha = []byte(`{"type":"system","subtype":"agents_killed","timestamp":"` + t0.Add(20*time.Second).UTC().Format(time.RFC3339Nano) + `"}` + "\n")
+				}
+				if err := os.WriteFile(mainPath, linha, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			sub := filepath.Join(dir, sid, "subagents")
+			agente := filepath.Join(sub, "agent-a1.jsonl")
+			if tt.arquivo != semArquivo {
+				if err := os.MkdirAll(sub, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch tt.arquivo {
+			case arquivoOK:
+				if err := os.WriteFile(agente, nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case ilegivel:
+				if err := os.Symlink(filepath.Join(dir, "nao-existe"), agente); err != nil {
+					t.Fatal(err)
+				}
+			case dirIlegivel:
+				if os.Geteuid() == 0 {
+					t.Skip("root lê o diretório sem permissão")
+				}
+				if err := os.Chmod(sub, 0); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { os.Chmod(sub, 0o700) })
+			}
+			s := New()
+			s.Apply(ingest.Event{Name: evSessionStart, SessionID: sid, TranscriptPath: mainPath}, t0.Add(-time.Hour))
+			s.Apply(ingest.Event{Name: tt.evento, SessionID: sid, AgentID: "a1", ToolName: "Bash"}, t0)
+			r := NewRefresher(s)
+			r.now = func() time.Time { return t0.Add(tt.quieto) }
+			r.RefreshOnce()
+			ag := mustGet(t, s).Subagents["a1"]
+			if ag.Status != tt.want {
+				t.Fatalf("status = %q, queria %q", ag.Status, tt.want)
+			}
+			if fim := t0.Add(tt.fimEm); tt.want == StatusConcluido && (ag.EndedAt == nil || !ag.EndedAt.Equal(fim)) {
+				t.Errorf("EndedAt = %v, queria %v", ag.EndedAt, fim)
 			}
 		})
 	}

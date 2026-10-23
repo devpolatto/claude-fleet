@@ -15,6 +15,11 @@ import (
 // DefaultRefreshInterval é o intervalo padrão entre passadas do Refresher.
 const DefaultRefreshInterval = 5 * time.Second
 
+// orphanAgentAfter é quanto um subagente sem transcript em subagents/ pode
+// ficar sem eventos antes de ser dado como concluído. O transcript de um
+// subagente real aparece em até ~40 s depois da chamada do Agent.
+const orphanAgentAfter = 2 * time.Minute
+
 // AgentUsage é o consumo de um subagente lido do disco.
 type AgentUsage struct {
 	Usage                             Usage
@@ -36,6 +41,12 @@ type SessionUsage struct {
 	// AgentsKilledAt é a última vez que o Claude Code matou os subagentes
 	// em background da sessão.
 	AgentsKilledAt time.Time
+	// ReadAt é o horário da leitura; zero desliga a conclusão de
+	// subagentes sem transcript (diretório subagents ilegível, por exemplo).
+	ReadAt time.Time
+	// AgentFiles são os ids com agent-<id>.jsonl em subagents/, mesmo os
+	// que não puderam ser lidos nesta passada.
+	AgentFiles map[string]bool
 	// Name é o nome dado à sessão (customTitle); vazio mantém o atual.
 	Name   string
 	Agents map[string]AgentUsage
@@ -48,7 +59,8 @@ type SessionUsage struct {
 // Com TranscriptMissing, Main e Models não são tocados: os totais anteriores
 // ficam. Subagente ainda desconhecido é criado como concluido, com Type e
 // Description do .meta.json. Em subagente já conhecido o status só muda
-// quando o transcript mostra que os agentes foram mortos (AgentsKilledAt);
+// quando o transcript mostra que os agentes foram mortos (AgentsKilledAt) ou
+// quando ele não tem transcript e está quieto há mais de orphanAgentAfter;
 // Type, Description e TranscriptPath só são preenchidos se estiverem vazios.
 func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 	s.mu.Lock()
@@ -132,6 +144,21 @@ func (s *Store) SetUsage(sessionID string, u SessionUsage) bool {
 		}
 	}
 
+	// Subagente sem transcript: atividade com agent_id desconhecido cria o
+	// mini-tile (applyAgent), mas há agentes internos do Claude Code que não
+	// gravam transcript nem mandam SubagentStop. Quieto além de
+	// orphanAgentAfter, ele fica concluído no último evento.
+	if !u.ReadAt.IsZero() && !u.TranscriptMissing {
+		for id, ag := range sess.Subagents {
+			if (ag.Status == StatusAtivo || ag.Status == StatusAguardando) &&
+				!u.AgentFiles[id] && u.ReadAt.Sub(ag.LastEventAt) > orphanAgentAfter {
+				m.setStatus(&ag.Status, StatusConcluido)
+				t := ag.LastEventAt
+				m.setTimePtr(&ag.EndedAt, &t)
+			}
+		}
+	}
+
 	if m.changed {
 		s.notify()
 	}
@@ -198,6 +225,7 @@ type Refresher struct {
 	files     map[string]*transcript.File
 	paths     map[string][]string // sessão → caminhos em cache
 	finalDone map[string]bool     // sessões encerradas que já tiveram a última leitura
+	now       func() time.Time
 }
 
 // NewRefresher cria um Refresher para o Store dado.
@@ -207,6 +235,7 @@ func NewRefresher(s *Store) *Refresher {
 		files:     make(map[string]*transcript.File),
 		paths:     make(map[string][]string),
 		finalDone: make(map[string]bool),
+		now:       time.Now,
 	}
 }
 
@@ -273,7 +302,7 @@ func (r *Refresher) RefreshOnce() {
 
 // read lê o transcript principal e os dos subagentes da sessão.
 func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
-	var u SessionUsage
+	u := SessionUsage{ReadAt: r.now()}
 	used := []string{mainPath}
 
 	main := r.file(mainPath)
@@ -288,9 +317,18 @@ func (r *Refresher) read(sessionID, mainPath string) SessionUsage {
 	}
 	u.ParseErrors = main.ParseErrors()
 
-	for _, sf := range transcript.SubagentsOf(mainPath) {
+	subs, err := transcript.ListSubagents(mainPath)
+	if err != nil {
+		// Sem saber quais transcripts existem, ninguém é dado como órfão.
+		u.ReadAt = time.Time{}
+	}
+	for _, sf := range subs {
 		f := r.file(sf.TranscriptPath)
 		used = append(used, sf.TranscriptPath)
+		if u.AgentFiles == nil {
+			u.AgentFiles = make(map[string]bool)
+		}
+		u.AgentFiles[sf.AgentID] = true
 		if err := f.Refresh(); err != nil {
 			continue // some entre o ReadDir e a abertura: fica como estava
 		}
