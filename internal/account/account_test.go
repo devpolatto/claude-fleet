@@ -208,3 +208,19 @@ func TestResolveLimitaAvisos(t *testing.T) {
 		t.Errorf("seen com %d diretórios, queria %d", len(l.seen), maxAvisos)
 	}
 }
+
+func TestConfigDirDeduzDiretorioDaConta(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"/home/u/.claude/projects/-home-u-proj/s1.jsonl", "/home/u/.claude"},
+		{"/home/u/.claude-pessoal/projects/p/a/../s1.jsonl", "/home/u/.claude-pessoal"},
+		{"/home/u/.claude/projects/s1.jsonl", ""},
+		{"/home/u/.claude/outra/p/s1.jsonl", ""},
+		{".claude/projects/p/s1.jsonl", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := ConfigDir(tt.in); got != tt.want {
+			t.Errorf("ConfigDir(%q) = %q, quer %q", tt.in, got, tt.want)
+		}
+	}
+}

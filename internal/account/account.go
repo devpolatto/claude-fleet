@@ -122,7 +122,7 @@ func (l *List) Resolve(transcriptPath string) string {
 		}
 	}
 
-	cfg := configDir(p)
+	cfg := ConfigDir(p)
 	l.mu.Lock()
 	f := l.onUnknown
 	first := !l.seen[cfg] && len(l.seen) < maxAvisos
@@ -141,8 +141,14 @@ func within(p, root string) bool {
 	return p == root || strings.HasPrefix(p, root+string(filepath.Separator))
 }
 
-// configDir deduz <dir> de <dir>/projects/<projeto>/<arquivo>.
-func configDir(p string) string {
+// ConfigDir deduz o diretório de configuração da conta (o CLAUDE_CONFIG_DIR)
+// de <dir>/projects/<projeto>/<arquivo>; caminho relativo ou fora desse
+// formato devolve "".
+func ConfigDir(transcriptPath string) string {
+	if !filepath.IsAbs(transcriptPath) {
+		return ""
+	}
+	p := filepath.Clean(transcriptPath)
 	proj := filepath.Dir(filepath.Dir(p))
 	if filepath.Base(proj) != "projects" {
 		return ""
