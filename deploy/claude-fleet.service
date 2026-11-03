@@ -12,6 +12,8 @@ Type=simple
 # CLAUDE_FLEET_ARGS, separadas por espaço; por exemplo, uma conta do Claude
 # Code por -account (o servidor expande o ~):
 #   CLAUDE_FLEET_ARGS=-account pessoal=~/.claude-pessoal -account trabalho=~/.claude-trabalho
+# e, para abrir o terminal pelo celular, o IP do Tailscale dele:
+#   CLAUDE_FLEET_ARGS=-focus-from 100.64.0.7
 EnvironmentFile=%h/.config/claude-fleet/env
 # O sh -c resolve o IP da tailnet na hora de subir. Sem IP, sai com erro em
 # vez de cair em ":7777" (todas as interfaces), e o systemd tenta de novo.
@@ -21,6 +23,10 @@ Restart=on-failure
 RestartSec=10
 NoNewPrivileges=yes
 PrivateTmp=yes
+# O socket do tmux fica em /tmp/tmux-<uid>; com PrivateTmp valendo, o painel
+# não o veria e não acharia o pane das sessões (focar-terminal, L-009). O "-"
+# ignora o diretório se o tmux ainda não tiver criado.
+BindPaths=-/tmp/tmux-%U
 
 [Install]
 WantedBy=default.target
