@@ -127,8 +127,9 @@ Todo terminal abre dentro do tmux (perfil Hyper do Ptyxis, `exec tmux new-sessio
 | FOCO-08 | Restrição — unit systemd enxerga o socket do tmux | T5 | Verificado |
 | FOCO-09 | Restrição — AD nova no `STATE.md` e Figma sincronizado | T12, T13 | AD-010 feita; Figma pendente |
 | FOCO-10 | P1: Celular — flag `-focus-from` com IPs, validada na subida e listada no log; sem ela, só a própria máquina | T11 | Verificado |
+| FOCO-11 | Restrição — recurso opcional: só com `-terminal`; sem a flag, rotas em 404 e pop-up sem localização nem botão; `-focus-from` exige `-terminal` | T15 | Verificado |
 
-**Coverage:** 10 total, 10 mapeados para tasks, verificados no UAT de 2026-11-02.
+**Coverage:** 11 total, 11 mapeados para tasks, verificados no UAT de 2026-11-02.
 
 ---
 

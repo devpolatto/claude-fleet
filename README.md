@@ -100,7 +100,8 @@ Abra <http://127.0.0.1:7777>. Sem flags o servidor escuta só em `127.0.0.1:7777
 | `-token` | `$CLAUDE_FLEET_TOKEN` | Obrigatório quando o endereço não é loopback. |
 | `-projects` | `~/.claude/projects` | Onde ficam os transcripts. Não combina com `-account`. |
 | `-account` | nenhuma | Conta do Claude Code como `nome=diretório` (o `CLAUDE_CONFIG_DIR` dela; aceita `~`). Repetível. Cada sessão mostra o nome da conta, e as sessões abertas são procuradas no `projects/` de cada uma. Um diretório não declarado aparece como "outra". |
-| `-focus-from` | nenhum | IPs (separados por vírgula; repetível) que, além da própria máquina, podem abrir o terminal de uma sessão pelo pop-up. Só endereço exato, sem faixa nem nome. Veja "Abrir o terminal da sessão". |
+| `-terminal` | desligado | Mostra no pop-up onde a sessão roda no tmux e o botão que abre o terminal dela. Veja "Abrir o terminal da sessão". |
+| `-focus-from` | nenhum | Exige `-terminal`. IPs (separados por vírgula; repetível) que, além da própria máquina, podem abrir o terminal de uma sessão pelo pop-up. Só endereço exato, sem faixa nem nome. Veja "Abrir o terminal da sessão". |
 
 Um endereço fora do loopback sem token é recusado: o processo sai com código 2.
 
@@ -177,9 +178,9 @@ Com o painel em HTTPS, o sino do cabeçalho (ao lado do botão de som) liga as n
 
 ### Abrir o terminal da sessão
 
-Quando uma sessão roda dentro do **tmux**, o pop-up dela mostra onde (`tmux 6:1.0`: sessão 6, janela 1, pane 0) e, no aparelho autorizado, um ícone de terminal. O clique abre uma **janela nova do Ptyxis**, na frente dos outros programas, já presa àquele pane (`tmux attach-session`). Fechar a janela com `prefix + d` desanexa e mantém a sessão. Fora do tmux, o pop-up diz "fora do tmux" e não mostra o ícone.
+Recurso opcional, ligado com `-terminal` (sem a flag, o pop-up não mostra nada disso; bom para quem não usa tmux). Quando uma sessão roda dentro do **tmux**, o pop-up dela mostra onde (`tmux 6:1.0`: sessão 6, janela 1, pane 0) e, no aparelho autorizado, um ícone de terminal. O clique abre uma **janela nova do Ptyxis**, na frente dos outros programas, já presa àquele pane (`tmux attach-session`). Fechar a janela com `prefix + d` desanexa e mantém a sessão. Fora do tmux, o pop-up diz "fora do tmux" e não mostra o ícone.
 
-- Por padrão só o navegador da própria máquina vê o ícone. Para liberar o celular de acompanhamento, passe o IP do Tailscale dele (`tailscale status`) em `-focus-from`, por exemplo `CLAUDE_FLEET_ARGS=-focus-from 100.64.0.7`. Os demais aparelhos com token veem só a localização.
+- Por padrão só o navegador da própria máquina vê o ícone. Para liberar o celular de acompanhamento, passe o IP do Tailscale dele (`tailscale status`) em `-focus-from`, por exemplo `CLAUDE_FLEET_ARGS=-terminal -focus-from 100.64.0.7`. Os demais aparelhos com token veem só a localização.
 - É a única ação do painel sobre a máquina (AD-010): dois comandos fixos, `tmux display-message` e `systemd-run --user ptyxis --new-window -- tmux attach-session -t %N`. Nenhuma tecla é enviada à sessão.
 - Precisa do `tmux`, do `ptyxis` e do `systemd-run` no `PATH` do serviço e de uma sessão gráfica aberta. Só o servidor padrão do tmux é usado (sem `-L`/`-S`).
 

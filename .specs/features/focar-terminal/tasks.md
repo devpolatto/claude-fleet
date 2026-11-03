@@ -349,6 +349,23 @@ T5 ─────────────────→ T14
 
 ---
 
+### T15: Recurso opcional (`-terminal`)
+
+**What**: Flag `-terminal`, desligada por padrão; sem ela o `main` não chama `SetTerminal` (rotas em 404, pop-up sem localização nem botão). `-focus-from` sem `-terminal` aborta a subida. Pedido do usuário depois do UAT: o painel é compartilhado com quem não usa tmux.
+**Where**: `cmd/claude-fleet/main.go`, `cmd/claude-fleet/main_test.go`, `README.md`, `deploy/claude-fleet.service`
+**Depends on**: T11
+**Requirement**: FOCO-11
+
+**Done when**:
+
+- [x] `TestTerminalDesligadoPorPadrao` passa; testes do `-focus-from` passam com `-terminal`
+- [x] Serviço da máquina do usuário com `-terminal` no `CLAUDE_FLEET_ARGS`
+
+**Tests**: unit · **Gate**: full
+**Commit**: `feat: terminal da sessão vira recurso opcional (-terminal)`
+
+---
+
 ## Validação das tasks
 
 ### Granularidade

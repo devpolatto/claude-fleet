@@ -400,6 +400,7 @@ func TestProjectDirsPorConta(t *testing.T) {
 
 func TestFocusFromAceitaListaERepeticao(t *testing.T) {
 	cfg, err := parseConfig([]string{
+		"-terminal",
 		"-focus-from", "100.64.0.7, fd7a:115c:a1e0::7",
 		"-focus-from", "::ffff:100.64.0.8",
 	}, env(map[string]string{"HOME": "/home/x"}), io.Discard)
@@ -424,7 +425,7 @@ func TestFocusFromAceitaListaERepeticao(t *testing.T) {
 
 func TestFocusFromRecusaEntradaInvalida(t *testing.T) {
 	for _, v := range []string{"celular.tailnet.ts.net", "100.64.0.0/10", "", "100.64.0.7,", "fe80::1%eth0"} {
-		_, err := parseConfig([]string{"-focus-from", v}, env(map[string]string{"HOME": "/home/x"}), io.Discard)
+		_, err := parseConfig([]string{"-terminal", "-focus-from", v}, env(map[string]string{"HOME": "/home/x"}), io.Discard)
 		if err == nil {
 			t.Errorf("-focus-from %q aceito, quer erro", v)
 			continue
@@ -432,5 +433,18 @@ func TestFocusFromRecusaEntradaInvalida(t *testing.T) {
 		if v != "" && !strings.Contains(err.Error(), "IP inválido") {
 			t.Errorf("-focus-from %q: erro = %v, quer citar a entrada", v, err)
 		}
+	}
+}
+
+func TestTerminalDesligadoPorPadrao(t *testing.T) {
+	cfg, err := parseConfig(nil, env(map[string]string{"HOME": "/home/x"}), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Terminal {
+		t.Error("Terminal ligado sem -terminal")
+	}
+	if _, err := parseConfig([]string{"-focus-from", "100.64.0.7"}, env(map[string]string{"HOME": "/home/x"}), io.Discard); err == nil || !strings.Contains(err.Error(), "-terminal") {
+		t.Errorf("-focus-from sem -terminal: err = %v, quer pedir -terminal", err)
 	}
 }
