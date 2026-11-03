@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -29,12 +30,20 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (string
 	return f.out, f.err
 }
 
-// procFake grava <proc>/<pid>/stat com o starttime dado e fd/0 apontando
-// para tty.
+// fakeTTY codifica /dev/pts/N como o kernel no tty_nr (major 136).
+func fakeTTY(path string) (uint64, error) {
+	n, err := strconv.ParseUint(strings.TrimPrefix(path, "/dev/pts/"), 10, 8)
+	if err != nil {
+		return 0, err
+	}
+	return 136<<8 | n, nil
+}
+
+// procFake grava <proc>/<pid>/stat com o starttime e o tty_nr do tty.
 func procFake(t *testing.T, root, pid, starttime, tty string) {
 	t.Helper()
 	dir := filepath.Join(root, pid)
-	if err := os.MkdirAll(filepath.Join(dir, "fd"), 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	// Campos 3 a 21 de enchimento, 22 = starttime; o nome tem espaço e ')'.
@@ -44,14 +53,13 @@ func procFake(t *testing.T, root, pid, starttime, tty string) {
 		fields = append(fields, "0")
 	}
 	fields = append(fields, starttime, "0", "0")
+	if tty != "" {
+		dev, _ := fakeTTY(tty)
+		fields[7-3] = strconv.FormatUint(dev, 10)
+	}
 	stat := pid + " (claude (x) y) " + strings.Join(fields, " ") + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "stat"), []byte(stat), 0o644); err != nil {
 		t.Fatal(err)
-	}
-	if tty != "" {
-		if err := os.Symlink(tty, filepath.Join(dir, "fd", "0")); err != nil {
-			t.Fatal(err)
-		}
 	}
 }
 
@@ -86,7 +94,7 @@ func TestLocateAchaPaneDaSessao(t *testing.T) {
 	cfg, proc := setup(t)
 	procFake(t, proc, "4242", "2670278", "/dev/pts/13")
 	run := &fakeRunner{out: "dev\t1\t0\t/dev/pts/13\n"}
-	term := &Terminal{run: run, proc: proc}
+	term := &Terminal{run: run, proc: proc, ttyDev: fakeTTY}
 
 	got := term.Locate(context.Background(), cfg, sessTmux)
 	want := Location{Estado: EstadoTmux, Rotulo: "tmux dev:1.0", Pane: "%11"}
@@ -128,7 +136,7 @@ func TestLocateEstados(t *testing.T) {
 				}
 			}
 			run := &fakeRunner{out: tt.out, err: tt.runErr}
-			got := (&Terminal{run: run, proc: proc}).Locate(context.Background(), cfg, tt.session)
+			got := (&Terminal{run: run, proc: proc, ttyDev: fakeTTY}).Locate(context.Background(), cfg, tt.session)
 			if got.Estado != tt.want {
 				t.Errorf("Estado = %q, quer %q", got.Estado, tt.want)
 			}
@@ -152,7 +160,7 @@ func TestLocateArquivoGrandeIgnorado(t *testing.T) {
 		t.Fatal(err)
 	}
 	run := &fakeRunner{out: "dev\t1\t0\t/dev/pts/13\n"}
-	if got := (&Terminal{run: run, proc: proc}).Locate(context.Background(), cfg, sessTmux); got.Estado != EstadoDesconhecido {
+	if got := (&Terminal{run: run, proc: proc, ttyDev: fakeTTY}).Locate(context.Background(), cfg, sessTmux); got.Estado != EstadoDesconhecido {
 		t.Errorf("Estado = %q, quer desconhecido", got.Estado)
 	}
 }
@@ -165,7 +173,7 @@ func TestLocatePIDDoNomeDiferenteDoConteudoIgnorado(t *testing.T) {
 		t.Fatal(err)
 	}
 	run := &fakeRunner{out: "dev\t1\t0\t/dev/pts/13\n"}
-	if got := (&Terminal{run: run, proc: proc}).Locate(context.Background(), cfg, sessTmux); got.Estado != EstadoDesconhecido {
+	if got := (&Terminal{run: run, proc: proc, ttyDev: fakeTTY}).Locate(context.Background(), cfg, sessTmux); got.Estado != EstadoDesconhecido {
 		t.Errorf("Estado = %q, quer desconhecido", got.Estado)
 	}
 }
@@ -174,7 +182,7 @@ func TestLocateRotuloSemCaractereDeControle(t *testing.T) {
 	cfg, proc := setup(t)
 	procFake(t, proc, "4242", "2670278", "/dev/pts/13")
 	run := &fakeRunner{out: "a\x1b[31mb\x07\t1\t0\t/dev/pts/13\n"}
-	got := (&Terminal{run: run, proc: proc}).Locate(context.Background(), cfg, sessTmux)
+	got := (&Terminal{run: run, proc: proc, ttyDev: fakeTTY}).Locate(context.Background(), cfg, sessTmux)
 	if got.Rotulo != "tmux a[31mb:1.0" {
 		t.Errorf("Rotulo = %q", got.Rotulo)
 	}
@@ -216,7 +224,7 @@ func TestOpenTituloDeNomeLongoOuComCifrao(t *testing.T) {
 		cfg, proc := setup(t)
 		procFake(t, proc, "4242", "2670278", "/dev/pts/13")
 		run := &fakeRunner{out: nome + "\t1\t0\t/dev/pts/13\n"}
-		term := &Terminal{run: run, proc: proc}
+		term := &Terminal{run: run, proc: proc, ttyDev: fakeTTY}
 		loc := term.Locate(context.Background(), cfg, sessTmux)
 		if loc.Estado != EstadoTmux {
 			t.Fatalf("%q: Estado = %q", nome, loc.Estado)
@@ -231,6 +239,25 @@ func TestOpenTituloDeNomeLongoOuComCifrao(t *testing.T) {
 		if !slices.Contains(call, "--expand-environment=no") {
 			t.Errorf("%q: falta --expand-environment=no", nome)
 		}
+	}
+}
+
+func TestStatRdevBateComTtyNr(t *testing.T) {
+	data, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		t.Skip("sem /proc")
+	}
+	rest := strings.Fields(string(data[strings.LastIndexByte(string(data), ')')+1:]))
+	link, err := os.Readlink("/proc/self/fd/0")
+	if err != nil || rest[7-3] == "0" || !strings.HasPrefix(link, "/dev/pts/") {
+		t.Skip("teste sem terminal")
+	}
+	dev, err := statRdev(link)
+	if err != nil || strconv.FormatUint(dev, 10) != rest[7-3] {
+		t.Errorf("statRdev(%s) = %d, %v; tty_nr = %s", link, dev, err, rest[7-3])
+	}
+	if _, err := statRdev("/etc/hostname"); err == nil {
+		t.Error("statRdev aceitou arquivo comum")
 	}
 }
 

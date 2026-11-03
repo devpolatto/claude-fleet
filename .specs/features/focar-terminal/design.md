@@ -82,7 +82,7 @@ O Ptyxis é uma `GApplication` de instância única. Se não houver Ptyxis rodan
   - `Open(loc Location) error`: roda `systemd-run --user --quiet --collect --expand-environment=no ptyxis --new-window -T "claude-fleet · <rótulo>" -- tmux attach-session -t %N`. Com um ID de pane, o `attach-session` já seleciona a janela e o pane (T4); não há shell em nenhum ponto.
 - **Dependencies**: um `Runner` (interface `Run(ctx, name string, args ...string) (string, error)`) e uma raiz de `/proc` injetáveis, para os testes não dependerem de tmux, systemd ou Ptyxis reais.
 - **Lista fechada**: o `Runner` real só executa `tmux` com primeiro argumento `display-message` e `systemd-run` com a forma exata acima; qualquer outra chamada devolve erro, para a regra valer mesmo se outro código usar o pacote. Os únicos dados variáveis são o `%N` validado e o rótulo, montado da saída do próprio tmux e limpo de caracteres de controle.
-- **Conferência do tty**: pelo alvo do `/proc/<pid>/fd/0` (o terminal do Claude Code), comparado com o `pane_tty`; mais simples que decodificar o `tty_nr` e equivalente para uma sessão interativa.
+- **Conferência do tty**: `tty_nr` do `/proc/<pid>/stat` contra o `st_rdev` do `pane_tty`. O `/proc/<pid>/fd/0` não serve: no serviço, o `PrivateTmp` cria um user namespace e o kernel nega a leitura (L-009).
 - **Assinatura**: `Locate` e `Open` recebem o `context.Context` da requisição, com prazo próprio (2 s e 5 s).
 
 ### Rotas em `internal/web`

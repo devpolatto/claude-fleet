@@ -174,7 +174,7 @@ T5 ─────────────────→ T14
 - [x] Fixtures anonimizadas (sem caminho pessoal nem nome de máquina)
 - [x] Gate passa: `go test -race -count=1 ./internal/terminal/`, com ≥ 7 testes (`TestLocateAchaPaneDaSessao`, `…ProcStartDiferenteDaDesconhecido`, `…SemCampoTmuxEhFora`, `…TtyNaoBateDaDesconhecido`, `…ArquivoGrandeIgnorado`, `…TmuxForaDoArDaDesconhecido`, `…CampoTmuxMalformadoDaDesconhecido`)
 
-**Feito** (3c58667). Desvio: o tty é conferido pelo alvo de `/proc/<pid>/fd/0` (e não pelo `tty_nr`), e `Locate`/`Open` recebem `context.Context`. O `procStart` vem como string no JSON real.
+**Feito** (3c58667). Desvio: `/proc/<pid>/fd/0` foi tentado e falhou no serviço (L-009); o tty é conferido pelo `tty_nr` contra o `st_rdev` do `pane_tty`, como no design. Além disso, `Locate`/`Open` recebem `context.Context`. O `procStart` vem como string no JSON real.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(terminal): localiza o pane do tmux de uma sessão`

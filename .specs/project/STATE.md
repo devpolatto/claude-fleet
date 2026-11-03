@@ -153,12 +153,12 @@ _Nenhum._
 **Solution:** No `SetUsage`, subagente ativo ou aguardando sem transcript em `subagents/` e sem eventos há mais de 2 min vira concluído, com o fim no último evento. Em 404 subagentes reais da máquina, o transcript apareceu em até 40 s depois da chamada do `Agent` (mediana 0,5 s, p99 25 s). A regra só vale com o transcript principal legível e o diretório `subagents/` listado sem erro (ausente conta como vazio). O id conta como presente mesmo se o arquivo dele falhar na leitura. A regra do `agents_killed` (L-007) roda antes, para o fim ficar no horário do Esc.
 **Prevents:** Mini-tile eterno para agente que o disco não conhece.
 
-### L-009: `PrivateTmp=yes` não vale na unit de usuário deste Ubuntu
+### L-009: `PrivateTmp=yes` na unit de usuário põe o serviço num user namespace próprio
 
-**Context:** focar-terminal (2026-11-02): o serviço precisa do socket do tmux em `/tmp/tmux-<uid>/default`.
-**Problem:** A unit tem `PrivateTmp=yes`, mas o processo do serviço está no mesmo namespace de montagem da sessão (`/proc/<pid>/ns/mnt` igual) e enxerga o `/tmp` de todos. Sem privilégio, o gerenciador do usuário não aplica o isolamento. Em outra máquina (ou versão do systemd) ele pode passar a valer, e aí o painel deixaria de achar o tmux.
-**Solution:** `BindPaths=-/tmp/tmux-%U` na unit (o `-` ignora diretório ausente), testado com `systemd-run --user -p PrivateTmp=yes -p BindPaths=/tmp/tmux-1000`. Não contar com o `PrivateTmp` como proteção do `/tmp` nesta unit.
-**Prevents:** Feature que funciona aqui e quebra onde o isolamento vale; falsa sensação de `/tmp` isolado.
+**Context:** focar-terminal (2026-11-02): o serviço precisa do socket do tmux em `/tmp/tmux-<uid>/default` e de conferir o tty do processo do Claude.
+**Problem:** Sem privilégio, o gerenciador do usuário aplica o `PrivateTmp` criando um user namespace para o serviço (`/proc/<pid>/ns/user` diferente; o `ns/mnt` continua igual, e o `/tmp` de todos segue visível). Entre user namespaces, o kernel nega os acessos que pedem checagem de ptrace: `readlink /proc/<pid>/fd/0` do Claude dá "Permission denied", embora rode no mesmo usuário. O `/proc/<pid>/stat` continua legível. Nos testes fora do serviço tudo funcionava, e no serviço toda sessão virou "desconhecido".
+**Solution:** Conferir o tty pelo `tty_nr` (campo 7 do `stat`) contra o `st_rdev` do `pane_tty`, nunca por `/proc/<pid>/fd`. Manter `BindPaths=-/tmp/tmux-%U` na unit, para o socket continuar visível se o `/tmp` passar a ser isolado de fato. Reproduzir o ambiente com `systemd-run --user --pipe --wait -p PrivateTmp=yes …` antes de contar com algo do `/proc`.
+**Prevents:** Feature que passa nos testes e falha só no serviço; leitura de `/proc/<pid>/fd`, `environ`, `cwd` ou `exe` de outros processos a partir da unit.
 
 ### L-010: No GNOME/Wayland, só janela nova vem para a frente
 

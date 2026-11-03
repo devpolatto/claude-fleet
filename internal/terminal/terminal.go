@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 )
@@ -60,10 +61,27 @@ var (
 type Terminal struct {
 	run  Runner
 	proc string // raiz do /proc
+	// ttyDev devolve o número do dispositivo de um tty (/dev/pts/N), no
+	// mesmo formato do tty_nr do /proc/<pid>/stat.
+	ttyDev func(path string) (uint64, error)
 }
 
 // New devolve o Terminal real (tmux, systemd-run e /proc da máquina).
-func New() *Terminal { return &Terminal{run: execRunner{}, proc: "/proc"} }
+func New() *Terminal { return &Terminal{run: execRunner{}, proc: "/proc", ttyDev: statRdev} }
+
+// statRdev lê o st_rdev do arquivo. Para pts (major < 4096, minor < 2^20),
+// a codificação da glibc coincide com a do tty_nr do kernel.
+func statRdev(path string) (uint64, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok || fi.Mode()&os.ModeCharDevice == 0 {
+		return 0, errors.New("não é um dispositivo de caractere")
+	}
+	return uint64(st.Rdev), nil
+}
 
 // sessionFile são os campos lidos de sessions/<pid>.json; o resto do JSON é
 // ignorado.
@@ -72,6 +90,8 @@ type sessionFile struct {
 	SessionID string          `json:"sessionId"`
 	ProcStart json.RawMessage `json:"procStart"`
 	Tmux      string          `json:"tmux"`
+
+	ttyNr string // campo 7 do /proc/<pid>/stat, preenchido por alive
 }
 
 // Locate diz onde roda a sessão sessionID da conta em configDir.
@@ -105,8 +125,11 @@ func (t *Terminal) Locate(ctx context.Context, configDir, sessionID string) Loca
 	}
 	// O %N só vale se o pane ainda for o terminal do processo: depois de o
 	// servidor do tmux reiniciar, o mesmo ID pode ser de outro pane.
-	tty, err := os.Readlink(filepath.Join(t.proc, strconv.Itoa(sf.PID), "fd", "0"))
-	if err != nil || tty != f[3] {
+	// Conferido pelo tty_nr do stat, e não por /proc/<pid>/fd/0: o serviço
+	// roda num user namespace próprio (PrivateTmp na unit de usuário) e o
+	// kernel nega ler os descritores de um processo de fora dele (L-009).
+	dev, err := t.ttyDev(f[3])
+	if err != nil || dev == 0 || strconv.FormatUint(dev, 10) != sf.ttyNr {
 		return unknown
 	}
 	if _, err := strconv.Atoi(f[1]); err != nil {
@@ -138,7 +161,7 @@ func (t *Terminal) findLive(dir, sessionID string) (sessionFile, bool) {
 		if err != nil || sf.SessionID != sessionID || strconv.Itoa(sf.PID) != m[1] {
 			continue
 		}
-		if t.alive(sf) {
+		if t.alive(&sf) {
 			return sf, true
 		}
 	}
@@ -166,8 +189,9 @@ func readSessionFile(path string) (sessionFile, error) {
 }
 
 // alive confere o procStart (string ou número no JSON) contra o campo 22 de
-// /proc/<pid>/stat, o que descarta PID reaproveitado.
-func (t *Terminal) alive(sf sessionFile) bool {
+// /proc/<pid>/stat, o que descarta PID reaproveitado, e guarda o tty_nr
+// (campo 7).
+func (t *Terminal) alive(sf *sessionFile) bool {
 	if sf.PID <= 0 {
 		return false
 	}
@@ -186,8 +210,12 @@ func (t *Terminal) alive(sf sessionFile) bool {
 		return false
 	}
 	rest := strings.Fields(string(stat[i+1:]))
-	const starttime = 22 - 3
-	return len(rest) > starttime && rest[starttime] == want
+	const ttyNr, starttime = 7 - 3, 22 - 3
+	if len(rest) <= starttime || rest[starttime] != want {
+		return false
+	}
+	sf.ttyNr = rest[ttyNr]
+	return true
 }
 
 // Open abre uma janela nova do Ptyxis presa ao pane de loc.
