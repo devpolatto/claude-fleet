@@ -115,20 +115,20 @@ Todo terminal abre dentro do tmux (perfil Hyper do Ptyxis, `exec tmux new-sessio
 
 ## Requirement Traceability
 
-| Requirement ID | Story | Phase | Status |
+| Requirement ID | Story | Tasks | Status |
 | --- | --- | --- | --- |
-| FOCO-01 | P1: Ver — resolver sessão → pane pelo `sessions/<pid>.json`, com `procStart`, tty e ID `%N` | Design | Pending |
-| FOCO-02 | P1: Ver — localização `tmux S:J.P`, "fora do tmux" ou "local desconhecido" no pop-up, em todo aparelho | Design | Pending |
-| FOCO-03 | P1: Ver — só metadado de localização sai do servidor (AD-003) | Design | Pending |
-| FOCO-04 | P1: Abrir — ícone de terminal no topo do pop-up (sessão e subagente), só com pane vivo e aparelho autorizado | Design | Pending |
-| FOCO-05 | P1: Abrir — janela nova do Ptyxis por `systemd-run --user`, `attach-session` no pane, título com a localização | Design | Pending |
-| FOCO-06 | P1: Abrir — rota de ação: token + aparelho autorizado + JSON + same-origin; 403 dos demais | Design | Pending |
-| FOCO-07 | P1: Abrir — avisos de resultado e de falha, botão desabilitado durante o pedido, 1 janela por sessão a cada 3 s | Design | Pending |
-| FOCO-08 | Restrição — unit systemd enxerga o socket do tmux | Design | Pending |
-| FOCO-09 | Restrição — AD nova no `STATE.md` e Figma sincronizado | Design | Pending |
-| FOCO-10 | P1: Celular — flag `-focus-from` com IPs, validada na subida e listada no log; sem ela, só a própria máquina | Design | Pending |
+| FOCO-01 | P1: Ver — resolver sessão → pane pelo `sessions/<pid>.json`, com `procStart`, tty e ID `%N` | T1, T6 | Implementado |
+| FOCO-02 | P1: Ver — localização `tmux S:J.P`, "fora do tmux" ou "local desconhecido" no pop-up, em todo aparelho | T6, T9, T12 | Implementado (UI no T12) |
+| FOCO-03 | P1: Ver — só metadado de localização sai do servidor (AD-003) | T6, T9 | Implementado |
+| FOCO-04 | P1: Abrir — ícone de terminal no topo do pop-up (sessão e subagente), só com pane vivo e aparelho autorizado | T9, T12 | Implementado (UI no T12) |
+| FOCO-05 | P1: Abrir — janela nova do Ptyxis por `systemd-run --user`, `attach-session` no pane, título com a localização | T3, T4, T7 | Implementado |
+| FOCO-06 | P1: Abrir — rota de ação: token + aparelho autorizado + JSON + same-origin; 403 dos demais | T8, T10 | Implementado |
+| FOCO-07 | P1: Abrir — avisos de resultado e de falha, botão desabilitado durante o pedido, 1 janela por sessão a cada 3 s | T10, T12 | Implementado (UI no T12) |
+| FOCO-08 | Restrição — unit systemd enxerga o socket do tmux | T5 | Implementado |
+| FOCO-09 | Restrição — AD nova no `STATE.md` e Figma sincronizado | T12, T13 | AD-010 feita; Figma no T12 |
+| FOCO-10 | P1: Celular — flag `-focus-from` com IPs, validada na subida e listada no log; sem ela, só a própria máquina | T11 | Implementado |
 
-**Coverage:** 10 total, 0 mapeados para tasks, 10 sem mapeamento (aguardando design).
+**Coverage:** 10 total, 10 mapeados para tasks; UAT real no T14.
 
 ---
 

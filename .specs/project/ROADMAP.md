@@ -36,6 +36,7 @@
 
 **Várias contas do Claude na mesma máquina** (`CLAUDE_CONFIG_DIR` separado por assinatura): hook em cada conta, conta no pop-up, filtro por conta e uso do plano por conta - DONE (2026-10-18; AD-009, UAT em `features/multi-conta/uat.md`; o uso do plano por conta entrou com o `uso-plano`). Spec em `features/multi-conta`
 **Uso do plano numa segunda tela** (janela de 5 h e semana, como o `/usage`, por conta, trocada com um dedo; tokens e custo das janelas) - DONE (2026-10-18; AD-007, UAT em `features/uso-plano/uat.md`). Spec em `features/uso-plano`
+**Abrir o terminal da sessão** (ícone no pop-up abre uma janela nova do Ptyxis presa ao pane do tmux; localização em todo aparelho; celular liberado por `-focus-from`) - IN PROGRESS (2026-11-02; AD-010). Spec em `features/focar-terminal`
 
 ---
 

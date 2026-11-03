@@ -1,7 +1,7 @@
 # focar-terminal Tasks
 
 **Design**: `.specs/features/focar-terminal/design.md`
-**Status**: Approved (2026-11-02)
+**Status**: In Progress (2026-11-02)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
@@ -70,9 +70,11 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] `ConfigDir("<dir>/projects/<proj>/<id>.jsonl")` devolve `<dir>`; caminho fora do formato devolve `""`
-- [ ] Testes existentes do pacote passam sem alteração
-- [ ] Gate passa: `go test -race -count=1 ./internal/account/`, com 1 teste novo (`TestConfigDirDeduzDiretorioDaConta`, em tabela)
+- [x] `ConfigDir("<dir>/projects/<proj>/<id>.jsonl")` devolve `<dir>`; caminho fora do formato devolve `""`
+- [x] Testes existentes do pacote passam sem alteração
+- [x] Gate passa: `go test -race -count=1 ./internal/account/`, com 1 teste novo (`TestConfigDirDeduzDiretorioDaConta`, em tabela)
+
+**Feito** (01a10a3).
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `refactor(account): exporta ConfigDir para achar o diretório da conta`
@@ -108,9 +110,11 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] `tmux kill-server`, `tmux send-keys`, `sh -c …`, `systemd-run` com outro programa e `%N` fora de `^%\d+$` são recusados antes do `exec`
-- [ ] Prazo por `context` (5 s) respeitado; stdout limitado (sem ler saída ilimitada)
-- [ ] Gate passa: `go test -race -count=1 ./internal/terminal/`, com `TestRunnerRecusaComandoForaDaLista` (tabela com ≥ 5 casos)
+- [x] `tmux kill-server`, `tmux send-keys`, `sh -c …`, `systemd-run` com outro programa e `%N` fora de `^%\d+$` são recusados antes do `exec`
+- [x] Prazo por `context` (5 s) respeitado; stdout limitado (sem ler saída ilimitada)
+- [x] Gate passa: `go test -race -count=1 ./internal/terminal/`, com `TestRunnerRecusaComandoForaDaLista` (tabela com ≥ 5 casos)
+
+**Feito** (3c58667).
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(terminal): runner com lista fechada de comandos`
@@ -126,8 +130,8 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] Resultado anotado (cai ou não no pane `%N` quando a sessão está noutra janela/pane)
-- [ ] Sessão de teste removida e nenhuma unit `run-*` sobrando
+- [x] Resultado anotado (cai ou não no pane `%N` quando a sessão está noutra janela/pane)
+- [x] Sessão de teste removida e nenhuma unit `run-*` sobrando
 
 **Resultado** (2026-11-02, tmux 3.6, sessão de 2 janelas × 2 panes, cliente ativo na janela 1 pane 1): `attach-session -t %N` sozinho deixou ativos a janela e o pane do `%N` (`0.0 %80 wa=1 pa=1`). Os `select-window`/`select-pane` saem do comando.
 
@@ -145,8 +149,10 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] `systemd-analyze --user verify deploy/claude-fleet.service` sem erro novo
+- [x] `systemd-analyze --user verify deploy/claude-fleet.service` sem erro novo
 - [ ] Depois de copiar a unit e `systemctl --user daemon-reload && systemctl --user restart claude-fleet`, o serviço sobe e `/tmp/tmux-1000/default` é visível de dentro dele (`nsenter`/`/proc/<pid>/root` ou `ls` via `systemd-run -p` equivalente)
+
+**Feito** (8f8dcd3); a conferência com o serviço reiniciado fica para o T14.
 
 **Tests**: none (arquivo de unit) · **Gate**: real
 **Commit**: `fix(deploy): serviço enxerga o socket do tmux mesmo com PrivateTmp`
@@ -163,10 +169,12 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] Estados `tmux` (com rótulo `tmux S:J.P`), `fora` (campo `tmux` ausente/nulo) e `desconhecido` (sem arquivo, PID morto, `procStart` diferente, tty diferente, tmux fora do ar, `tmux` malformado)
-- [ ] Rótulo limpo de caracteres de controle; `Pane` nunca sai na API
-- [ ] Fixtures anonimizadas (sem caminho pessoal nem nome de máquina)
-- [ ] Gate passa: `go test -race -count=1 ./internal/terminal/`, com ≥ 7 testes (`TestLocateAchaPaneDaSessao`, `…ProcStartDiferenteDaDesconhecido`, `…SemCampoTmuxEhFora`, `…TtyNaoBateDaDesconhecido`, `…ArquivoGrandeIgnorado`, `…TmuxForaDoArDaDesconhecido`, `…CampoTmuxMalformadoDaDesconhecido`)
+- [x] Estados `tmux` (com rótulo `tmux S:J.P`), `fora` (campo `tmux` ausente/nulo) e `desconhecido` (sem arquivo, PID morto, `procStart` diferente, tty diferente, tmux fora do ar, `tmux` malformado)
+- [x] Rótulo limpo de caracteres de controle; `Pane` nunca sai na API
+- [x] Fixtures anonimizadas (sem caminho pessoal nem nome de máquina)
+- [x] Gate passa: `go test -race -count=1 ./internal/terminal/`, com ≥ 7 testes (`TestLocateAchaPaneDaSessao`, `…ProcStartDiferenteDaDesconhecido`, `…SemCampoTmuxEhFora`, `…TtyNaoBateDaDesconhecido`, `…ArquivoGrandeIgnorado`, `…TmuxForaDoArDaDesconhecido`, `…CampoTmuxMalformadoDaDesconhecido`)
+
+**Feito** (3c58667). Desvio: o tty é conferido pelo alvo de `/proc/<pid>/fd/0` (e não pelo `tty_nr`), e `Locate`/`Open` recebem `context.Context`. O `procStart` vem como string no JSON real.
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(terminal): localiza o pane do tmux de uma sessão`
@@ -182,9 +190,11 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] `Open` de `Location` fora do estado `tmux` devolve erro sem chamar o `Runner`
-- [ ] Erro ou prazo estourado do `systemd-run` vira erro com motivo (para o log)
-- [ ] Gate passa: `go test -race -count=1 ./internal/terminal/`, com `TestOpenMontaComandoFixo`, `TestOpenRotuloSemCaractereDeControle`, `TestOpenErroDoSystemdRun` (+ os do T3 e T6)
+- [x] `Open` de `Location` fora do estado `tmux` devolve erro sem chamar o `Runner`
+- [x] Erro ou prazo estourado do `systemd-run` vira erro com motivo (para o log)
+- [x] Gate passa: `go test -race -count=1 ./internal/terminal/`, com `TestOpenMontaComandoFixo`, `TestOpenRotuloSemCaractereDeControle`, `TestOpenErroDoSystemdRun` (+ os do T3 e T6)
+
+**Feito** (3c58667).
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(terminal): abre janela do Ptyxis presa ao pane`
@@ -201,9 +211,11 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] `trustedPeer`: loopback v4/v6, IP local, IP da lista, IPv4 mapeado em IPv6 aceitos; IP fora recusado
-- [ ] `focusAllowed`: sem JSON → 415; sem `Sec-Fetch-Site: same-origin`, com `Origin` de outro host ou sem `Origin` → 403
-- [ ] Gate passa: `go test -race -count=1 ./internal/web/`, com ≥ 2 testes novos em tabela (`TestTrustedPeer`, `TestFocusAllowed`)
+- [x] `trustedPeer`: loopback v4/v6, IP local, IP da lista, IPv4 mapeado em IPv6 aceitos; IP fora recusado
+- [x] `focusAllowed`: sem JSON → 415; sem `Sec-Fetch-Site: same-origin`, com `Origin` de outro host ou sem `Origin` → 403
+- [x] Gate passa: `go test -race -count=1 ./internal/web/`, com ≥ 2 testes novos em tabela (`TestTrustedPeer`, `TestFocusAllowed`)
+
+**Feito** (c1c647e). Sem `SetTerminal`, as rotas respondem 404 (`terminalOff` virou checagem em cada handler).
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(web): regra de aparelho autorizado para abrir o terminal`
@@ -219,9 +231,11 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] Sem token → 401 (mesmo `s.auth`); sessão desconhecida → 404; sem `SetTerminal` → 404
-- [ ] Resposta tem só `estado`, `rotulo`, `podeAbrir` (nada de PID, `%N`, caminho)
-- [ ] Gate passa: `go test -race -count=1 ./internal/web/`, com `TestTerminalPodeAbrirSoAutorizado` e `TestTerminalSessaoDesconhecida404`
+- [x] Sem token → 401 (mesmo `s.auth`); sessão desconhecida → 404; sem `SetTerminal` → 404
+- [x] Resposta tem só `estado`, `rotulo`, `podeAbrir` (nada de PID, `%N`, caminho)
+- [x] Gate passa: `go test -race -count=1 ./internal/web/`, com `TestTerminalPodeAbrirSoAutorizado` e `TestTerminalSessaoDesconhecida404`
+
+**Feito** (c1c647e).
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(web): rota com a localização da sessão no tmux`
@@ -237,9 +251,11 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] `TestAbrirRecusaOutroAparelho`, `…AceitaIPDeFocusFrom`, `…SemSameOrigin`, `…SemJSON`, `…OriginDeOutroHost`, `…SegundoPedidoEm3sRecebe429`, `…SessaoEncerrada409`, `…FalhaDoOpen502` passam com `Terminal` falso
-- [ ] Pedido recusado (403/409/429) não chama `Open`
-- [ ] Gate passa: `go test -race -count=1 ./internal/web/` (+ todos os anteriores do pacote)
+- [x] `TestAbrirRecusaOutroAparelho`, `…AceitaIPDeFocusFrom`, `…SemSameOrigin`, `…SemJSON`, `…OriginDeOutroHost`, `…SegundoPedidoEm3sRecebe429`, `…SessaoEncerrada409`, `…FalhaDoOpen502` passam com `Terminal` falso
+- [x] Pedido recusado (403/409/429) não chama `Open`
+- [x] Gate passa: `go test -race -count=1 ./internal/web/` (+ todos os anteriores do pacote)
+
+**Feito** (c1c647e).
 
 **Tests**: unit · **Gate**: quick
 **Commit**: `feat(web): rota que abre o terminal da sessão`
@@ -256,9 +272,11 @@ T5 ─────────────────→ T14
 
 **Done when**:
 
-- [ ] `TestFocusFromRecusaEntradaInvalida` (nome, CIDR, item vazio) e `TestFocusFromAceitaListaERepeticao` passam
-- [ ] README documenta a flag e o `CLAUDE_FLEET_ARGS`
-- [ ] Gate passa: full (`gofmt`, `go vet`, `go test -race`, `bash hook/test.sh` inalterado)
+- [x] `TestFocusFromRecusaEntradaInvalida` (nome, CIDR, item vazio) e `TestFocusFromAceitaListaERepeticao` passam
+- [x] README documenta a flag e o `CLAUDE_FLEET_ARGS`
+- [x] Gate passa: full (`gofmt`, `go vet`, `go test -race`, `bash hook/test.sh` inalterado)
+
+**Feito** (b2df8c6). Log: `terminal liberado para: a própria máquina e <IPs>` ou `só a própria máquina`.
 
 **Tests**: unit · **Gate**: full
 **Commit**: `feat: flag -focus-from libera o terminal para outros aparelhos`
@@ -292,7 +310,7 @@ T5 ─────────────────→ T14
 
 ### T13: `STATE.md`, `ROADMAP.md`, spec e `uat.md`
 
-**What**: AD-010 (texto do design), L-009 (`PrivateTmp` sem efeito na unit de usuário; Wayland não deixa trazer janela existente), ideia adiada "extensão do GNOME Shell para trazer a janela existente"; entrada no `ROADMAP.md`; spec com status atualizado e rastreabilidade FOCO-01..10; `uat.md` com os roteiros do desktop e do celular.
+**What**: AD-010 (texto do design), L-009 (`PrivateTmp` sem efeito na unit de usuário) e L-010 (Wayland só traz janela nova para a frente), ideia adiada "extensão do GNOME Shell para trazer a janela existente"; entrada no `ROADMAP.md`; spec com status atualizado e rastreabilidade FOCO-01..10; `uat.md` com os roteiros do desktop e do celular.
 **Where**: `.specs/project/STATE.md`, `.specs/project/ROADMAP.md`, `.specs/features/focar-terminal/spec.md`, `.specs/features/focar-terminal/uat.md`
 **Depends on**: T11, T12
 **Requirement**: FOCO-09
