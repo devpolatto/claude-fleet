@@ -704,6 +704,8 @@
     cursor: pointer;
   }
   .ocultar[hidden] { display: none; }
+  /* Pedido de abrir o terminal em curso: mesmo tratamento do botão de push. */
+  .ocultar:disabled { opacity: .6; cursor: progress; }
   .ocultar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
   /* Silenciar ligado: o botão fica em destaque para lembrar do agente mudo. */
   .ocultar[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
@@ -931,10 +933,10 @@
     }
     .det-topo { padding-top: 10px; }
     .metrica .v { font-size: 13px; }
-    /* Sem espaço para três ações com rótulo: silenciar fica só com o ícone
+    /* Sem espaço para as ações com rótulo: silenciar e terminal ficam só com o ícone
        (o aria-label e o title seguem dizendo o que ele faz). */
-    #det-silenciar { width: 32px; padding: 0; justify-content: center; }
-    #det-silenciar span { display: none; }
+    #det-silenciar, #det-terminal { width: 32px; padding: 0; justify-content: center; }
+    #det-silenciar span, #det-terminal span { display: none; }
   }
 
   /* Celular na horizontal: a tela é baixa demais para o cabeçalho, então só
@@ -1003,6 +1005,7 @@
       <div class="linha">
         <div class="det-estado" id="det-estado"></div>
         <div class="det-acoes">
+          <button type="button" class="ocultar" id="det-terminal" hidden></button>
           <button type="button" class="ocultar" id="det-silenciar" hidden></button>
           <button type="button" class="ocultar" id="det-ocultar" hidden></button>
           <button type="button" class="fechar" id="det-fechar" aria-label="Fechar">
@@ -1053,6 +1056,7 @@ const ICONES = {
   sinoCortado: { size: 16, paths: [{ d: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z', fill: 'currentColor' }, { d: 'M10 20.5a2 2 0 0 0 4 0', stroke: 'currentColor', w: 2 }, { d: 'M3.5 3.5l17 17', stroke: 'var(--surface-2)', w: 4 }, { d: 'M3.5 3.5l17 17', stroke: 'currentColor', w: 2 }] },
   olhoCortado: { size: 13, paths: [{ d: 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a12 12 0 0 1-3 4.2M6.6 6.6C4.3 8 2.7 10.2 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2', stroke: 'currentColor', w: 2 }] },
   olho: { size: 13, paths: [{ d: 'M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z', stroke: 'currentColor', w: 2 }, { d: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', stroke: 'currentColor', w: 2 }] },
+  terminal: { size: 13, paths: [{ d: 'M4 4.5h16a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18V6A1.5 1.5 0 0 1 4 4.5z', stroke: 'currentColor', w: 2 }, { d: 'M7 9.5l3 2.5-3 2.5M12.5 15h4.5', stroke: 'currentColor', w: 2 }] },
   aviso: { size: 11, paths: [{ d: 'M12 3l10 18H2z', fill: 'var(--parado)' }, { d: 'M12 10v5M12 18v.5', stroke: 'var(--surface)', w: 2.4 }] },
 };
 
@@ -1437,6 +1441,7 @@ const detCorpo = document.getElementById('det-corpo');
 const detRodape = document.getElementById('det-rodape');
 const detOcultar = document.getElementById('det-ocultar');
 const detSilenciar = document.getElementById('det-silenciar');
+const detTerminal = document.getElementById('det-terminal');
 
 const milhar = new Intl.NumberFormat('pt-BR');
 const umaCasa = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -1470,6 +1475,9 @@ const det = {
   focado: false,    // já rolou até o subagente tocado
   dados: null,      // último SessionDetail recebido
   aviso: '',        // "sessão removida", falha de rede etc.
+  terminal: null,   // GET /terminal: { estado, rotulo, podeAbrir }, uma vez por abertura
+  avisoTerminal: '', // resultado do clique em abrir terminal; o poll não o apaga
+  avisoTimer: null, // setTimeout que apaga avisoTerminal
   atualizadoEm: null,
   sinalSom: '',     // sinalSilencio() do último desenho do pop-up
 };
@@ -1811,8 +1819,10 @@ function renderDetalhe() {
 
   const frag = document.createDocumentFragment();
   if (det.aviso) frag.append(el('p', 'aviso', det.aviso));
+  if (det.avisoTerminal) frag.append(el('p', 'aviso', det.avisoTerminal));
 
   atualizarDetSilenciar();
+  atualizarDetTerminal();
   detOcultar.hidden = !d;
   if (d) {
     const oculta = estaOculta(d);
@@ -1822,7 +1832,7 @@ function renderDetalhe() {
   }
 
   if (!d) {
-    if (!det.aviso) frag.append(el('p', 'vazio-det', 'carregando…'));
+    if (!det.aviso && !det.avisoTerminal) frag.append(el('p', 'vazio-det', 'carregando…'));
     detCorpo.replaceChildren(frag);
     detRodape.replaceChildren();
     return;
@@ -1845,6 +1855,8 @@ function renderDetalhe() {
   const idCurto = el('span', 'mono', d.ID.slice(0, 8));
   idCurto.title = d.ID;
   detSub.append(idCurto);
+  const local = localTerminal();
+  if (local) detSub.append(el('span', null, '·'), el('span', 'mono', local));
 
   const cwd = el('p', 'cwd', d.Cwd || '—');
   cwd.title = d.Cwd || '';
@@ -1961,6 +1973,96 @@ function pararDetalhe() {
   clearInterval(det.relogio);
   det.relogio = null;
   det.vivos = [];
+  clearTimeout(det.avisoTimer);
+  det.avisoTimer = null;
+  det.avisoTerminal = '';
+  det.terminal = null;
+  detTerminal.disabled = false;
+}
+
+// ---------- Terminal da sessão ----------
+// GET /terminal uma vez por abertura do pop-up (fora do poll). Só metadados:
+// estado, rótulo "tmux S:J.P" e se este aparelho pode abrir a janela.
+
+const LOCAL_TERMINAL = { fora: 'fora do tmux', desconhecido: 'local desconhecido' };
+const AVISO_TERMINAL_MS = 4000;
+
+function localTerminal() {
+  const t = det.terminal;
+  if (!t) return '';
+  if (t.estado === 'tmux') return t.rotulo || '';
+  return LOCAL_TERMINAL[t.estado] || '';
+}
+
+function atualizarDetTerminal() {
+  const t = det.terminal;
+  detTerminal.hidden = !det.dados || !t || t.estado !== 'tmux' || !t.podeAbrir;
+  if (detTerminal.hidden) return;
+  const rotulo = 'Abrir terminal (' + t.rotulo + ')';
+  detTerminal.replaceChildren(icone('terminal'), el('span', null, 'Terminal'));
+  detTerminal.setAttribute('aria-label', rotulo);
+  detTerminal.title = rotulo;
+}
+
+async function buscarTerminal(geracao) {
+  try {
+    const r = await fetch('/api/session/' + encodeURIComponent(det.sessionId) + '/terminal', { cache: 'no-store' });
+    if (!r.ok) return; // 404 (recurso desligado), 401 etc.: sem localização
+    const t = await r.json();
+    if (geracao !== det.geracao || !t || typeof t.estado !== 'string') return;
+    det.terminal = {
+      estado: t.estado,
+      rotulo: typeof t.rotulo === 'string' ? t.rotulo : '',
+      podeAbrir: t.podeAbrir === true,
+    };
+    renderDetalhe();
+  } catch (e) {
+    // rede ou JSON inválido: o pop-up segue sem a localização
+  }
+}
+
+function mostrarAvisoTerminal(texto) {
+  clearTimeout(det.avisoTimer);
+  det.avisoTerminal = texto;
+  const geracao = det.geracao;
+  det.avisoTimer = setTimeout(() => {
+    if (geracao !== det.geracao) return;
+    det.avisoTerminal = '';
+    det.avisoTimer = null;
+    renderDetalhe();
+  }, AVISO_TERMINAL_MS);
+  renderDetalhe();
+}
+
+const RESPOSTA_ABRIR = {
+  409: 'Sessão encerrada',
+  429: 'Terminal aberto há pouco',
+  403: 'Este aparelho não pode abrir o terminal',
+};
+
+async function abrirTerminal() {
+  const t = det.terminal;
+  if (!t || !t.podeAbrir || detTerminal.disabled) return;
+  const geracao = det.geracao;
+  const rotulo = t.rotulo;
+  detTerminal.disabled = true;
+  let texto;
+  try {
+    const r = await fetch('/api/session/' + encodeURIComponent(det.sessionId) + '/terminal/abrir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+      cache: 'no-store',
+    });
+    texto = r.status === 204 ? 'Terminal aberto: ' + rotulo
+      : RESPOSTA_ABRIR[r.status] || 'Não consegui abrir o terminal';
+  } catch (e) {
+    texto = 'Não consegui abrir o terminal';
+  }
+  if (geracao !== det.geracao) return; // pop-up fechou ou trocou de sessão
+  detTerminal.disabled = false;
+  mostrarAvisoTerminal(texto);
+  detTerminal.focus();
 }
 
 /**
@@ -1990,6 +2092,7 @@ function openDetail(sessionId, agentId) {
   document.body.classList.add('modal-aberto');
   det.relogio = setInterval(tique, 1000);
   buscar(det.geracao);
+  buscarTerminal(det.geracao);
 }
 
 function fecharDetalhe() {
@@ -2006,6 +2109,8 @@ detOcultar.addEventListener('click', () => {
   if (ocultando) fecharDetalhe();
   else renderDetalhe();
 });
+// Abrir terminal não fecha o pop-up: o resultado aparece como aviso.
+detTerminal.addEventListener('click', abrirTerminal);
 // Silenciar não fecha o pop-up: o agente segue em aguardando na grade.
 detSilenciar.addEventListener('click', () => {
   const d = det.dados;
