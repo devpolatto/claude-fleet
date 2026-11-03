@@ -1,7 +1,7 @@
 # State
 
-**Last Updated:** 2026-10-20
-**Current Work:** fleet-mvp concluído (T1–T18; M1 entregue em 2026-10-15). Painel v2 no ar como serviço systemd na tailnet. Próximo: M2
+**Last Updated:** 2026-11-02
+**Current Work:** focar-terminal (AD-010) feito e em PR; falta sincronizar o Figma antes do merge
 
 ---
 
@@ -79,6 +79,14 @@
 **Alternative:** Hook mandar `$CLAUDE_CONFIG_DIR` (campo novo vindo do cliente, não cobre o Bootstrap); descobrir sozinho os `~/.claude*` (pega backups e diretórios abandonados).
 **Impact:** Pacote `internal/account`, flag `-account`, `Session.Account`, `install-hooks` respeita `CLAUDE_CONFIG_DIR`, `uso-plano` por conta. Spec em `features/multi-conta`.
 
+### AD-010: Uma ação sobre a máquina: abrir uma janela de terminal presa ao pane da sessão (2026-11-02)
+
+**Decision:** O painel ganha uma única ação sobre a máquina: abrir uma janela nova do Ptyxis presa ao pane do tmux de uma sessão, por um comando fixo (`systemd-run --user --quiet --collect --expand-environment=no ptyxis --new-window -T <título> -- tmux attach-session -t %N`), pedida do navegador da própria máquina ou de um aparelho listado em `-focus-from` (IP do Tailscale). O pane vem de `<CLAUDE_CONFIG_DIR>/sessions/<pid>.json`, conferido pelo `procStart` e pelo tty. Nunca envia tecla, nunca roda outro programa, nunca age na sessão do Claude.
+**Reason:** Chegar ao terminal da sessão que tocou o alerta, com a janela na frente de tudo, inclusive pedindo pelo celular de acompanhamento.
+**Trade-off:** Recurso opcional, ligado com `-terminal` (desligado, o pop-up fica como antes, para quem não usa tmux). Primeira exceção ao "somente leitura" da AD-003, limitada a dois comandos fixos (`tmux display-message` e o `systemd-run` acima), com lista fechada no `Runner`; cada clique abre uma janela que o usuário fecha com `prefix + d`; um aparelho listado e destravado pode abrir janelas no desktop. Só tmux (servidor padrão) e Ptyxis.
+**Alternative:** Só mostrar a localização (sem ação); trocar a sessão da última aba usada (`switch-client`, sem efeito quando a aba está escondida); liberar para qualquer aparelho com token; trazer a janela existente para a frente (inviável no Wayland sem extensão, L-010).
+**Impact:** Pacote `internal/terminal`, rotas `GET /api/session/{id}/terminal` e `POST .../terminal/abrir`, flag `-focus-from`, `BindPaths` na unit, ícone no pop-up. Spec em `features/focar-terminal`.
+
 ---
 
 ## Active Blockers
@@ -145,6 +153,20 @@ _Nenhum._
 **Solution:** No `SetUsage`, subagente ativo ou aguardando sem transcript em `subagents/` e sem eventos há mais de 2 min vira concluído, com o fim no último evento. Em 404 subagentes reais da máquina, o transcript apareceu em até 40 s depois da chamada do `Agent` (mediana 0,5 s, p99 25 s). A regra só vale com o transcript principal legível e o diretório `subagents/` listado sem erro (ausente conta como vazio). O id conta como presente mesmo se o arquivo dele falhar na leitura. A regra do `agents_killed` (L-007) roda antes, para o fim ficar no horário do Esc.
 **Prevents:** Mini-tile eterno para agente que o disco não conhece.
 
+### L-009: `PrivateTmp=yes` na unit de usuário põe o serviço num user namespace próprio
+
+**Context:** focar-terminal (2026-11-02): o serviço precisa do socket do tmux em `/tmp/tmux-<uid>/default` e de conferir o tty do processo do Claude.
+**Problem:** Sem privilégio, o gerenciador do usuário aplica o `PrivateTmp` criando um user namespace para o serviço (`/proc/<pid>/ns/user` diferente; o `ns/mnt` continua igual, e o `/tmp` de todos segue visível). Entre user namespaces, o kernel nega os acessos que pedem checagem de ptrace: `readlink /proc/<pid>/fd/0` do Claude dá "Permission denied", embora rode no mesmo usuário. O `/proc/<pid>/stat` continua legível. Nos testes fora do serviço tudo funcionava, e no serviço toda sessão virou "desconhecido".
+**Solution:** Conferir o tty pelo `tty_nr` (campo 7 do `stat`) contra o `st_rdev` do `pane_tty`, nunca por `/proc/<pid>/fd`. Manter `BindPaths=-/tmp/tmux-%U` na unit, para o socket continuar visível se o `/tmp` passar a ser isolado de fato. Reproduzir o ambiente com `systemd-run --user --pipe --wait -p PrivateTmp=yes …` antes de contar com algo do `/proc`.
+**Prevents:** Feature que passa nos testes e falha só no serviço; leitura de `/proc/<pid>/fd`, `environ`, `cwd` ou `exe` de outros processos a partir da unit.
+
+### L-010: No GNOME/Wayland, só janela nova vem para a frente
+
+**Context:** focar-terminal (2026-11-02), testes com Ptyxis 50 no GNOME/Wayland.
+**Problem:** Um processo em segundo plano não traz para a frente uma janela que já existe: `org.gtk.Application.Activate` pelo D-Bus só gera a notificação "Ptyxis está pronto". O `focus-tab-by-uuid` do Ptyxis não serve, porque o UUID da aba não é exposto (sem search provider, sem variável no ambiente da aba). Já uma janela nova, lançada por `systemd-run --user ptyxis --new-window`, aparece na frente do navegador.
+**Solution:** Abrir uma janela nova presa ao pane (`tmux attach-session -t %N`, que já seleciona janela e pane) em vez de focar a existente. O `systemd-run --user --collect` põe o Ptyxis numa unit própria: reiniciar o serviço não fecha os terminais.
+**Prevents:** Gastar tempo com `wmctrl`/`xdotool`/D-Bus para focar janela no Wayland; o único caminho seria uma extensão do GNOME Shell (ideia adiada).
+
 ---
 
 ## Resolved Blockers
@@ -185,6 +207,9 @@ _Nenhum._
 - [ ] Modelo do subagente no mini-tile da grade (exige `Models` no `AgentView` do SSE) — Captured during: modelo-subagente/spec (2026-10-20)
 - [ ] Silêncio com prazo (5 / 15 min) — Captured during: silenciar-agente/spec (2026-10-20)
 - [ ] Silenciar também o push de aguardando (exige estado no servidor e rota de escrita) — Captured during: silenciar-agente/spec (2026-10-20)
+- [x] Abrir o terminal da sessão a partir do card (beep → achar a aba certa) — Captured during: conversa de 2026-11-02 — feito em `features/focar-terminal` (AD-010): janela nova do Ptyxis presa ao pane do tmux, também pelo celular de `-focus-from`
+- [ ] Trazer para a frente a janela/aba que já mostra a sessão, sem abrir outra (extensão do GNOME Shell que acha a janela pelo título; troca de aba ainda dependeria do Ptyxis) — Captured during: focar-terminal (2026-11-02, L-010)
+- [ ] Abrir o terminal de sessão fora do tmux ou em outro emulador — Captured during: focar-terminal/spec (2026-11-02)
 
 ---
 
