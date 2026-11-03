@@ -112,6 +112,7 @@ type Server struct {
 	push     Push          // nil: push desligado, as rotas respondem 503
 	usage    Usage         // nil: /statusline descarta e /api/uso devolve []
 	accounts *account.List // nil: sem -account, tudo na conta ""
+	terminal terminalState // rotas do terminal (AD-010); desligadas sem SetTerminal
 	token    string
 	now      func() time.Time
 
@@ -165,6 +166,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /stream", s.auth(s.hub))
 	mux.Handle("GET /api/sessions", s.auth(http.HandlerFunc(s.handleSessions)))
 	mux.Handle("GET /api/session/{id}", s.auth(http.HandlerFunc(s.handleSession)))
+	mux.Handle("GET /api/session/{id}/terminal", s.auth(http.HandlerFunc(s.handleTerminal)))
+	mux.Handle("POST /api/session/{id}/terminal/abrir", s.auth(http.HandlerFunc(s.handleTerminalOpen)))
 	mux.Handle("GET /api/uso", s.auth(http.HandlerFunc(s.handleUso)))
 	mux.Handle("GET /api/push/key", s.auth(http.HandlerFunc(s.handlePushKey)))
 	mux.Handle("POST /api/push/subscription", s.auth(http.HandlerFunc(s.handlePushSubscribe)))
