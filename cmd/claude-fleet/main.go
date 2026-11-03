@@ -24,6 +24,7 @@ import (
 	"github.com/devpolatto/claude-fleet/internal/push"
 	"github.com/devpolatto/claude-fleet/internal/ratelimit"
 	"github.com/devpolatto/claude-fleet/internal/store"
+	"github.com/devpolatto/claude-fleet/internal/terminal"
 	"github.com/devpolatto/claude-fleet/internal/web"
 )
 
@@ -41,6 +42,9 @@ type config struct {
 	TLSCert, TLSKey string
 	// StateDir guarda a chave VAPID, as inscrições de push e o uso do plano.
 	StateDir string
+	// FocusFrom são os IPs, além da própria máquina, que podem pedir para
+	// abrir o terminal de uma sessão (-focus-from, AD-010).
+	FocusFrom []netip.Addr
 }
 
 const (
@@ -107,6 +111,8 @@ func run(ctx context.Context, cfg config) error {
 	hub := web.NewHub(st, web.WithUsage(usage))
 	server := web.NewServer(st, hub, cfg.Token)
 	server.SetUsage(usage, cfg.Accounts)
+	server.SetTerminal(cfg.FocusFrom, terminal.New())
+	log.Printf("claude-fleet: terminal liberado para: %s", focusFromLog(cfg.FocusFrom))
 
 	var wg sync.WaitGroup
 	// Sem o diretório de estado, só o push fica desligado; o painel sobe.
@@ -291,6 +297,14 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 	})
 	fs.StringVar(&cfg.TLSCert, "tls-cert", "", "certificado TLS (PEM); liga HTTPS no endereço da tailnet, junto com -tls-key")
 	fs.StringVar(&cfg.TLSKey, "tls-key", "", "chave do certificado TLS (PEM)")
+	fs.Func("focus-from", "IPs (separados por vírgula) que, além da própria máquina, podem abrir o terminal de uma sessão; repetível", func(v string) error {
+		ips, err := parseFocusFrom(v)
+		if err != nil {
+			return err
+		}
+		cfg.FocusFrom = append(cfg.FocusFrom, ips...)
+		return nil
+	})
 	fs.StringVar(&cfg.StateDir, "state-dir", "", "diretório da chave VAPID, das inscrições de push e do uso do plano (padrão: ~/.config/claude-fleet)")
 	if err := fs.Parse(args); err != nil {
 		return config{}, err
@@ -328,6 +342,33 @@ func parseConfig(args []string, getenv func(string) string, out io.Writer) (conf
 		return config{}, err
 	}
 	return cfg, nil
+}
+
+// parseFocusFrom lê uma lista de IPs separada por vírgula. Nome, faixa CIDR
+// ou item vazio são recusados: a lista é de aparelhos, endereço a endereço.
+func parseFocusFrom(v string) ([]netip.Addr, error) {
+	var out []netip.Addr
+	for _, item := range strings.Split(v, ",") {
+		item = strings.TrimSpace(item)
+		ip, err := netip.ParseAddr(item)
+		if err != nil || ip.Zone() != "" {
+			return nil, fmt.Errorf("IP inválido %q (use endereços como 100.64.0.7, sem faixa nem nome)", item)
+		}
+		out = append(out, ip.Unmap())
+	}
+	return out, nil
+}
+
+// focusFromLog descreve quem pode abrir o terminal, para o log de início.
+func focusFromLog(ips []netip.Addr) string {
+	if len(ips) == 0 {
+		return "só a própria máquina"
+	}
+	parts := make([]string, len(ips))
+	for i, ip := range ips {
+		parts[i] = ip.String()
+	}
+	return "a própria máquina e " + strings.Join(parts, ", ")
 }
 
 // validateTLS exige -tls-cert e -tls-key juntos e só aceita TLS num IP

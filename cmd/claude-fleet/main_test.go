@@ -9,9 +9,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -393,5 +395,42 @@ func TestProjectDirsPorConta(t *testing.T) {
 				t.Errorf("projectDirs = %v, queria %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFocusFromAceitaListaERepeticao(t *testing.T) {
+	cfg, err := parseConfig([]string{
+		"-focus-from", "100.64.0.7, fd7a:115c:a1e0::7",
+		"-focus-from", "::ffff:100.64.0.8",
+	}, env(map[string]string{"HOME": "/home/x"}), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []netip.Addr{
+		netip.MustParseAddr("100.64.0.7"),
+		netip.MustParseAddr("fd7a:115c:a1e0::7"),
+		netip.MustParseAddr("100.64.0.8"),
+	}
+	if !slices.Equal(cfg.FocusFrom, want) {
+		t.Errorf("FocusFrom = %v, quer %v", cfg.FocusFrom, want)
+	}
+	if got := focusFromLog(cfg.FocusFrom); got != "a própria máquina e 100.64.0.7, fd7a:115c:a1e0::7, 100.64.0.8" {
+		t.Errorf("focusFromLog = %q", got)
+	}
+	if got := focusFromLog(nil); got != "só a própria máquina" {
+		t.Errorf("focusFromLog(nil) = %q", got)
+	}
+}
+
+func TestFocusFromRecusaEntradaInvalida(t *testing.T) {
+	for _, v := range []string{"celular.tailnet.ts.net", "100.64.0.0/10", "", "100.64.0.7,", "fe80::1%eth0"} {
+		_, err := parseConfig([]string{"-focus-from", v}, env(map[string]string{"HOME": "/home/x"}), io.Discard)
+		if err == nil {
+			t.Errorf("-focus-from %q aceito, quer erro", v)
+			continue
+		}
+		if v != "" && !strings.Contains(err.Error(), "IP inválido") {
+			t.Errorf("-focus-from %q: erro = %v, quer citar a entrada", v, err)
+		}
 	}
 }
