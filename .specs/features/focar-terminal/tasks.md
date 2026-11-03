@@ -102,7 +102,7 @@ T5 ─────────────────→ T14
 
 ### T3: `Runner` com lista fechada [P]
 
-**What**: Interface `Runner` (`Run(ctx, name string, args ...string) (string, error)`) e o `execRunner` real, que só executa `tmux display-message …` e `systemd-run --user --quiet --collect ptyxis --new-window -T <título> -- tmux attach-session -t %N …` na forma exata do design; qualquer outra chamada devolve erro sem executar.
+**What**: Interface `Runner` (`Run(ctx, name string, args ...string) (string, error)`) e o `execRunner` real, que só executa `tmux display-message …` e `systemd-run --user --quiet --collect --expand-environment=no ptyxis --new-window -T <título> -- tmux attach-session -t %N …` na forma exata do design; qualquer outra chamada devolve erro sem executar.
 **Where**: `internal/terminal/exec.go`, `internal/terminal/exec_test.go`
 **Depends on**: None
 **Reuses**: nada (pacote novo, folha, só stdlib)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -185,7 +186,7 @@ func TestOpenMontaComandoFixo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"systemd-run", "--user", "--quiet", "--collect", "ptyxis", "--new-window",
+	want := []string{"systemd-run", "--user", "--quiet", "--collect", "--expand-environment=no", "ptyxis", "--new-window",
 		"-T", "claude-fleet · tmux dev:1.0", "--", "tmux", "attach-session", "-t", "%11"}
 	if len(run.calls) != 1 || !reflect.DeepEqual(run.calls[0], want) {
 		t.Fatalf("chamadas = %q, quer %q", run.calls, want)
@@ -204,6 +205,31 @@ func TestOpenRecusaForaDoTmux(t *testing.T) {
 		run := &fakeRunner{}
 		if err := (&Terminal{run: run}).Open(context.Background(), loc); err == nil || len(run.calls) != 0 {
 			t.Errorf("Open(%+v): err = %v, chamadas = %d; quer erro sem chamar nada", loc, err, len(run.calls))
+		}
+	}
+}
+
+// Nome de sessão longo, com caracteres de vários bytes ou com "$", ainda gera
+// um comando que a lista fechada aceita (e o systemd não expande o "$").
+func TestOpenTituloDeNomeLongoOuComCifrao(t *testing.T) {
+	for _, nome := range []string{strings.Repeat("界", 200), strings.Repeat("🙂", 100), "x${HOME}$$"} {
+		cfg, proc := setup(t)
+		procFake(t, proc, "4242", "2670278", "/dev/pts/13")
+		run := &fakeRunner{out: nome + "\t1\t0\t/dev/pts/13\n"}
+		term := &Terminal{run: run, proc: proc}
+		loc := term.Locate(context.Background(), cfg, sessTmux)
+		if loc.Estado != EstadoTmux {
+			t.Fatalf("%q: Estado = %q", nome, loc.Estado)
+		}
+		if err := term.Open(context.Background(), loc); err != nil {
+			t.Fatal(err)
+		}
+		call := run.calls[len(run.calls)-1]
+		if err := allowed(call[0], call[1:]); err != nil {
+			t.Errorf("%q: título recusado pela lista fechada: %v", nome, err)
+		}
+		if !slices.Contains(call, "--expand-environment=no") {
+			t.Errorf("%q: falta --expand-environment=no", nome)
 		}
 	}
 }
@@ -233,10 +259,11 @@ func TestRunnerRecusaComandoForaDaLista(t *testing.T) {
 		{"display-message com outro formato", "tmux", []string{"display-message", "-p", "-t", "%11", "#(id)"}},
 		{"display-message com alvo inválido", "tmux", locateArgs("%11;x")},
 		{"shell", "sh", []string{"-c", "id"}},
-		{"systemd-run de outro programa", "systemd-run", mut(3, "xterm")},
-		{"systemd-run com outro comando tmux", "systemd-run", mut(10, "kill-server")},
-		{"systemd-run com pane inválido", "systemd-run", mut(11, "=sessao")},
-		{"título com controle", "systemd-run", mut(6, "a\nb")},
+		{"systemd-run de outro programa", "systemd-run", mut(4, "xterm")},
+		{"systemd-run com expansão de ambiente", "systemd-run", mut(3, "--expand-environment=yes")},
+		{"systemd-run com outro comando tmux", "systemd-run", mut(11, "kill-server")},
+		{"systemd-run com pane inválido", "systemd-run", mut(12, "=sessao")},
+		{"título com controle", "systemd-run", mut(7, "a\nb")},
 		{"systemd-run com argumento a mais", "systemd-run", append(append([]string(nil), open...), ";", "kill-server")},
 	}
 	for _, tt := range tests {

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Runner executa um programa e devolve a saída padrão. Existe para os testes
@@ -37,10 +38,12 @@ func locateArgs(pane string) []string {
 
 // openArgs monta o systemd-run que abre uma janela nova do Ptyxis presa ao
 // pane. O attach-session com um ID de pane já seleciona a janela e o pane
-// (verificado no tmux 3.6). Não há shell em nenhum ponto.
+// (verificado no tmux 3.6). Não há shell em nenhum ponto, e o
+// --expand-environment=no impede o systemd de expandir ${VAR} vindo do nome
+// da sessão no título (o padrão é expandir, como no ExecStart=).
 func openArgs(title, pane string) []string {
 	return []string{
-		"--user", "--quiet", "--collect",
+		"--user", "--quiet", "--collect", "--expand-environment=no",
 		"ptyxis", "--new-window", "-T", title,
 		"--", "tmux", "attach-session", "-t", pane,
 	}
@@ -57,10 +60,10 @@ func allowed(name string, args []string) error {
 		}
 		want = locateArgs(args[3])
 	case "systemd-run":
-		if len(args) != 12 || !paneRe.MatchString(args[11]) || !cleanTitle(args[6]) {
+		if len(args) != 13 || !paneRe.MatchString(args[12]) || !cleanTitle(args[7]) {
 			return ErrNotAllowed
 		}
-		want = openArgs(args[6], args[11])
+		want = openArgs(args[7], args[12])
 	default:
 		return ErrNotAllowed
 	}
@@ -72,8 +75,12 @@ func allowed(name string, args []string) error {
 	return nil
 }
 
+// maxTitleRunes cabe o prefixo, o nome da sessão (até maxRotuloRunes) e
+// janela.pane.
+const maxTitleRunes = 128
+
 func cleanTitle(s string) bool {
-	if s == "" || len(s) > 200 {
+	if s == "" || utf8.RuneCountInString(s) > maxTitleRunes {
 		return false
 	}
 	return strings.IndexFunc(s, unicode.IsControl) < 0
