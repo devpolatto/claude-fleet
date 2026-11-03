@@ -1,7 +1,7 @@
 # State
 
 **Last Updated:** 2026-11-02
-**Current Work:** focar-terminal (AD-010) na branch `feat/focar-terminal`: abrir pelo pop-up uma janela de terminal presa ao pane do tmux da sessão
+**Current Work:** focar-terminal (AD-010) feito e em PR; falta sincronizar o Figma antes do merge
 
 ---
 

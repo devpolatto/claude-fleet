@@ -1,7 +1,7 @@
 # focar-terminal Tasks
 
 **Design**: `.specs/features/focar-terminal/design.md`
-**Status**: In Progress (2026-11-02)
+**Status**: Done (2026-11-02)
 
 **Gates** (comandos do `CLAUDE.md`; não há `.specs/codebase/TESTING.md`):
 
