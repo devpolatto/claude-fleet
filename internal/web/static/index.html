@@ -328,7 +328,7 @@
     text-transform: uppercase;
     cursor: pointer;
   }
-  button.ocultas[aria-pressed="true"] { border-color: var(--border-forte); color: var(--text); }
+  button.ocultas[aria-pressed="true"] { border-color: var(--acento); color: var(--text); }
   button.ocultas:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 
   /* ---------- Duas telas: sessões e uso do plano ----------
@@ -600,8 +600,10 @@
   .tile.s-aguardando .indice, .tile.sub-aguardando .indice { color: var(--aguardando); }
   /* Marcas (oculta, alerta silenciado): lado a lado, nunca uma sobre a outra. */
   .tile .marcas { display: inline-flex; align-items: center; gap: 4px; }
-  .tile .marca-oculta { display: inline-flex; color: var(--faint); }
-  .tile .marca-silenciada { display: inline-flex; color: var(--muted); }
+  /* Olho cortado no canto inferior direito (o índice ocupa o de cima). */
+  .tile .marca-oculta { position: absolute; right: var(--pad); bottom: var(--pad); display: inline-flex; color: var(--muted); }
+  .tile.oculta > :last-child { padding-right: 18px; }
+  .tile .marca-silenciada { display: inline-flex; color: var(--aguardando); }
 
   .tile .nome {
     font-weight: 500;
@@ -787,8 +789,14 @@
     box-shadow: 0 0 6px var(--aguardando-borda);
   }
   .sub.s-concluido { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+  /* Mini-tile silenciado: a marca âmbar vai ao lado, sem quebrar de linha. */
+  .sub-par { min-width: 0; max-width: 100%; display: inline-flex; align-items: center; gap: 4px; }
+  .sub-par .marca-silenciada { flex: none; display: inline-flex; color: var(--aguardando); }
 
-  /* ---------- Pop-up de detalhes ---------- */
+  /* ---------- Pop-up de detalhes ----------
+     Painel central de 520 px (folha no celular) com borda forte, halo e
+     cantoneiras brancas; overflow visível para as cantoneiras e o halo
+     saírem da caixa (quem rola é o .det-corpo). */
   #detalhe {
     width: min(520px, calc(100vw - 32px));
     max-height: calc(100dvh - 48px);
@@ -1350,9 +1358,14 @@ function miniTile(a, sessaoId) {
   const mudo = silenciados.has(sessaoId + '/' + a.ID);
   if (mudo) mini.title += ' · alerta silenciado';
   if (st === 'aguardando') mini.append(icone('alerta', 10));
-  if (mudo) mini.append(icone('somDesligado', 10));
   mini.append(el('span', 'tipo', rotulo));
-  return mini;
+  if (!mudo) return mini;
+  // Silenciado: alto-falante cortado em âmbar ao lado do mini-tile.
+  const par = el('span', 'sub-par');
+  const marca = el('span', 'marca-silenciada');
+  marca.append(icone('somDesligado', 12));
+  par.append(mini, marca);
+  return par;
 }
 
 function montarTile(s, oculta, indice) {

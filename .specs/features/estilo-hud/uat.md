@@ -33,3 +33,31 @@ Legenda: ✅ verificado · ⚠️ desvio
 ## Figma
 
 Página "Página principal — estilo HUD": [celular 56-466](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2?node-id=56-466) e [desktop 56-777](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2?node-id=56-777). `--faint` corrigido nas coleções "proposta-hud · :root" e "claude-fleet · :root" (esta agora espelha o `:root` novo), estilos `hud/rotulo` e `hud/status` em 10 px, aba inativa em `--muted`.
+
+---
+
+# Segunda etapa — pop-up, uso do plano e estados
+
+**Data:** 2026-11-12 · **Base:** `feat/ui-hud` sobre `4c50722` · **Navegador:** Chromium headless shell (Playwright)
+**Referência visual:** arquivo Penpot local "claude-fleet — painel v2" (páginas `HUD · Detalhes`, `HUD · Uso do plano`, `HUD · Estados` e `Biblioteca`), exportado em PNG e comparado lado a lado. O Figma **não** foi atualizado nesta etapa: o desenho dela vive no Penpot.
+**Ambiente:** servidor em `127.0.0.1:7841` com `-state-dir` vazio e duas contas sintéticas (`-account pessoal=… -account trabalho=…`, diretórios vazios); um segundo servidor em `127.0.0.1:7842` com `-projects` vazio para o caso de uma conta. Sete sessões fictícias por `POST /event` (payloads de `internal/ingest/testdata/`), transcripts sintéticos só com `usage` e uso do plano por `POST /statusline` (ok 42 %/24 %; crítico 97 %, alerta 85 % e janelas reiniciadas). Nenhum dado real. Larguras: desktop 1280, celular 390 vertical e 844×390 horizontal.
+
+| Caso | Esperado | Resultado |
+| --- | --- | --- |
+| Folha/painel (HUD-10) | painel de 520 px no desktop e folha no celular, borda `--border-forte`, halo leve, cantoneiras brancas de 14 px com brilho (`.cantos`); no celular as cantoneiras não saem da tela | ✅ |
+| Cabeçalho do pop-up (HUD-11) | status e "▲ N subagente aguardando" empilhados à esquerda, ações à direita; título 20 px/600 em largura total; meta = chip de conta reto · projeto · ID curto (faint) · local do tmux | ✅ |
+| Ações (HUD-11) | Terminal, Silenciar, Ocultar e Fechar retos de 32 px, ícone 14 px `--muted` e rótulo em maiúsculas; "Reativar som" em âmbar; terminal desabilitado a 60 %; abaixo de 600 px Silenciar e Terminal só com ícone | ✅ (terminal forçado no console: sem tmux no ambiente de teste, `det.terminal` preenchido à mão e `renderDetalhe()`) |
+| Custo, dados, tabelas (HUD-12) | custo com borda forte e halo, número leve de 28 px; dados em 2×2 nas três larguras, sem cantoneiras, "tempo de vida" com quadrado `--ativo`; tabelas em caixa com cabeçalho em rótulo e linha do subagente em aguardando em âmbar | ✅ |
+| Subagentes e avisos (HUD-13) | cartão em aguardando com fundo/borda/cantoneiras âmbar e botão de silenciar 28 px após o status; ativo e concluído só com a borda, concluído a 70 %; "EM FOCO" na linha do tipo; aviso de terminal em faixa âmbar com triângulo | ✅ |
+| Uso do plano (HUD-14) | título em rótulo; cartão por conta com chip, "ATUALIZADO …", borda forte, halo e cantoneiras brancas; medidor com número leve na cor do estado, trilho de 4 px e barra com brilho; "reiniciada · aguardando dado novo" em `--faint`; tabela na largura do cartão; uma conta = 720 px com sessão e semana lado a lado; celular deitado = cartões lado a lado | ✅ |
+| Estados (HUD-15) | botões do cabeçalho já seguiam os 6 estados; tile oculto 55 %, tracejado, olho cortado no canto inferior direito; chip de ocultas ligado com contorno `--acento`; alto-falante cortado em âmbar ao lado da etiqueta do tile e do mini-tile | ✅ |
+| Texto e layout | menor fonte renderizada 10 px; `scrollWidth` igual à largura em 1280, 390 e 844×390; nenhum erro de JS | ✅ |
+| Checks | `gofmt -l .` vazio, `go vet`, `go test -race` | ✅ |
+
+## Desvios (segunda etapa)
+
+- ⚠️ MODELOS segue como tabela (modelo, tokens, custo, acerto de cache), não como chips: os chips do Penpot perderiam custo e cache por modelo. A tabela ganhou o mesmo desenho da de tokens.
+- ⚠️ No cartão de subagente, as linhas de meta seguem VIDA · TOKENS · ÚLTIMA e a lista de modelos com custo; o "MODELO haiku-5-5 +1" do Penpot não foi copiado para não duplicar a lista.
+- ⚠️ Âmbar na tabela e no cartão marca o subagente **em aguardando**; o "em foco" (aberto pelo mini-tile) ganhou só o chip "EM FOCO", borda `--border-forte` e fundo `--surface-2` na linha da tabela, para o âmbar não aparecer num subagente ativo.
+- ⚠️ Folha do celular com cantos retos (`--raio`), sem o raio de 20 px de antes.
+- ⚠️ Tokens novos: `--canto-brilho` (`--text` a 55 %) e `--halo-leve` (`--text` a 6 %); `--uso-barra-h` passou de 10 px para 4 px.
