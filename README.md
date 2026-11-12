@@ -4,16 +4,18 @@
 
 <h1 align="center">claude-fleet</h1>
 
-Painel web, feito para o celular, que mostra ao vivo as sessões do Claude Code rodando nesta máquina e os subagentes de cada uma. Cada sessão é um quadradinho que pulsa enquanto trabalha e fica amarelo quando espera permissão. Um toque abre os detalhes: tempo de vida, tokens por categoria e custo estimado.
+Painel web, feito para o celular, que mostra ao vivo as sessões do Claude Code rodando nesta máquina e os subagentes de cada uma. O visual é de painel de comando (“HUD”): fundo quase preto com grade, tipografia mono, números grandes e cantoneiras nas pontas dos cartões. Cada sessão é um tile que pulsa em verde-água enquanto trabalha e vira um bloco âmbar quando espera permissão. Um toque abre os detalhes: tempo de vida, tokens por agente, subagentes e custo estimado; a segunda tela mostra o uso do plano (janela de 5 h e semana).
 
 <p align="center">
-  <img src="docs/img/painel-celular.png" width="300" alt="Painel no celular: grade de sessões, uma aguardando permissão e outra com subagente aguardando (as duas destacadas em amarelo), sessões ativas, uma parada, uma desconhecida e uma encerrada">
-  &nbsp;&nbsp;
-  <img src="docs/img/painel-detalhes.png" width="300" alt="Detalhes de uma sessão no celular: status, diretório, custo estimado, tempo de vida, modelos usados e tokens por agente">
+  <img src="docs/img/painel-celular.png" width="260" alt="Painel no celular, no estilo HUD: cabeçalho com SESSÕES 07, AGUARDANDO 02 e filtro de conta; grade de tiles com uma sessão aguardando permissão em bloco âmbar, outra com subagente aguardando, duas ativas com cantoneiras verde-água, paradas e uma encerrada esmaecida">
+  &nbsp;
+  <img src="docs/img/painel-detalhes.png" width="260" alt="Detalhes de uma sessão no celular: folha com cantoneiras brancas, status ativo com um subagente aguardando, chip da conta, diretório, custo estimado em destaque, início, tempo de vida, última atividade, última ferramenta e a tabela de modelos com tokens, custo e cache">
+  &nbsp;
+  <img src="docs/img/painel-uso.png" width="260" alt="Uso do plano no celular: um cartão por conta, com cantoneiras brancas, medidores da sessão de 5 h e da semana (um em âmbar acima de 80 %) e a tabela de tokens e custo das janelas">
 </p>
 
 <p align="center">
-  <img src="docs/img/painel-desktop.png" alt="Painel no desktop: a mesma grade de sessões com o cabeçalho mostrando contadores, notificação, som e o indicador ao vivo">
+  <img src="docs/img/painel-desktop.png" alt="Painel no desktop: a mesma grade de sessões em tiles de 200 px sobre o fundo com grade e miras, com o cabeçalho de contadores, o botão de som e o indicador ao vivo, e as abas SESSÕES e USO no rodapé">
 </p>
 
 <p align="center"><sub>Telas do painel com dados fictícios.</sub></p>
@@ -178,7 +180,7 @@ Com o painel em HTTPS, o sino do cabeçalho (ao lado do botão de som) liga as n
 
 ### Abrir o terminal da sessão
 
-Recurso opcional, ligado com `-terminal` (sem a flag, o pop-up não mostra nada disso; bom para quem não usa tmux). Quando uma sessão roda dentro do **tmux**, o pop-up dela mostra onde (`tmux 6:1.0`: sessão 6, janela 1, pane 0) e, no aparelho autorizado, um ícone de terminal. O clique abre uma **janela nova do Ptyxis**, na frente dos outros programas, já presa àquele pane (`tmux attach-session`). Fechar a janela com `prefix + d` desanexa e mantém a sessão. Fora do tmux, o pop-up diz "fora do tmux" e não mostra o ícone.
+Recurso opcional, ligado com `-terminal` (sem a flag, o pop-up não mostra nada disso; bom para quem não usa tmux). Quando uma sessão roda dentro do **tmux**, o pop-up dela mostra onde (`tmux 6:1.0`: sessão 6, janela 1, pane 0) e, no aparelho autorizado, o botão **Terminal** ao lado de Ocultar (no celular, só o ícone). O clique abre uma **janela nova do Ptyxis**, na frente dos outros programas, já presa àquele pane (`tmux attach-session`). Fechar a janela com `prefix + d` desanexa e mantém a sessão. Fora do tmux, o pop-up diz "fora do tmux" e não mostra o botão.
 
 - Por padrão só o navegador da própria máquina vê o ícone. Para liberar o celular de acompanhamento, passe o IP do Tailscale dele (`tailscale status`) em `-focus-from`, por exemplo `CLAUDE_FLEET_ARGS=-terminal -focus-from 100.64.0.7`. Os demais aparelhos com token veem só a localização.
 - É a única ação do painel sobre a máquina (AD-010): dois comandos fixos, `tmux display-message` e `systemd-run --user ptyxis --new-window -- tmux attach-session -t %N`. Nenhuma tecla é enviada à sessão.
@@ -242,11 +244,11 @@ go vet ./... && go test -race ./...   # Go
 bash hook/test.sh                     # hook: ligado, desligado, mudo, porta inválida, stdin vazio
 ```
 
-O planejamento está em [`.specs/`](.specs/): visão em `project/PROJECT.md`, decisões em `project/STATE.md` e spec, design e tasks em `features/fleet-mvp/`.
+O planejamento está em [`.specs/`](.specs/): visão em `project/PROJECT.md`, decisões em `project/STATE.md` e uma pasta por feature em `features/` (spec, design, tasks e UAT; o estilo visual atual em `features/estilo-hud/`).
 
 A skill de planejamento usada nesse fluxo, `tlc-spec-driven`, vem junto em [`.claude/skills/`](.claude/skills/tlc-spec-driven/) e é carregada pelo Claude Code ao abrir o projeto.
 
-O protótipo da interface fica no [Figma](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2) e acompanha o código: mudança visual atualiza também o Figma (detalhes no [`CLAUDE.md`](CLAUDE.md)).
+O protótipo da interface fica num arquivo do Penpot mantido pelo mantenedor (componentes `hud/*`, paleta com os mesmos nomes dos tokens de `:root`) e acompanha o código: mudança visual atualiza também o Penpot, e quem não tem acesso descreve a mudança no PR com screenshot (detalhes no [`CLAUDE.md`](CLAUDE.md) e na AD-011). O [Figma](https://www.figma.com/design/tVFsjlauIBbPrj2HSXNron/claude-fleet-%E2%80%94-painel-v2) anterior ficou como histórico.
 
 ## Licença
 
