@@ -1050,8 +1050,8 @@
     :root { --tile-w: 200px; --gap: 14px; }
     .tela { padding-top: 32px; }
     header { padding: 20px 32px 16px; gap: 16px 12px; }
-    .leitura { flex: 0 0 auto; min-width: 180px; padding-left: 12px; }
-    .leitura:first-child { min-width: 180px; }
+    /* Base de 180 px, mas encolhe entre 600 e ~700 px; o select de conta corta com reticências. */
+    .leitura { flex: 0 1 180px; min-width: 0; padding-left: 12px; }
   }
 
   /* Celular: o pop-up vira uma folha que sobe do rodapé e rola por dentro. */

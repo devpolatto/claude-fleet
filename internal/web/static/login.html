@@ -21,6 +21,8 @@
     --muted: #7c8596;
     --ativo: #2ee6b6;
     --aguardando: #ff9a2e;
+    --parado: #7c8596;
+    --desconhecido: #9aa2b0;
   }
   * { box-sizing: border-box; }
   body {
@@ -76,10 +78,10 @@
 <form method="post" action="/login">
   <div class="marca">
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-      <rect x="1" y="1" width="9" height="9" rx="2.5" fill="#2ee6b6"/>
-      <rect x="12" y="1" width="9" height="9" rx="2.5" fill="#ff9a2e"/>
-      <rect x="1" y="12" width="9" height="9" rx="2.5" fill="#7c8596"/>
-      <rect x="12.75" y="12.75" width="7.5" height="7.5" rx="2" fill="none" stroke="#9aa2b0" stroke-width="1.5" stroke-dasharray="2 2"/>
+      <rect x="1" y="1" width="9" height="9" rx="2.5" style="fill: var(--ativo)"/>
+      <rect x="12" y="1" width="9" height="9" rx="2.5" style="fill: var(--aguardando)"/>
+      <rect x="1" y="12" width="9" height="9" rx="2.5" style="fill: var(--parado)"/>
+      <rect x="12.75" y="12.75" width="7.5" height="7.5" rx="2" fill="none" style="stroke: var(--desconhecido)" stroke-width="1.5" stroke-dasharray="2 2"/>
     </svg>
     <h1>Claude Fleet</h1>
   </div>
