@@ -4,33 +4,55 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#07090e">
 <title>Claude Fleet</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
-  /* Tema escuro por padrão: a página é feita para olhar no celular. */
+  /* Tema escuro por padrão: a página é feita para olhar no celular.
+     Estilo HUD (estilo-hud): fundo quase preto com grade, mono, cantos retos,
+     brilho só no acento de ativo/aguardando. Contraste sobre --bg: --text 15:1,
+     --muted 5,4:1, --faint 3,7:1 (o tema anterior tinha 3,3:1). */
   :root {
     color-scheme: dark;
-    --bg: #0b0d12;
-    --surface: #141821;
-    --surface-2: #1b202b;
-    --border: #262c38;
-    --text: #e9ecf2;
-    --muted: #8e97a8;
-    --faint: #5d6576;
-    --ativo: #34d399;
-    --ativo-glow: rgba(52, 211, 153, .5);
-    --aguardando: #fbbf24;
-    --aguardando-bg: #221a05;
-    --aguardando-glow: rgba(251, 191, 36, .28);
-    --parado: #8b93a1;
-    --desconhecido: #a0a7b4;
-    --concluido: #7c8798;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --tile-w: 160px;
+    --bg: #07090e;
+    --grade: #121826;          /* linhas finas do fundo */
+    --surface: #0b0e15;
+    --surface-2: #111621;
+    --border: #1d2431;
+    --border-forte: #2e3848;   /* cantoneiras e miras */
+    --text: #dce1e8;
+    --muted: #7c8596;
+    --faint: #626a7c;
+    --acento: #5cc8e6;         /* acento de interface (aba atual) */
+    --ativo: #2ee6b6;
+    --ativo-fundo: rgba(46, 230, 182, .08);
+    --ativo-borda: rgba(46, 230, 182, .38);
+    --ativo-glow: rgba(46, 230, 182, .5);
+    --ativo-halo: rgba(46, 230, 182, .12);
+    --ativo-anel: rgba(46, 230, 182, .25);
+    --ativo-zero: rgba(46, 230, 182, 0);
+    --aguardando: #ff9a2e;
+    --aguardando-bg: #1a1007;
+    --aguardando-fundo: rgba(255, 154, 46, .12);
+    --aguardando-borda: rgba(255, 154, 46, .5);
+    --aguardando-glow: rgba(255, 154, 46, .28);
+    --aguardando-halo: rgba(255, 154, 46, .18);
+    --parado: #7c8596;
+    --desconhecido: #9aa2b0;
+    --desconhecido-borda: rgba(154, 162, 176, .55);
+    --concluido: #677184;
+    --critico: #ff3b4e;
+    --cabecalho-bg: rgba(7, 9, 14, .94);
+    --backdrop: rgba(3, 4, 7, .76);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Roboto Mono", monospace;
+    --raio: 2px;
+    --gap: 8px;
+    --pad: 12px;
+    --tile-w: 175px;
     --toque-min: 28px;   /* menor alvo de toque (botão de silenciar subagente) */
+    --texto-min: 10px;   /* menor corpo de texto da página */
     /* Conta do Claude Code (chip no pop-up e no filtro): fundo escuro + texto claro do mesmo
        tom, contraste AA (>= 7:1). A cor sai de hash(nome) % 4 + 1. */
     --conta-1: #1c2a4d;
@@ -46,55 +68,108 @@
     /* Troca entre a tela de sessões e a de uso do plano. */
     --tela-transicao: .25s;
     /* Medidores do uso do plano: trilho, e o preenchimento muda de tom em 80% e 95%.
-       --uso-critico mede 6,4:1 sobre --surface (AA para texto). */
+       --uso-critico (--critico) mede 5,5:1 sobre --surface (AA para texto). */
     --uso-trilho: var(--border);
     --uso-ok: var(--ativo);
     --uso-alerta: var(--aguardando);
-    --uso-critico: #f87171;
-    --uso-barra-h: 10px;
+    --uso-critico: var(--critico);
+    --uso-barra-h: 4px;
+    /* Cantoneiras brancas e halo leve (pop-up e cartões de uso): --text a 55 % e 6 %. */
+    --canto-brilho: rgba(220, 225, 232, .55);
+    --halo-leve: rgba(220, 225, 232, .06);
   }
 
   * { box-sizing: border-box; }
 
   html, body { margin: 0; }
 
+  /* Fundo: grade de 24 px em gradientes; as miras ficam no body::before. */
   body {
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    background: var(--bg);
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(to right, var(--grade) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grade) 1px, transparent 1px);
+    background-size: 24px 24px;
     color: var(--text);
     font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-text-size-adjust: 100%;
     overflow-x: hidden;
   }
+  /* Miras: uma cruz de 12 px a cada 192 px. Linhas que cruzam a tela,
+     recortadas por uma máscara de quadrados de 12 px nos cruzamentos. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, transparent 95.5px, var(--border-forte) 95.5px, var(--border-forte) 96.5px, transparent 96.5px),
+      linear-gradient(to bottom, transparent 143.5px, var(--border-forte) 143.5px, var(--border-forte) 144.5px, transparent 144.5px);
+    background-size: 192px 192px;
+    -webkit-mask-image:
+      repeating-linear-gradient(to right, transparent 0 90px, var(--bg) 90px 102px, transparent 102px 192px),
+      repeating-linear-gradient(to bottom, transparent 0 138px, var(--bg) 138px 150px, transparent 150px 192px);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      repeating-linear-gradient(to right, transparent 0 90px, var(--bg) 90px 102px, transparent 102px 192px),
+      repeating-linear-gradient(to bottom, transparent 0 138px, var(--bg) 138px 150px, transparent 150px 192px);
+    mask-composite: intersect;
+  }
 
   .mono { font-family: var(--mono); }
   .num { font-variant-numeric: tabular-nums; }
 
-  /* ---------- Cabeçalho ---------- */
+  /* ---------- Cabeçalho ----------
+     Três linhas: marca e botões; leituras (sessões, aguardando, conta);
+     régua da grade com o chip de ocultas. */
   header {
     position: sticky;
     top: 0;
     z-index: 1;
-    background: rgba(11, 13, 18, .92);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
+    background: var(--cabecalho-bg);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     border-bottom: 1px solid var(--border);
     padding: 16px 16px 14px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto auto;
-    grid-template-areas: "marca push som vivo" "contador contador contador contador";
+    grid-template-areas: "marca push som vivo" "contador contador contador contador" "regua regua regua regua";
     align-items: center;
-    gap: 12px;
+    gap: 16px 10px;
+    font-family: var(--mono);
     transition: background-color .3s;
   }
-  header.reconectando { background: rgba(26, 21, 5, .95); }
+  header.reconectando { background: var(--aguardando-bg); }
 
   .marca { grid-area: marca; display: flex; align-items: center; gap: 10px; min-width: 0; }
   .marca svg { flex: none; }
-  h1 { font-size: 17px; margin: 0; font-weight: 700; white-space: nowrap; }
+  h1 {
+    margin: 0;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Rótulo pequeno em maiúsculas (leituras, régua, nota, abas). */
+  .rotulo-hud, .leitura .rot, .regua .rot {
+    font-family: var(--mono);
+    font-size: var(--texto-min);
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--faint);
+    white-space: nowrap;
+  }
 
   #conexao {
     grid-area: vivo;
@@ -102,16 +177,17 @@
     align-items: center;
     gap: 6px;
     margin: 0;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted);
+    font-size: var(--texto-min);
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ativo);
     white-space: nowrap;
   }
   #conexao::before {
     content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+    width: 6px;
+    height: 6px;
     background: var(--ativo);
     box-shadow: 0 0 6px var(--ativo-glow);
   }
@@ -123,103 +199,137 @@
   #push { grid-area: push; }
   #som { grid-area: som; }
   #som, #push {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     display: grid;
     place-items: center;
     padding: 0;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--raio);
     background: var(--surface-2);
     color: var(--muted);
     cursor: pointer;
   }
   #som[hidden], #push[hidden] { display: none; }
   #som[aria-pressed="true"], #push[aria-pressed="true"] {
-    border-color: rgba(251, 191, 36, .5);
-    background: rgba(251, 191, 36, .14);
+    border-color: var(--aguardando-borda);
+    background: var(--aguardando-fundo);
     color: var(--aguardando);
   }
   #som.bloqueado, #push.bloqueado { border-style: dashed; opacity: .7; }
-  #som:focus-visible, #push:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  #som:focus-visible, #push:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
   #push[aria-busy="true"] { opacity: .6; cursor: progress; }
 
-  /* Linha dos contadores + filtro de conta. O <select> fica fora do
-     #contador, que é recriado a cada snapshot (não fecha nem perde o foco). */
-  .resumo { grid-area: contador; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-  #contador { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip {
+  /* Leituras: número grande com rótulo em cima, separadas por um filete.
+     O <select> fica fora do #contador, que é recriado a cada snapshot
+     (não fecha nem perde o foco). */
+  .resumo { grid-area: contador; display: flex; align-items: flex-end; min-width: 0; }
+  #contador { display: contents; }
+  .leitura {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+  .leitura:first-child { padding-left: 0; border-left: 0; }
+  .leitura .val {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    background: var(--surface-2);
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 500;
+    min-height: 34px;
+    font-size: 26px;
+    font-weight: 300;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
   }
-  .chip b { font-family: var(--mono); color: var(--text); font-weight: 700; }
-  button.chip { border: 0; font: inherit; font-size: 13px; cursor: pointer; }
-  button.chip:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-  .chip.ocultas[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--muted); color: var(--text); }
-  .chip.alerta {
-    background: rgba(251, 191, 36, .14);
-    box-shadow: inset 0 0 0 1px rgba(251, 191, 36, .5);
-    color: var(--aguardando);
-  }
-  .chip.alerta b { color: var(--aguardando); }
-  .chip.alerta::before {
+  .leitura.alerta .val { color: var(--aguardando); }
+  .leitura.alerta .val::before {
     content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+    flex: none;
+    width: 12px;
+    height: 11px;
     background: var(--aguardando);
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
   }
+  .leitura.zero .val { color: var(--faint); }
 
-  /* Filtro por conta: chip com <select> nativo (teclado e leitor de tela de
-     graça); com uma conta escolhida, ganha a cor do chip dela. */
-  .filtro-conta {
-    position: relative;
-    gap: 2px;
-    padding: 0 0 0 10px;
-    box-shadow: inset 0 0 0 1px var(--border);
-    cursor: pointer;
-  }
+  /* Filtro por conta: leitura com <select> nativo (teclado e leitor de tela
+     de graça); com uma conta escolhida, o valor ganha a cor da conta. */
+  .filtro-conta { position: relative; cursor: pointer; }
   .filtro-conta[hidden] { display: none; }
   .filtro-conta select {
     -webkit-appearance: none;
     appearance: none;
     min-width: 0;
-    max-width: 16ch;
+    max-width: 100%;
+    min-height: 34px;
     margin: 0;
-    padding: 5px 24px 5px 2px;
+    padding: 0 20px 0 0;
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--raio);
     background: transparent;
     color: var(--text);
     font: inherit;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
     text-overflow: ellipsis;
     cursor: pointer;
   }
   .filtro-conta select:focus { outline: none; }
-  .filtro-conta option { background: var(--surface); color: var(--text); }
-  .filtro-conta::after {
+  .filtro-conta option { background: var(--surface); color: var(--text); text-transform: none; letter-spacing: 0; }
+  .filtro-conta .seta { position: relative; display: flex; min-width: 0; }
+  .filtro-conta .seta::after {
     content: "";
     position: absolute;
-    right: 11px;
+    right: 4px;
     top: 50%;
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-right: 1.5px solid currentColor;
     border-bottom: 1.5px solid currentColor;
     transform: translateY(-70%) rotate(45deg);
+    color: var(--muted);
     pointer-events: none;
   }
-  .filtro-conta:focus-within { outline: 2px solid var(--text); outline-offset: 2px; }
-  .filtro-conta.filtrando { background: var(--conta-bg); box-shadow: none; color: var(--conta-fg); }
+  .filtro-conta:focus-within { outline: 2px solid var(--acento); outline-offset: 2px; }
   .filtro-conta.filtrando select { color: var(--conta-fg); }
+  .filtro-conta.filtrando .seta::after { color: var(--conta-fg); }
+
+  /* Régua: proporção de aguardando e ativo na grade; à direita, as ocultas. */
+  .regua { grid-area: regua; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .regua .trilho { flex: 1; min-width: 24px; height: 2px; display: flex; background: var(--border); }
+  .regua .trilho span { height: 2px; transition: width .3s; }
+  .regua .t-aguardando { background: var(--aguardando); }
+  .regua .t-ativo { background: var(--ativo); }
+  #ocultas-box { display: contents; }
+  button.ocultas {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: var(--toque-min);
+    margin: -8px 0;
+    padding: 0 4px;
+    border: 1px solid transparent;
+    border-radius: var(--raio);
+    background: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: var(--texto-min);
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  button.ocultas[aria-pressed="true"] { border-color: var(--acento); color: var(--text); }
+  button.ocultas:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 
   /* ---------- Duas telas: sessões e uso do plano ----------
      As duas ocupam a mesma célula da grade e deslizam no eixo X. A tela de
@@ -251,22 +361,76 @@
   }
   #telas.sem-transicao #tela-sessoes, #telas.sem-transicao #tela-uso { transition: none; }
 
-  #tela-uso h2 { font-size: 17px; margin: 0; font-weight: 700; }
+  /* Título de tela em rótulo (mesmo desenho da marca no cabeçalho). */
+  #tela-uso h2 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
 
-  /* ---------- Tela de uso: um bloco por conta, dois medidores cada ---------- */
+  /* ---------- Cantoneiras ----------
+     Quatro Ls (traço 2 px) pintados no ::after. --canto dá a cor e
+     --canto-braco o tamanho; .cantos é a variante branca luminosa (folha do
+     pop-up e cartões de uso), o tile usa a colorida de 10 px. */
+  .cantos { position: relative; --canto: var(--text); --canto-braco: 14px; }
+  .tile::after, .cantos::after, .agente.s-aguardando::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--canto), var(--canto)) top left / var(--canto-braco, 10px) 2px,
+      linear-gradient(var(--canto), var(--canto)) top left / 2px var(--canto-braco, 10px),
+      linear-gradient(var(--canto), var(--canto)) top right / var(--canto-braco, 10px) 2px,
+      linear-gradient(var(--canto), var(--canto)) top right / 2px var(--canto-braco, 10px),
+      linear-gradient(var(--canto), var(--canto)) bottom right / var(--canto-braco, 10px) 2px,
+      linear-gradient(var(--canto), var(--canto)) bottom right / 2px var(--canto-braco, 10px),
+      linear-gradient(var(--canto), var(--canto)) bottom left / var(--canto-braco, 10px) 2px,
+      linear-gradient(var(--canto), var(--canto)) bottom left / 2px var(--canto-braco, 10px);
+    background-repeat: no-repeat;
+  }
+  .cantos::after { inset: -2px; filter: drop-shadow(0 0 3px var(--canto-brilho)); }
+
+  /* Caixa de destaque: borda forte e halo leve (custo, cartões de uso, folha). */
+  .halo { border: 1px solid var(--border-forte); box-shadow: 0 0 14px var(--halo-leve); }
+
+  /* Chip de conta: retângulo reto em maiúsculas (pop-up e uso do plano). */
+  .chip-conta {
+    display: inline-block;
+    max-width: 100%;
+    padding: 2px 6px;
+    border-radius: var(--raio);
+    background: var(--conta-bg);
+    color: var(--conta-fg);
+    font-family: var(--mono);
+    font-size: var(--texto-min);
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+
+  /* ---------- Tela de uso: um cartão por conta, dois medidores cada ---------- */
+  #tela-uso { font-family: var(--mono); }
   #uso-contas {
     width: 100%;
     max-width: 1100px;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
-    gap: 14px;
+    align-items: start;
+    gap: 16px;
   }
   #uso-contas.uma { max-width: 720px; }
   .uso-conta {
     min-width: 0;
     padding: 16px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: var(--raio);
     background: var(--surface);
     display: flex;
     flex-direction: column;
@@ -275,109 +439,108 @@
   .uso-cab {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
     gap: 4px 12px;
     min-width: 0;
   }
-  .uso-cab h3 { margin: 0; font-size: 14px; font-weight: 600; min-width: 0; }
-  .uso-cab .conta {
-    display: inline-block;
-    max-width: 100%;
-    padding: 1px 8px;
-    border-radius: 6px;
-    background: var(--conta-bg);
-    color: var(--conta-fg);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: bottom;
-  }
-  .uso-atualizado { margin-left: auto; font-size: 12px; color: var(--text); white-space: nowrap; }
-  .uso-atualizado.velho { color: var(--muted); }
-  .uso-sem-dado { margin: 0; color: var(--muted); }
+  .uso-cab h3 { margin: 0; min-width: 0; display: flex; font-size: inherit; font-weight: inherit; }
+  /* Sem chip (uma conta só), o "atualizado" fica à esquerda. */
+  .uso-cab h3 + .uso-atualizado { margin-left: auto; }
+  .uso-atualizado { color: var(--muted); }
+  .uso-atualizado.velho { color: var(--faint); }
+  .uso-sem-dado { margin: 0; font-size: 13px; color: var(--muted); }
   .uso-medidores {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-    gap: 16px 20px;
+    gap: 20px 32px;
   }
   .medidor { --uso-cor: var(--uso-ok); min-width: 0; display: flex; flex-direction: column; gap: 6px; }
   .medidor.alerta { --uso-cor: var(--uso-alerta); }
   .medidor.critico { --uso-cor: var(--uso-critico); }
-  .med-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-  .med-nome { color: var(--muted); font-size: 13px; }
+  .med-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 4px 8px; min-width: 0; }
+  .med-nome { color: var(--muted); }
   .med-pct {
-    font-size: 30px;
+    font-size: 28px;
     line-height: 1;
-    font-weight: 700;
+    font-weight: 300;
     font-variant-numeric: tabular-nums;
     color: var(--uso-cor);
   }
-  .med-barra {
-    height: var(--uso-barra-h);
-    border-radius: calc(var(--uso-barra-h) / 2);
-    background: var(--uso-trilho);
-    overflow: hidden;
-  }
+  .med-barra { height: var(--uso-barra-h); background: var(--uso-trilho); }
   .med-cheio {
     height: 100%;
     width: 0;
-    border-radius: inherit;
     background: var(--uso-cor);
+    box-shadow: 0 0 8px var(--uso-cor);
   }
-  .med-reset { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .med-reset { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
   .medidor.reiniciada .med-barra { opacity: .45; }
-  .medidor.reiniciada .med-estado { font-size: 13px; color: var(--muted); text-align: right; }
+  .medidor.reiniciada .med-estado { margin-left: auto; white-space: nowrap; font-size: 11px; color: var(--faint); text-align: right; }
 
   /* Tokens e custo das janelas, somados dos transcripts (P2). Cache junta
      escrita e leitura numa coluna para caber em 360 px; o detalhe vai no title. */
-  .uso-janelas { border-top: 1px solid var(--border); padding-top: 10px; min-width: 0; overflow-x: auto; }
-  .uso-janelas table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .uso-janelas { min-width: 0; overflow-x: auto; }
+  .uso-janelas table { border-collapse: collapse; width: 100%; font-size: 11px; }
   .uso-janelas th, .uso-janelas td { padding: 3px 0 3px 10px; text-align: right; white-space: nowrap; }
   .uso-janelas th:first-child { padding-left: 0; text-align: left; }
-  .uso-janelas thead th { color: var(--muted); font-size: 11px; font-weight: 600; }
+  .uso-janelas thead th {
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    color: var(--faint);
+    font-size: var(--texto-min);
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .uso-janelas tbody tr:first-child > * { padding-top: 8px; }
   .uso-janelas tbody th { color: var(--muted); font-weight: 400; }
-  .uso-janelas td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .uso-janelas td { font-variant-numeric: tabular-nums; }
   .uso-janelas td.zero { color: var(--faint); }
-  .uso-janelas td.custo { color: var(--text); font-weight: 600; }
+  .uso-janelas td.custo { color: var(--text); }
   .uso-janelas .legenda { margin-top: 4px; }
 
-  /* ---------- Pontinhos: qual tela está aberta ---------- */
+  /* ---------- Abas SESSÕES / USO: qual tela está aberta ----------
+     Barra fixa no rodapé; a aba atual fica clara e sublinhada no acento. */
   #pontos {
     position: sticky;
     bottom: 0;
     z-index: 1;
     align-self: center;
     display: flex;
-    gap: 2px;
     margin: 0 0 max(8px, env(safe-area-inset-bottom));
-    padding: 2px 6px;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--raio);
     background: var(--surface);
   }
   #pontos button {
-    width: 32px;
-    height: 28px;
-    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 8px 14px 0;
     border: 0;
-    border-radius: 999px;
     background: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: var(--texto-min);
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
     cursor: pointer;
-    display: grid;
-    place-items: center;
   }
-  #pontos button::before {
+  #pontos button::after {
     content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 4px;
-    background: var(--faint);
-    transition: width var(--tela-transicao) ease, background-color var(--tela-transicao);
+    width: 24px;
+    height: 2px;
+    background: transparent;
+    transition: background-color var(--tela-transicao);
   }
-  #pontos button:hover::before { background: var(--muted); }
-  #pontos button[aria-current="true"]::before { width: 20px; background: var(--text); }
-  #pontos button:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+  #pontos button:hover { color: var(--text); }
+  #pontos button[aria-current="true"] { color: var(--text); }
+  #pontos button[aria-current="true"]::after { background: var(--acento); }
+  #pontos button:focus-visible { outline: 2px solid var(--acento); outline-offset: -2px; }
 
   /* ---------- Grade centralizada ---------- */
   .tela {
@@ -395,16 +558,19 @@
     flex-wrap: wrap;
     justify-content: center;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--gap);
   }
 
-  #vazio { color: var(--muted); text-align: center; padding: 32px 8px; margin: 0; }
+  #vazio { color: var(--muted); font-family: var(--mono); text-align: center; padding: 32px 8px; margin: 0; }
   #vazio[hidden] { display: none; }
 
   .nota { color: var(--faint); font-size: 11px; text-align: center; margin: 0; }
+  #tela-sessoes .nota { font-family: var(--mono); font-size: var(--texto-min); font-weight: 500; letter-spacing: .16em; text-transform: uppercase; }
 
-  /* ---------- Tile da sessão ---------- */
+  /* ---------- Tile da sessão ----------
+     --canto pinta as cantoneiras em L (10 px, traço 2 px) do ::after. */
   .tile {
+    --canto: var(--border-forte);
     position: relative;
     flex: none;
     width: var(--tile-w);
@@ -412,35 +578,37 @@
     min-width: 0;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px;
+    border-radius: var(--raio);
+    padding: var(--pad);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    font-family: var(--mono);
     -webkit-tap-highlight-color: transparent;
     transition: transform .1s;
   }
-  .tile:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .tile:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
   .tile:active { transform: scale(.98); }
   /* Oculta exibida pelo chip "N oculta(s)": esmaecida e tracejada. */
   .tile.oculta { opacity: .55; border-style: dashed; }
-  /* Marcas no canto do tile (oculta, alerta silenciado): lado a lado, nunca
-     uma sobre a outra. */
-  .tile .marcas {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .tile .marca-oculta { display: inline-flex; color: var(--faint); }
-  .tile .marca-silenciada { display: inline-flex; color: var(--muted); }
+  .tile.oculta::after { display: none; }
+  /* Topo do tile: status à esquerda; marcas e índice #NN à direita. */
+  .tile .topo { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+  .tile .topo-dir { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+  .tile .indice { font-size: var(--texto-min); color: var(--faint); font-variant-numeric: tabular-nums; }
+  .tile.s-aguardando .indice, .tile.sub-aguardando .indice { color: var(--aguardando); }
+  /* Marcas (oculta, alerta silenciado): lado a lado, nunca uma sobre a outra. */
+  .tile .marcas { display: inline-flex; align-items: center; gap: 4px; }
+  /* Olho cortado no canto inferior direito (o índice ocupa o de cima). */
+  .tile .marca-oculta { position: absolute; right: var(--pad); bottom: var(--pad); display: inline-flex; color: var(--muted); }
+  .tile.oculta > :last-child { padding-right: 18px; }
+  .tile .marca-silenciada { display: inline-flex; color: var(--aguardando); }
 
   .tile .nome {
-    font-weight: 600;
-    font-size: 15px;
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.3;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -455,7 +623,7 @@
   .tile .id {
     min-width: 0;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: var(--texto-min);
     color: var(--faint);
     white-space: nowrap;
     overflow: hidden;
@@ -466,18 +634,10 @@
   .conta.c-3 { --conta-bg: var(--conta-3); --conta-fg: var(--conta-3-texto); }
   .conta.c-4 { --conta-bg: var(--conta-4); --conta-fg: var(--conta-4-texto); }
   .conta.c-outra { --conta-bg: var(--conta-outra); --conta-fg: var(--conta-outra-texto); }
-  .det-sub .conta {
-    padding: 0 6px;
-    border-radius: 6px;
-    background: var(--conta-bg);
-    color: var(--conta-fg);
-    font-weight: 600;
-    white-space: nowrap;
-  }
   .tile .custo {
     flex: none;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: var(--texto-min);
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
@@ -485,25 +645,27 @@
   .tile .ferramenta {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     min-width: 0;
     font-size: 12px;
-    font-weight: 500;
   }
   .tile .ferramenta svg { flex: none; color: var(--muted); }
   .tile .ferramenta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tile .ferramenta.vazia { color: var(--faint); }
   .tile .ferramenta.vazia svg { color: var(--faint); }
 
-  /* Etiqueta de status: ponto + rótulo; "aguardando" vira etiqueta sólida. */
+  /* Etiqueta de status (tile, pop-up, cartão de subagente), no estilo HUD:
+     ponto quadrado de 6 px, mono com tracking largo; aguardando é um bloco
+     âmbar com triângulo; concluído, um bloco neutro. */
   .status {
     align-self: flex-start;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .06em;
+    font-family: var(--mono);
+    font-size: var(--texto-min);
+    font-weight: 600;
+    letter-spacing: .12em;
     text-transform: uppercase;
     white-space: nowrap;
     color: var(--parado);
@@ -511,9 +673,8 @@
   .status::before {
     content: "";
     flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+    width: 6px;
+    height: 6px;
     background: currentColor;
   }
   .status.s-ativo { position: relative; color: var(--ativo); }
@@ -524,29 +685,31 @@
     position: absolute;
     left: 0;
     top: 50%;
-    width: 8px;
-    height: 8px;
-    margin-top: -4px;
-    border-radius: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
     box-shadow: 0 0 0 0 var(--ativo-glow);
     animation: pulso 1.6s ease-out infinite;
   }
   .status.s-desconhecido { color: var(--desconhecido); }
-  .status.s-desconhecido::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+  .status.s-desconhecido::before { background: transparent; box-shadow: inset 0 0 0 1.2px currentColor; }
   .status.s-aguardando {
-    padding: 3px 7px;
-    border-radius: 999px;
+    padding: 2px 6px;
     background: var(--aguardando);
     color: var(--aguardando-bg);
-    letter-spacing: .02em;
   }
-  .status.s-aguardando::before { display: none; }
-  .status.s-concluido { padding: 3px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+  .status.s-aguardando::before {
+    width: 9px;
+    height: 8px;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+  .status.s-concluido { padding: 2px 6px; background: var(--surface-2); color: var(--muted); }
   .status.s-concluido::before { display: none; }
+  .status.s-encerrado { color: var(--concluido); }
 
   @keyframes pulso {
     0%   { box-shadow: 0 0 0 0 var(--ativo-glow); }
-    100% { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
+    100% { box-shadow: 0 0 0 7px var(--ativo-zero); }
   }
 
   .aviso-sub {
@@ -560,28 +723,29 @@
   }
   .aviso-sub svg { flex: none; }
   .aviso-sub span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile .aviso-sub { gap: 4px; font-size: 10px; }
+  .tile .aviso-sub { gap: 5px; font-size: var(--texto-min); letter-spacing: .06em; text-transform: uppercase; }
 
-  /* ativo: borda verde suave */
-  .tile.s-ativo { border-color: rgba(52, 211, 153, .4); box-shadow: 0 0 14px rgba(52, 211, 153, .12); }
+  /* ativo: borda verde-água e halo; as cantoneiras no acento. */
+  .tile.s-ativo { --canto: var(--ativo); border-color: var(--ativo-borda); box-shadow: 0 0 14px var(--ativo-halo); }
 
-  /* aguardando: fundo âmbar, borda de 2 px e brilho; sem animação. */
+  /* aguardando: fundo âmbar escuro, borda âmbar e brilho. */
   .tile.s-aguardando {
+    --canto: var(--aguardando);
     background: var(--aguardando-bg);
-    border: 2px solid var(--aguardando);
-    padding: 11px;
+    border-color: var(--aguardando);
     box-shadow: 0 0 18px var(--aguardando-glow);
   }
 
   /* subagente aguardando: o tile-pai ganha a mesma borda âmbar. */
   .tile.sub-aguardando:not(.s-aguardando) {
-    border: 2px solid var(--aguardando);
-    padding: 11px;
-    box-shadow: 0 0 14px rgba(251, 191, 36, .18);
+    --canto: var(--aguardando);
+    border-color: var(--aguardando);
+    box-shadow: 0 0 14px var(--aguardando-halo);
   }
 
-  /* desconhecido: neutro, borda tracejada */
-  .tile.s-desconhecido { background: var(--bg); border: 1.5px dashed rgba(160, 167, 180, .55); }
+  /* desconhecido: neutro, borda tracejada, sem cantoneiras */
+  .tile.s-desconhecido { background: var(--bg); border: 1px dashed var(--desconhecido-borda); }
+  .tile.s-desconhecido::after { display: none; }
 
   /* encerrado: esmaecido */
   .tile.s-encerrado { opacity: .42; }
@@ -593,28 +757,28 @@
     max-width: 100%;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     min-height: 24px;
-    padding: 3px 7px 3px 6px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-weight: 600;
+    padding: 4px 7px 4px 6px;
+    border-radius: var(--raio);
+    font-family: var(--mono);
+    font-size: var(--texto-min);
+    font-weight: 500;
     background: var(--surface-2);
     color: var(--muted);
   }
   .sub svg { flex: none; }
   .sub .tipo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sub.s-ativo {
-    background: rgba(52, 211, 153, .12);
-    box-shadow: inset 0 0 0 1px rgba(52, 211, 153, .35);
+    background: var(--ativo-fundo);
+    box-shadow: inset 0 0 0 1px var(--ativo-borda);
     color: var(--ativo);
   }
   .sub.s-ativo::before {
     content: "";
     flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+    width: 5px;
+    height: 5px;
     background: var(--ativo);
     box-shadow: 0 0 5px var(--ativo-glow);
   }
@@ -622,23 +786,29 @@
     --icone-interno: var(--aguardando);
     background: var(--aguardando);
     color: var(--aguardando-bg);
-    box-shadow: 0 0 8px rgba(251, 191, 36, .5);
+    box-shadow: 0 0 6px var(--aguardando-borda);
   }
-  .sub.s-concluido { font-weight: 500; }
+  .sub.s-concluido { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+  /* Mini-tile silenciado: a marca âmbar vai ao lado, sem quebrar de linha. */
+  .sub-par { min-width: 0; max-width: 100%; display: inline-flex; align-items: center; gap: 4px; }
+  .sub-par .marca-silenciada { flex: none; display: inline-flex; color: var(--aguardando); }
 
-  /* ---------- Pop-up de detalhes ---------- */
+  /* ---------- Pop-up de detalhes ----------
+     Painel central de 520 px (folha no celular) com borda forte, halo e
+     cantoneiras brancas; overflow visível para as cantoneiras e o halo
+     saírem da caixa (quem rola é o .det-corpo). */
   #detalhe {
     width: min(520px, calc(100vw - 32px));
     max-height: calc(100dvh - 48px);
     padding: 0;
-    border: 1px solid var(--border);
-    border-radius: 20px;
+    border-radius: var(--raio);
     background: var(--surface);
     color: var(--text);
-    overflow: hidden;
+    font-family: var(--mono);
+    overflow: visible;
   }
   #detalhe[open] { display: flex; }
-  #detalhe::backdrop { background: rgba(5, 6, 10, .72); }
+  #detalhe::backdrop { background: var(--backdrop); }
   body.modal-aberto { overflow: hidden; }
 
   .det {
@@ -653,78 +823,65 @@
     flex: none;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 16px 16px 12px;
+    gap: 8px;
+    margin: 0 16px;
+    padding: 20px 0 14px;
     border-bottom: 1px solid var(--border);
   }
-  .det-topo .linha { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .det-estado { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
-  .det-estado .status { padding: 3px 8px; border-radius: 999px; }
-  .det-estado .status.s-ativo { background: rgba(52, 211, 153, .12); }
-  .det-estado .status.s-ativo::after { left: 8px; }
+  /* Linha 1: status e aviso de subagente à esquerda, ações à direita. */
+  .det-topo .linha { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .det-estado { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding-top: 2px; }
+  .det-estado .aviso-sub { font-size: var(--texto-min); letter-spacing: .12em; text-transform: uppercase; }
   .det-topo h2 {
-    margin: 0;
+    margin: 2px 0 0;
     font-size: 20px;
-    font-weight: 700;
+    font-weight: 600;
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .det-sub { display: flex; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); font-weight: 500; }
-  .det-sub .mono { color: var(--faint); font-weight: 400; }
-  .fechar {
-    flex: none;
-    width: 32px;
-    height: 32px;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: var(--surface-2);
-    color: var(--text);
-    cursor: pointer;
-  }
-  .fechar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  /* Meta: conta · nome · ID curto · local do tmux. */
+  .det-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; font-size: 11px; color: var(--muted); }
+  .det-sub > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .det-sub .sep, .det-sub .id-curto { color: var(--faint); }
+
+  /* Ações do pop-up: retas, 32 px, ícone de 14 px e rótulo em maiúsculas. */
   .det-acoes { display: flex; align-items: center; gap: 8px; flex: none; }
-  .ocultar {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--surface-2);
-    color: var(--muted);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .ocultar[hidden] { display: none; }
-  /* Pedido de abrir o terminal em curso: mesmo tratamento do botão de push. */
-  .ocultar:disabled { opacity: .6; cursor: progress; }
-  .ocultar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-  /* Silenciar ligado: o botão fica em destaque para lembrar do agente mudo. */
-  .ocultar[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
-  .silenciar-sub {
+  .ocultar, .fechar, .silenciar-sub {
     flex: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--toque-min);
-    height: var(--toque-min);
-    padding: 0;
-    border: 0;
-    border-radius: 999px;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--raio);
     background: var(--surface-2);
-    color: var(--muted);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: var(--texto-min);
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    white-space: nowrap;
     cursor: pointer;
   }
-  .silenciar-sub[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
-  .silenciar-sub:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .ocultar svg, .fechar svg, .silenciar-sub svg { flex: none; width: 14px; height: 14px; color: var(--muted); }
+  .fechar { width: 32px; padding: 0; }
+  .silenciar-sub { width: var(--toque-min); height: var(--toque-min); padding: 0; }
+  .ocultar[hidden] { display: none; }
+  /* Pedido de abrir o terminal em curso: mesmo tratamento do botão de push. */
+  .ocultar:disabled { opacity: .6; cursor: progress; }
+  .ocultar:focus-visible, .fechar:focus-visible, .silenciar-sub:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  /* Silenciado: âmbar, para lembrar do agente mudo. */
+  .ocultar[aria-pressed="true"], .silenciar-sub[aria-pressed="true"] {
+    border-color: var(--aguardando-borda);
+    background: var(--aguardando-fundo);
+    color: var(--aguardando);
+  }
+  .ocultar[aria-pressed="true"] svg, .silenciar-sub[aria-pressed="true"] svg { color: var(--aguardando); }
 
   .det-corpo {
     flex: 1;
@@ -734,7 +891,7 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 20px;
     overscroll-behavior: contain;
     scrollbar-color: var(--border) transparent;
   }
@@ -744,40 +901,54 @@
     flex: none;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 10px 16px 14px;
+    gap: 6px;
+    margin: 0 16px;
+    padding: 12px 0 16px;
     border-top: 1px solid var(--border);
-    color: var(--muted);
+    color: var(--faint);
     font-size: 11px;
   }
-  .det-rodape .alerta { display: flex; align-items: center; gap: 6px; }
+  .det-rodape .alerta { display: flex; align-items: center; gap: 6px; color: var(--muted); }
   .det-rodape .alerta svg { flex: none; }
   .det-rodape:empty { display: none; }
 
+  /* Título de seção em rótulo (MODELOS, TOKENS POR AGENTE, SUBAGENTES · N). */
   .det h3 {
-    font-size: 11px;
-    font-weight: 600;
+    margin: 0 0 10px;
+    font-size: var(--texto-min);
+    font-weight: 500;
+    letter-spacing: .16em;
     text-transform: uppercase;
-    letter-spacing: .08em;
     color: var(--muted);
-    margin: 0 0 8px;
   }
 
+  /* Aviso (terminal aberto, falha): faixa âmbar com triângulo. */
   .aviso {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 0;
     padding: 8px 10px;
-    border-radius: 8px;
+    border: 1px solid var(--aguardando-borda);
+    border-radius: var(--raio);
     background: var(--aguardando-bg);
     color: var(--aguardando);
-    font-size: 13px;
+    font-size: 12px;
+  }
+  .aviso::before {
+    content: "";
+    flex: none;
+    width: 12px;
+    height: 11px;
+    background: var(--aguardando);
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
   }
 
   .cwd {
-    margin: 2px 0 0;
-    padding: 7px 10px;
-    border-radius: 8px;
-    background: var(--bg);
-    font-family: var(--mono);
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: var(--raio);
+    background: var(--surface-2);
     font-size: 11px;
     color: var(--muted);
     white-space: nowrap;
@@ -785,108 +956,148 @@
     text-overflow: ellipsis;
   }
 
-  .custo-box { padding: 14px; border-radius: 12px; background: var(--surface-2); }
-  .custo-box .linha { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .custo-total { margin: 0; font-family: var(--mono); font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .custo-box .rot { color: var(--muted); font-size: 11px; font-weight: 500; }
-  .rotulo-estimativa { color: var(--faint); font-size: 11px; margin: 2px 0 0; }
+  /* Custo: borda forte e halo, sem cantoneiras. */
+  .custo-box { padding: 16px; border-radius: var(--raio); background: var(--surface); }
+  .custo-box .linha { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+  .custo-total { margin: 0; font-size: 28px; font-weight: 300; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+  .custo-box .rot { color: var(--faint); }
+  .rotulo-estimativa { color: var(--faint); font-size: 11px; margin: 6px 0 0; }
 
+  /* Dados: grade 2×2 em qualquer largura; células sem cantoneiras. */
   .metricas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .metrica { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
-  .metrica .k { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: var(--muted); }
+  .metrica { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--raio); background: var(--surface); min-width: 0; }
+  .metrica .k {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--texto-min);
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
   .metrica .k.vivo::before {
     content: "";
+    flex: none;
     width: 6px;
     height: 6px;
-    border-radius: 50%;
     background: var(--ativo);
     box-shadow: 0 0 5px var(--ativo-glow);
   }
   .metrica .v {
-    margin-top: 4px;
-    font-family: var(--mono);
-    font-size: 15px;
+    margin-top: 6px;
+    font-size: 14px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
-  .metrica .v.txt { font-family: inherit; }
 
-  /* Tabela: uma linha por agente e uma coluna por categoria; cabe em 360 px. */
+  /* Tabelas (modelos e tokens por agente): caixa com borda, cabeçalho em
+     rótulo, linhas separadas por 1 px, números à direita; cabe em 360 px. */
   .tabela-wrap {
     overflow-x: auto;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--raio);
+    background: var(--surface);
     -webkit-overflow-scrolling: touch;
     scrollbar-color: var(--border) transparent;
   }
-  .tokens { border-collapse: collapse; width: 100%; font-size: 10.5px; }
-  .tokens th, .tokens td { padding: 8px 6px; text-align: right; white-space: nowrap; }
-  .tokens th:first-child, .tokens td:first-child { padding-left: 10px; }
-  .tokens th:last-child, .tokens td:last-child { padding-right: 10px; }
-  .tokens thead th { color: var(--muted); font-size: 10px; font-weight: 600; background: var(--surface-2); }
+  .tokens { border-collapse: collapse; width: 100%; font-size: 11px; }
+  .tokens th, .tokens td { padding: 9px 6px; text-align: right; white-space: nowrap; }
+  .tokens th:first-child, .tokens td:first-child { padding-left: 12px; }
+  .tokens th:last-child, .tokens td:last-child { padding-right: 12px; }
+  .tokens thead th {
+    color: var(--faint);
+    font-size: var(--texto-min);
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
   .tokens thead th:first-child { text-align: left; }
   .tokens tbody tr { border-top: 1px solid var(--border); }
   .tokens tbody th {
-    max-width: 96px;
+    max-width: 104px;
     overflow: hidden;
     text-overflow: ellipsis;
     text-align: left;
-    font-size: 11px;
     font-weight: 400;
   }
-  .tokens.por-modelo tbody th { max-width: 110px; font-family: var(--mono); }
-  .tokens td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .tokens.por-modelo tbody th { max-width: 150px; }
+  .tokens td { font-variant-numeric: tabular-nums; }
   .tokens td.zero { color: var(--faint); }
-  .tokens tr.soma th, .tokens tr.soma td { font-weight: 700; }
-  .tokens tr.foco { background: rgba(251, 191, 36, .1); }
-  .tokens tr.foco th { color: var(--aguardando); }
-  .legenda { margin: 6px 0 0; color: var(--faint); font-size: 10px; }
+  .tokens tr.soma th, .tokens tr.soma td { font-weight: 600; }
+  /* Agente em foco (aberto por um mini-tile): só um fundo levemente mais claro;
+     o âmbar fica para quem está em aguardando. */
+  .tokens tr.foco { background: var(--surface-2); }
+  .tokens tr.aguardando { background: var(--aguardando-fundo); }
+  .tokens tr.aguardando th { color: var(--aguardando); }
+  .legenda { margin: 8px 0 0; color: var(--faint); font-size: var(--texto-min); }
 
-  .agentes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  /* Cartão de subagente: só o que está em aguardando ganha fundo, borda e
+     cantoneiras âmbar; concluído esmaece. */
+  .agentes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .agente {
+    --canto: var(--aguardando);
+    position: relative;
     padding: 12px;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--bg);
+    border-radius: var(--raio);
+    background: var(--surface);
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 6px;
     scroll-margin: 16px;
   }
-  .agente.foco {
-    padding: 11px;
-    border: 2px solid var(--aguardando);
-    background: var(--aguardando-bg);
-    box-shadow: 0 0 14px var(--aguardando-glow);
-  }
-  .agente .cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
-  .agente .cab-dir { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+  .agente.foco { border-color: var(--border-forte); }
+  .agente.s-aguardando { background: var(--aguardando-fundo); border-color: var(--aguardando-borda); }
+  .agente.s-concluido { opacity: .7; }
+  .agente .cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; min-height: var(--toque-min); }
+  .agente .cab-dir { flex: none; display: inline-flex; align-items: center; gap: 8px; }
   .agente .titulo { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .agente .tipo { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .agente .subtipo { flex: none; font-size: 11px; color: var(--muted); }
+  .agente .tipo { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agente .sub-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+  .agente .subtipo { min-width: 0; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .agente .em-foco {
     flex: none;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(251, 191, 36, .18);
+    padding: 1px 6px;
+    border: 1px solid var(--aguardando-borda);
+    border-radius: var(--raio);
+    background: var(--aguardando-bg);
     color: var(--aguardando);
-    font-size: 10px;
+    font-size: var(--texto-min);
     font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
   }
-  .agente .cab .status { flex: none; align-self: center; padding: 3px 8px; border-radius: 999px; }
-  .agente .cab .status.s-ativo { background: rgba(52, 211, 153, .12); }
-  .agente .cab .status.s-ativo::after { left: 8px; }
-  .agente .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 11px; color: var(--faint); }
+  .agente .cab .status { flex: none; align-self: center; }
+  .agente .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    font-size: var(--texto-min);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
   .agente .meta span { white-space: nowrap; }
+  .agente .meta b {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
   /* Lista de modelos do subagente, sempre visível: nome completo e custo de
      cada modelo, do mais caro ao mais barato. */
   .modelos-ag {
     list-style: none;
     margin: 0;
     padding: 6px 8px;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--raio);
     background: var(--surface-2);
     display: flex;
     flex-direction: column;
@@ -894,22 +1105,17 @@
     font-size: 11px;
   }
   .modelos-ag li { display: flex; justify-content: space-between; gap: 8px; }
-  .modelos-ag span { min-width: 0; font-family: var(--mono); color: var(--text); overflow-wrap: anywhere; }
-  .modelos-ag b { flex: none; font-family: var(--mono); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .agente .meta b { font-family: var(--mono); font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+  .modelos-ag span { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+  .modelos-ag b { flex: none; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
   .vazio-det { color: var(--muted); margin: 0; }
 
   /* A partir de 600 px os tiles crescem para 200 px. */
   @media (min-width: 600px) {
-    :root { --tile-w: 200px; }
-    #grade { gap: 14px; }
+    :root { --tile-w: 200px; --gap: 14px; }
     .tela { padding-top: 32px; }
-    header {
-      padding: 20px 32px;
-      grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
-      grid-template-areas: "marca contador . push som vivo";
-      gap: 20px;
-    }
+    header { padding: 20px 32px 16px; gap: 16px 12px; }
+    /* Base de 180 px, mas encolhe entre 600 e ~700 px; o select de conta corta com reticências. */
+    .leitura { flex: 0 1 180px; min-width: 0; padding-left: 12px; }
   }
 
   /* Celular: o pop-up vira uma folha que sobe do rodapé e rola por dentro. */
@@ -920,19 +1126,18 @@
       max-height: 90dvh;
       margin: auto 0 0;
       border-width: 1px 0 0;
-      border-radius: 20px 20px 0 0;
     }
+    /* Folha encostada nas bordas da tela: as cantoneiras não saem dela. */
+    #detalhe.cantos::after { inset: -1px 0 0; }
     .alca {
       display: block;
       flex: none;
       width: 36px;
       height: 4px;
       margin: 10px auto 0;
-      border-radius: 2px;
-      background: var(--border);
+      background: var(--border-forte);
     }
-    .det-topo { padding-top: 10px; }
-    .metrica .v { font-size: 13px; }
+    .det-topo { padding-top: 14px; }
     /* Sem espaço para as ações com rótulo: silenciar e terminal ficam só com o ícone
        (o aria-label e o title seguem dizendo o que ele faz). */
     #det-silenciar, #det-terminal { width: 32px; padding: 0; justify-content: center; }
@@ -954,7 +1159,8 @@
 
   /* Sem animação para quem pediu menos movimento: o anel fica fixo. */
   @media (prefers-reduced-motion: reduce) {
-    .status.s-ativo::after { animation: none; box-shadow: 0 0 0 3px rgba(52, 211, 153, .25); }
+    .status.s-ativo::after { animation: none; box-shadow: 0 0 0 3px var(--ativo-anel); }
+    .regua .trilho span { transition: none; }
     .tile { transition: none; }
     .tile:active { transform: none; }
     header { transition: none; }
@@ -965,19 +1171,24 @@
 <body>
 <header id="topo" class="reconectando">
   <div class="marca">
-    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-      <rect x="1" y="1" width="9" height="9" rx="2.5" fill="#34d399"/>
-      <rect x="12" y="1" width="9" height="9" rx="2.5" fill="#fbbf24"/>
-      <rect x="1" y="12" width="9" height="9" rx="2.5" fill="#8b93a1"/>
-      <rect x="12.75" y="12.75" width="7.5" height="7.5" rx="2" fill="none" stroke="#a0a7b4" stroke-width="1.5" stroke-dasharray="2 2"/>
+    <svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" style="fill: var(--ativo)"/>
+      <rect x="12" y="1" width="9" height="9" style="fill: var(--aguardando)"/>
+      <rect x="1" y="12" width="9" height="9" style="fill: var(--parado)"/>
+      <rect x="12.75" y="12.75" width="7.5" height="7.5" fill="none" stroke-width="1.5" stroke-dasharray="2 2" style="stroke: var(--desconhecido)"/>
     </svg>
     <h1>Claude Fleet</h1>
   </div>
   <div class="resumo">
-    <div id="contador"><span class="chip">conectando…</span></div>
-    <label class="chip filtro-conta" id="filtro-conta-rotulo" hidden>conta
-      <select id="filtro-conta" aria-label="Filtrar a grade por conta"></select>
+    <div id="contador"><div class="leitura zero"><span class="rot">sessões</span><span class="val">--</span></div></div>
+    <label class="leitura filtro-conta" id="filtro-conta-rotulo" hidden><span class="rot">conta</span>
+      <span class="seta"><select id="filtro-conta" aria-label="Filtrar a grade por conta"></select></span>
     </label>
+  </div>
+  <div class="regua">
+    <span class="rot" aria-hidden="true">grade</span>
+    <span class="trilho" aria-hidden="true"><span class="t-aguardando" id="regua-aguardando"></span><span class="t-ativo" id="regua-ativo"></span></span>
+    <span id="ocultas-box"></span>
   </div>
   <button type="button" id="push" aria-pressed="false" aria-label="Notificações neste aparelho" hidden></button>
   <button type="button" id="som" aria-pressed="false" aria-label="Som dos alertas" hidden></button>
@@ -995,10 +1206,10 @@
   </section>
 </div>
 <nav id="pontos" aria-label="Telas">
-  <button type="button" data-tela="sessoes" aria-label="Sessões" aria-current="true"></button>
-  <button type="button" data-tela="uso" aria-label="Uso do plano" aria-current="false"></button>
+  <button type="button" data-tela="sessoes" aria-label="Sessões" aria-current="true">sessões</button>
+  <button type="button" data-tela="uso" aria-label="Uso do plano" aria-current="false">uso</button>
 </nav>
-<dialog id="detalhe" aria-labelledby="det-titulo">
+<dialog id="detalhe" class="cantos halo" aria-labelledby="det-titulo">
   <div class="det">
     <div class="alca" aria-hidden="true"></div>
     <div class="det-topo">
@@ -1040,6 +1251,9 @@ const topo = document.getElementById('topo');
 const grade = document.getElementById('grade');
 const vazio = document.getElementById('vazio');
 const contador = document.getElementById('contador');
+const ocultasBox = document.getElementById('ocultas-box');
+const reguaAg = document.getElementById('regua-aguardando');
+const reguaAtivo = document.getElementById('regua-ativo');
 const conexao = document.getElementById('conexao');
 
 const moeda = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1144,12 +1358,17 @@ function miniTile(a, sessaoId) {
   const mudo = silenciados.has(sessaoId + '/' + a.ID);
   if (mudo) mini.title += ' · alerta silenciado';
   if (st === 'aguardando') mini.append(icone('alerta', 10));
-  if (mudo) mini.append(icone('somDesligado', 10));
   mini.append(el('span', 'tipo', rotulo));
-  return mini;
+  if (!mudo) return mini;
+  // Silenciado: alto-falante cortado em âmbar ao lado do mini-tile.
+  const par = el('span', 'sub-par');
+  const marca = el('span', 'marca-silenciada');
+  marca.append(icone('somDesligado', 12));
+  par.append(mini, marca);
+  return par;
 }
 
-function montarTile(s, oculta) {
+function montarTile(s, oculta, indice) {
   const status = ROTULO[s.Status] ? s.Status : 'desconhecido';
   const subs = s.Subagents || [];
   const subAg = subAguardando(s);
@@ -1164,6 +1383,10 @@ function montarTile(s, oculta) {
 
   const mudo = silenciados.has(s.ID);
   if (oculta) tile.classList.add('oculta');
+  // Topo: status à esquerda; marcas e índice #NN (posição na grade) à direita.
+  const topoTile = el('div', 'topo');
+  topoTile.append(statusSpan(status));
+  const dir = el('span', 'topo-dir');
   if (oculta || mudo) {
     const marcas = el('span', 'marcas');
     if (mudo) {
@@ -1178,9 +1401,13 @@ function montarTile(s, oculta) {
       m.append(icone('olhoCortado'));
       marcas.append(m);
     }
-    tile.append(marcas);
+    dir.append(marcas);
   }
-  tile.append(statusSpan(status));
+  const idx = el('span', 'indice', '#' + String(indice).padStart(2, '0'));
+  idx.setAttribute('aria-hidden', 'true');
+  dir.append(idx);
+  topoTile.append(dir);
+  tile.append(topoTile);
   if (subAg && status !== 'aguardando') tile.append(avisoSub('subagente aguardando'));
   tile.append(el('div', 'nome', nome));
 
@@ -1226,14 +1453,15 @@ function corConta(nome) {
 }
 
 function chipConta(nome) {
-  const c = el('span', 'conta c-' + corConta(nome), nome);
+  const c = el('span', 'conta chip-conta c-' + corConta(nome), nome);
   c.title = 'conta ' + nome;
   return c;
 }
 
-function chip(numero, texto, classe) {
-  const c = el('span', 'chip' + (classe ? ' ' + classe : ''));
-  c.append(el('b', null, String(numero)), texto);
+// leitura: bloco do cabeçalho com rótulo pequeno em cima e número grande.
+function leitura(numero, rotulo, classe) {
+  const c = el('div', 'leitura' + (classe ? ' ' + classe : '') + (numero === 0 ? ' zero' : ''));
+  c.append(el('span', 'rot', rotulo), el('span', 'val', String(numero).padStart(2, '0')));
   return c;
 }
 
@@ -1349,7 +1577,7 @@ function atualizarFiltro(contas) {
   }
   const vigente = mostrar && contas.includes(contaEscolhida) ? contaEscolhida : '';
   if (filtroSel.value !== vigente) filtroSel.value = vigente;
-  filtroRot.className = 'chip filtro-conta' + (vigente ? ' conta c-' + corConta(vigente) + ' filtrando' : '');
+  filtroRot.className = 'leitura filtro-conta' + (vigente ? ' conta c-' + corConta(vigente) + ' filtrando' : '');
   filtroRot.title = vigente ? 'Mostrando só a conta ' + vigente : 'Mostrando todas as contas';
   return vigente;
 }
@@ -1373,11 +1601,17 @@ function render(sessoes) {
   if (nOcultas === 0) mostrarOcultas = false;
 
   const frag = document.createDocumentFragment();
+  let n = 0;
+  let nAtencao = 0;
+  let nAtivos = 0;
   for (const s of ordenar(daConta)) {
     const oculta = estaOculta(s);
     // Oculta em aguardando aparece como qualquer outra: nada trava escondido.
-    if (oculta && precisaAtencao(s)) frag.append(montarTile(s, false));
-    else if (!oculta || mostrarOcultas) frag.append(montarTile(s, oculta));
+    const mostrar = oculta && precisaAtencao(s) ? false : (!oculta || mostrarOcultas) ? oculta : null;
+    if (mostrar === null) continue;
+    frag.append(montarTile(s, mostrar, ++n));
+    if (precisaAtencao(s)) nAtencao++;
+    else if (s.Status === 'ativo') nAtivos++;
   }
   grade.replaceChildren(frag);
   vazio.hidden = grade.children.length > 0;
@@ -1386,27 +1620,30 @@ function render(sessoes) {
   // "sessões" segue o filtro; "aguardando" é alerta e conta todas as contas.
   const aguardam = sessoes.filter(precisaAtencao).length;
   const foraDoFiltro = aguardam - daConta.filter(precisaAtencao).length;
-  const cSessoes = chip(visiveis.length, visiveis.length === 1 ? 'sessão' : 'sessões');
+  const cSessoes = leitura(visiveis.length, 'sessões');
   if (conta) cSessoes.title = 'da conta ' + conta;
-  contador.replaceChildren(cSessoes);
-  if (aguardam > 0) {
-    const cAg = chip(aguardam, 'aguardando', 'alerta');
-    if (foraDoFiltro > 0) cAg.title = 'inclui ' + foraDoFiltro + ' de outra' + (foraDoFiltro === 1 ? ' conta' : 's contas') + ', fora do filtro';
-    contador.append(cAg);
-  }
+  const cAg = leitura(aguardam, 'aguardando', aguardam > 0 ? 'alerta' : '');
+  if (foraDoFiltro > 0) cAg.title = 'inclui ' + foraDoFiltro + ' de outra' + (foraDoFiltro === 1 ? ' conta' : 's contas') + ', fora do filtro';
+  contador.replaceChildren(cSessoes, cAg);
+
+  // Régua: fatia da grade que pede atenção e que está ativa.
+  reguaAg.style.width = n ? (100 * nAtencao / n) + '%' : '0';
+  reguaAtivo.style.width = n ? (100 * nAtivos / n) + '%' : '0';
+
+  ocultasBox.replaceChildren();
   if (nOcultas > 0) {
-    const b = el('button', 'chip ocultas');
+    const b = el('button', 'ocultas');
     b.type = 'button';
     b.setAttribute('aria-pressed', String(mostrarOcultas));
     b.title = mostrarOcultas ? 'Esconder as sessões ocultas' : 'Mostrar as sessões ocultas';
-    b.append(el('b', null, String(nOcultas)), nOcultas === 1 ? 'oculta' : 'ocultas');
+    b.append(icone(mostrarOcultas ? 'olho' : 'olhoCortado', 12), nOcultas + (nOcultas === 1 ? ' oculta' : ' ocultas'));
     b.addEventListener('click', () => {
       mostrarOcultas = !mostrarOcultas;
       render(ultimoSnapshot);
-      const novo = contador.querySelector('.ocultas');
+      const novo = ocultasBox.querySelector('.ocultas');
       if (novo) novo.focus();
     });
-    contador.append(b);
+    ocultasBox.append(b);
   }
 
   if (focoId) {
@@ -1604,7 +1841,7 @@ function metrica(rotulo, valor, opts) {
 // Com uma linha por agente a tabela cresce para baixo e cabe em 360 px.
 function montarTabela(d, subs, nomes) {
   const linhas = [{ nome: 'Principal', uso: d.Main, id: null }];
-  subs.forEach((a, i) => linhas.push({ nome: nomes[i], uso: a.Usage, id: a.ID }));
+  subs.forEach((a, i) => linhas.push({ nome: nomes[i], uso: a.Usage, id: a.ID, aguardando: a.Status === 'aguardando' }));
   linhas.push({ nome: 'Total', uso: d.Total, id: null, total: true });
 
   const tabela = el('table', 'tokens');
@@ -1626,6 +1863,7 @@ function montarTabela(d, subs, nomes) {
   for (const l of linhas) {
     const tr = el('tr', l.total ? 'soma' : null);
     if (l.id && l.id === det.agentId) tr.classList.add('foco');
+    if (l.aguardando) tr.classList.add('aguardando');
     const th = el('th', null, l.nome);
     th.scope = 'row';
     th.title = l.nome;
@@ -1764,7 +2002,7 @@ function modelosAgente(nome, lista) {
 }
 
 function montarAgente(a, nome) {
-  const li = el('li', 'agente');
+  const li = el('li', 'agente s-' + (ROTULO[a.Status] ? a.Status : 'desconhecido'));
   li.dataset.agent = a.ID;
   const foco = a.ID === det.agentId;
   if (foco) li.classList.add('foco');
@@ -1772,8 +2010,10 @@ function montarAgente(a, nome) {
   const cab = el('div', 'cab');
   const titulo = el('div', 'titulo');
   titulo.append(el('span', 'tipo', nome));
-  if (a.Description && a.Type) titulo.append(el('span', 'subtipo', a.Type));
-  if (foco) titulo.append(el('span', 'em-foco', 'em foco'));
+  // Linha 2: tipo do subagente e o chip "em foco".
+  const subLinha = el('div', 'sub-linha');
+  if (a.Description && a.Type) subLinha.append(el('span', 'subtipo', a.Type));
+  if (foco) subLinha.append(el('span', 'em-foco', 'em foco'));
   const dir = el('span', 'cab-dir');
   const chave = det.sessionId + '/' + a.ID;
   if (podeSilenciar(chave)) {
@@ -1789,9 +2029,11 @@ function montarAgente(a, nome) {
     b.append(icone(mudo ? 'somDesligado' : 'somLigado', 14));
     dir.append(b);
   }
-  dir.append(statusSpan(a.Status));
+  // Status antes do botão de silenciar, como no desenho.
+  dir.prepend(statusSpan(a.Status));
   cab.append(titulo, dir);
   li.append(cab);
+  if (subLinha.childNodes.length) li.append(subLinha);
 
   const meta = el('div', 'meta');
   const vida = vivo('vida', ms(a.StartedAt), fimDe(a, a.Status === 'concluido'));
@@ -1850,13 +2092,14 @@ function renderDetalhe() {
   }
   detTitulo.textContent = d.Name || d.Project || d.ID;
   detSub.replaceChildren();
-  if (d.Account) detSub.append(chipConta(d.Account), el('span', null, '·'));
-  detSub.append(el('span', null, d.Project || '—'), el('span', null, '·'));
-  const idCurto = el('span', 'mono', d.ID.slice(0, 8));
+  const sep = () => el('span', 'sep', '·');
+  if (d.Account) detSub.append(chipConta(d.Account));
+  detSub.append(el('span', null, d.Project || '—'), sep());
+  const idCurto = el('span', 'id-curto', d.ID.slice(0, 8));
   idCurto.title = d.ID;
   detSub.append(idCurto);
   const local = localTerminal();
-  if (local) detSub.append(el('span', null, '·'), el('span', 'mono', local));
+  if (local) detSub.append(sep(), el('span', null, local));
 
   const cwd = el('p', 'cwd', d.Cwd || '—');
   cwd.title = d.Cwd || '';
@@ -1865,7 +2108,8 @@ function renderDetalhe() {
   // Custo em destaque, sempre rotulado como estimativa.
   const custo = el('div', 'custo-box');
   const cl = el('div', 'linha');
-  cl.append(el('p', 'custo-total', formatarUso(d.Total)), el('span', 'rot', 'total da sessão'));
+  cl.append(el('p', 'custo-total', formatarUso(d.Total)), el('span', 'rot rotulo-hud', 'total da sessão'));
+  custo.classList.add('halo');
   custo.append(cl, el('p', 'rotulo-estimativa', ROTULO_ESTIMATIVA + ' (não é cobrança real)'));
   frag.append(custo);
 
@@ -2209,7 +2453,7 @@ function medidor(rotulo, janela, agora) {
   barra.setAttribute('aria-label', rotulo);
   barra.setAttribute('aria-valuemin', '0');
   barra.setAttribute('aria-valuemax', '100');
-  topo.append(el('span', 'med-nome', rotulo));
+  topo.append(el('span', 'med-nome rotulo-hud', rotulo));
   m.append(topo, barra);
 
   const pctBruto = janela ? Number(janela.used_percentage) : NaN;
@@ -2219,7 +2463,7 @@ function medidor(rotulo, janela, agora) {
   if (!Number.isFinite(pctBruto) || !Number.isFinite(reset) || reset <= agora) {
     m.classList.add('reiniciada');
     const txt = 'reiniciada, aguardando dado novo';
-    topo.append(el('span', 'med-estado', txt));
+    topo.append(el('span', 'med-estado', 'reiniciada · aguardando dado novo'));
     barra.setAttribute('aria-valuenow', '0');
     barra.setAttribute('aria-valuetext', txt);
     return m;
@@ -2294,7 +2538,7 @@ function janelasUso(w) {
 }
 
 function blocoUso(u, comNome, agora) {
-  const b = el('section', 'uso-conta');
+  const b = el('section', 'uso-conta cantos halo');
   const cab = el('div', 'uso-cab');
   const titulo = el('h3');
   if (comNome) {
@@ -2310,7 +2554,7 @@ function blocoUso(u, comNome, agora) {
     if (jan) b.append(jan);
     return b;
   }
-  const at = el('span', 'uso-atualizado', atualizadoHa(agora - recebido));
+  const at = el('span', 'uso-atualizado rotulo-hud', atualizadoHa(agora - recebido));
   if (agora - recebido > USO_VELHO_MS) at.classList.add('velho');
   at.title = dataHora.format(new Date(recebido));
   if (comNome) cab.append(titulo);

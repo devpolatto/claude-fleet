@@ -89,6 +89,16 @@
 
 ---
 
+### AD-011: Penpot espelha a interface no lugar do Figma (2026-11-12)
+
+**Decision:** O desenho oficial do painel passa a ser o arquivo “claude-fleet — painel v2” no Penpot local do mantenedor, importado do Figma. Páginas `HUD · Sessões`, `HUD · Detalhes`, `HUD · Uso do plano`, `HUD · Estados` e `Biblioteca` (componentes `hud/*`, paleta e tipografia com os nomes dos tokens); a `Page 1` guarda o desenho original. Toda mudança visual atualiza o Penpot no mesmo PR, pelo agente `ui-figma`.
+**Reason:** O estilo HUD (feature `estilo-hud`) foi desenhado e componentizado no Penpot; manter dois espelhos dobraria o trabalho.
+**Trade-off:** O arquivo é local, sem link público: quem contribui sem acesso descreve a mudança visual no PR com screenshot e o mantenedor sincroniza antes do merge. A API do plugin só mexe na página aberta no navegador. O Figma fica como histórico, sem atualização.
+**Alternative:** Continuar no Figma e sincronizar à mão a partir do Penpot; manter os dois.
+**Impact:** `CLAUDE.md` (fluxo de trabalho e subagentes) e `.claude/agents/ui-figma.md`.
+
+---
+
 ## Active Blockers
 
 _Nenhum._
